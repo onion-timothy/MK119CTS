@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration>
+	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+		<layout class="ch.qos.logback.classic.PatternLayout">
+			<Pattern>
+				%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-4level %logger.%method:%line - %msg%n
+			</Pattern>
+		</layout>
+	</appender>
+	
+	<appender name="LOGFILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>logs/server.log</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>logs-past/server-%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+			<maxHistory>10</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<Pattern>
+				%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-4level %logger.%method:%line - %msg%n
+			</Pattern>
+		</encoder>
+	</appender>
+	
+	<appender name="IODECODER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>logs/io.log</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>logs-past/io-%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+			<maxHistory>10</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<Pattern>
+				%d{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n
+			</Pattern>
+		</encoder>
+	</appender>
+	
+	<appender name="WEBAPI" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>logs/webapi.log</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>logs-past/webapi-%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+			<maxHistory>10</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<Pattern>
+				%d{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n
+			</Pattern>
+		</encoder>
+	</appender>
+	
+	<logger name="io" additivity="false">
+		<level value="INFO" />
+		<appender-ref ref="IODECODER" />
+		<appender-ref ref="CONSOLE" />
+	</logger>
+	<logger name="agent" additivity="false">
+		<level value="INFO" />
+		<appender-ref ref="LOGFILE" />
+		<appender-ref ref="CONSOLE" />
+	</logger>
+	<logger name="webapi" additivity="false">
+		<level value="INFO" />
+		<appender-ref ref="WEBAPI" />
+		<appender-ref ref="CONSOLE" />
+	</logger>
+	<root>
+		<level value="INFO" />
+		<appender-ref ref="CONSOLE" />
+		<appender-ref ref="LOGFILE" />
+	</root>
+</configuration>

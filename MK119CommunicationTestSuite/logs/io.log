@@ -1,0 +1,129 @@
+2024-01-17 11:19:16.039 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xd31fbb62]'
+2024-01-17 11:19:44.155 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x8b30c203]'
+2024-01-17 11:20:11.304 - RX : 0101000000103DC6
+2024-01-17 11:20:11.307 - ModbusDecoder format uid error: 1
+2024-01-17 11:20:53.140 - RX : 0101000000103DC6
+2024-01-17 11:20:53.140 - ModbusDecoder format uid error: 1
+2024-01-17 11:21:00.547 - RX : 0101000000103DC6
+2024-01-17 11:21:25.709 - ModbusDecoder format uid error: 1
+2024-01-17 13:10:17.927 - RX : 0101000000103DC6
+2024-01-17 13:10:21.573 - ModbusDecoder format uid error: 1
+2024-01-17 13:10:52.406 - RX : 0101000000103DC6
+2024-01-17 13:12:02.589 - ModbusDecoder format uid error: 1
+2024-01-17 13:12:28.994 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x1a17b8d8]'
+2024-01-17 13:16:32.658 - RX : 0101000000103DC6
+2024-01-17 13:17:36.215 - RX : 01020000001079C6
+2024-01-17 13:18:15.943 - RX : 01010000007DFC2B
+2024-01-17 13:21:17.210 - RX : 01010000007DFC2B
+2024-01-17 13:22:22.392 - RX : 0101007F007F4C32
+2024-01-17 13:23:49.090 - RX : 0101007F007F4C32
+2024-01-17 13:25:04.970 - RX : 0101007F007DCDF3
+2024-01-17 14:01:38.095 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x8bcb3373]'
+2024-01-17 14:02:35.960 - RX : 0101000000103DC6
+2024-01-17 14:03:01.565 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x71299679]'
+2024-01-17 14:05:21.777 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x0f892a2b]'
+2024-01-17 14:06:41.210 - RX : 0101000000103DC6
+2024-01-17 14:09:17.869 - RX : 0101000C000CFC0C
+2024-01-17 14:10:45.165 - RX : 0101000C000CFC0C
+2024-01-17 14:14:08.823 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xe65c3c79]'
+2024-01-17 14:16:32.303 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xdd25011b]'
+2024-01-17 14:19:46.416 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x18bfb7cd]'
+2024-01-17 14:20:32.862 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x4946bb9f]'
+2024-01-17 14:25:28.547 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xc3482a49]'
+2024-01-17 14:27:10.356 - RX : 0101000C000CFC0C
+2024-01-17 14:27:36.998 - RX : 0101000000103DC6
+2024-01-17 14:27:55.135 - RX : 0101000000203DD2
+2024-01-17 14:28:45.519 - RX : 0101000C000CFC0C
+2024-01-17 14:31:22.295 - RX : 0101000C000CFC0C
+2024-01-17 14:32:46.497 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x00c14de5]'
+2024-01-17 14:35:41.460 - RX : 0101000C000CFC0C
+2024-01-17 14:37:16.840 - RX : 0101000C000CFC0C
+2024-01-17 14:37:33.733 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x551900ca]'
+2024-01-17 14:37:53.876 - RX : 0101000C000CFC0C
+2024-01-17 14:41:48.705 - RX : 0101000C000CFC0C
+2024-01-17 14:42:08.691 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x2076da21]'
+2024-01-17 14:42:20.101 - RX : 0101000C000CFC0C
+2024-01-17 14:48:32.041 - RX : 0101000C000CFC0C
+2024-01-17 14:48:44.924 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xbfe1053e]'
+2024-01-17 14:48:50.055 - RX : 0101000C000CFC0C
+2024-01-17 14:49:14.309 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x5b5d21c9]'
+2024-01-17 14:49:17.917 - RX : 0101000C000CFC0C
+2024-01-17 14:50:35.291 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x34118bd7]'
+2024-01-17 14:52:13.037 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x3c3404ae]'
+2024-01-17 14:52:27.310 - RX : 0101000C000CFC0C
+2024-01-17 14:54:54.497 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x93ef89c5]'
+2024-01-17 14:54:59.359 - RX : 0101000C000CFC0C
+2024-01-17 14:55:43.982 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x5ec96ac0]'
+2024-01-17 14:55:46.943 - RX : 0101000C000CFC0C
+2024-01-17 14:56:01.994 - RX : 0101000C000CFC0C
+2024-01-17 14:56:38.591 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x28698dcf]'
+2024-01-17 14:56:46.942 - RX : 0101000C000CFC0C
+2024-01-17 14:59:16.905 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x9d697ce5]'
+2024-01-17 14:59:21.481 - RX : 0101000C000CFC0C
+2024-01-17 14:59:54.936 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x1e41214e]'
+2024-01-17 14:59:57.417 - RX : 0101000C000CFC0C
+2024-01-17 15:00:40.380 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x3cc5c3ba]'
+2024-01-17 15:00:44.652 - RX : 0101000C000CFC0C
+2024-01-17 15:01:45.933 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x804175cc]'
+2024-01-17 15:01:49.718 - RX : 0101000C000CFC0C
+2024-01-17 15:04:01.255 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x1ac96724]'
+2024-01-17 15:04:07.767 - RX : 0101000C0014FC06
+2024-01-17 15:04:39.233 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x56fd64a2]'
+2024-01-17 15:04:48.313 - RX : 0101000C0014FC06
+2024-01-17 15:05:07.830 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x3824d35f]'
+2024-01-17 15:05:19.105 - RX : 0101000C0014FC06
+2024-01-17 15:05:31.475 - RX : 0101000C000CFC0C
+2024-01-17 15:07:09.701 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x1ba00029]'
+2024-01-17 15:07:12.921 - RX : 0101000C000CFC0C
+2024-01-17 15:07:30.875 - RX : 0101000C0014FC06
+2024-01-17 15:08:34.003 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x8ce987e2]'
+2024-01-17 15:08:42.710 - RX : 0101000C0014FC06
+2024-01-17 15:10:04.071 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xaf914817]'
+2024-01-17 15:10:10.206 - RX : 0101000C0014FC06
+2024-01-17 15:10:18.035 - RX : 0101000C0014FC06
+2024-01-17 15:11:38.214 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x7a6f971b]'
+2024-01-17 15:11:52.311 - RX : 0101000C000CFC0C
+2024-01-17 15:12:03.700 - RX : 0101000C0014FC06
+2024-01-17 15:12:44.267 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x78dd0b48]'
+2024-01-17 15:12:57.897 - RX : 0101000C0014FC06
+2024-01-17 15:15:51.764 - RX : 0101000000103DC6
+2024-01-17 15:15:56.364 - RX : 0101000000103DC6
+2024-01-17 15:18:45.629 - RX : 0101000000183C00
+2024-01-17 15:29:44.077 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x6d4d840c]'
+2024-01-17 15:30:03.681 - RX : 0101000000103C00
+2024-01-17 15:30:03.684 - ModbusDecoder format crc error: 15360
+2024-01-17 15:30:15.590 - RX : 0101000000103DC6
+2024-01-17 15:31:46.211 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x255bebdb]'
+2024-01-17 15:31:54.025 - RX : 0101000000103DC6
+2024-01-17 15:34:39.420 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xd55141e3]'
+2024-01-17 15:34:42.931 - RX : 0101000000103DC6
+2024-01-17 16:21:43.565 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xd973081b]'
+2024-01-17 16:22:08.463 - RX : 0101000000103DC6
+2024-01-17 16:23:36.462 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x3adb88b1]'
+2024-01-17 16:23:54.410 - RX : 0101000000103DC6
+2024-01-17 16:25:30.223 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x05d8c59f]'
+2024-01-17 16:25:36.913 - RX : 0101000000103DC6
+2024-01-17 16:25:54.915 - RX : 0101001C001CFC05
+2024-01-17 16:26:37.276 - RX : 0101000C000CFC0C
+2024-01-17 16:28:21.652 - RX : 0101000C000CFC0C
+2024-01-17 16:42:43.936 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xb55cf885]'
+2024-01-17 16:42:55.946 - RX : 0101000000103DC6
+2024-01-17 16:43:18.318 - RX : 0101000C000CFC0C
+2024-01-17 16:45:25.936 - RX : 0101000C000E7DCD
+2024-01-17 16:45:57.270 - RX : 0101000C0018FC03
+2024-01-17 17:34:52.295 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x4ef9b8f7]'
+2024-01-17 17:35:31.887 - RX : 0103000000044409
+2024-01-17 17:35:56.491 - RX : 01030000007D85EB
+2024-01-17 17:36:11.827 - RX : 123400000006010300000004
+2024-01-17 17:36:11.828 - ModbusDecoder format uid error: 1
+2024-01-17 17:37:09.664 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x4badfa3b]'
+2024-01-17 17:37:36.110 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x9c765066]'
+2024-01-17 17:37:45.268 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xfe6ab11a]'
+2024-01-17 17:37:46.811 - RX : 000000000006010300000004
+2024-01-17 17:37:51.174 - ModbusDecoder format uid error: 1
+2024-01-17 17:38:11.732 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x843ef7dd]'
+2024-01-17 17:38:21.546 - RX : 000000000006010300000004
+2024-01-17 17:39:26.346 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x93935ad6]'
+2024-01-17 17:39:41.932 - RX : 01030000007D85EB
+2024-01-17 17:50:02.825 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0x9622f0ab]'
+2024-01-17 17:59:30.207 - Unknown channel option 'SO_SNDBUF' for channel '[id: 0xc51dab6f]'

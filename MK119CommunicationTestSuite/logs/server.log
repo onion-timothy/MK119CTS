@@ -1,0 +1,648 @@
+2024-01-17 11:19:12.870 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 33312 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 11:19:12.881 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 11:19:14.477 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 11:19:14.487 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 11:19:14.487 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 11:19:14.487 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 11:19:14.591 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 11:19:14.592 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1658 ms
+2024-01-17 11:19:14.803 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 11:19:14.887 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 11:19:15.178 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 11:19:15.203 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 11:19:15.212 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.881 seconds (JVM running for 3.389)
+2024-01-17 11:19:41.117 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 24228 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 11:19:41.120 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 11:19:42.463 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 11:19:42.475 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 11:19:42.475 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 11:19:42.475 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 11:19:42.566 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 11:19:42.566 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1404 ms
+2024-01-17 11:19:42.761 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 11:19:42.844 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 11:19:43.157 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 11:19:43.184 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 11:19:43.195 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.598 seconds (JVM running for 2.991)
+2024-01-17 13:12:25.404 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 41072 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 13:12:25.407 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 13:12:27.187 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 13:12:27.203 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 13:12:27.204 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 13:12:27.205 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 13:12:27.319 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 13:12:27.319 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1860 ms
+2024-01-17 13:12:27.560 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 13:12:27.669 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 13:12:28.028 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 13:12:28.057 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 13:12:28.071 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 3.305 seconds (JVM running for 3.798)
+2024-01-17 14:01:25.049 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 54208 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:01:25.356 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:01:36.014 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:01:36.027 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:01:36.028 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:01:36.028 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:01:36.153 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:01:36.154 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 10232 ms
+2024-01-17 14:01:36.435 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:01:36.547 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:01:36.951 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:01:36.983 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:01:36.996 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 13.564 seconds (JVM running for 14.001)
+2024-01-17 14:02:57.720 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 44388 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:02:57.735 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:02:59.676 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:02:59.691 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:02:59.692 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:02:59.692 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:02:59.827 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:02:59.828 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1800 ms
+2024-01-17 14:03:00.089 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:03:00.194 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:03:00.563 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:03:00.593 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:03:00.608 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 3.557 seconds (JVM running for 4.032)
+2024-01-17 14:05:15.166 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 53268 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:05:15.170 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:05:17.749 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:05:17.927 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:05:17.928 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:05:17.928 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:05:18.507 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:05:18.507 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 3282 ms
+2024-01-17 14:05:19.139 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:05:19.352 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:05:20.405 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:05:20.556 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:05:20.566 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 5.951 seconds (JVM running for 6.402)
+2024-01-17 14:14:05.809 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 15200 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:14:05.813 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:14:07.260 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:14:07.274 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:14:07.275 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:14:07.275 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:14:07.376 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:14:07.376 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1512 ms
+2024-01-17 14:14:07.564 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:14:07.645 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:14:07.951 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:14:07.976 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:14:07.985 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.712 seconds (JVM running for 3.137)
+2024-01-17 14:16:29.403 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 53848 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:16:29.407 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:16:30.765 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:16:30.775 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:16:30.776 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:16:30.776 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:16:30.858 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:16:30.858 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1406 ms
+2024-01-17 14:16:31.068 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:16:31.149 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:16:31.435 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:16:31.457 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:16:31.466 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.662 seconds (JVM running for 3.077)
+2024-01-17 14:19:43.435 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 26628 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:19:43.451 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:19:44.872 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:19:44.883 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:19:44.884 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:19:44.884 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:19:44.969 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:19:44.969 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1471 ms
+2024-01-17 14:19:45.158 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:19:45.252 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:19:45.553 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:19:45.575 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:19:45.584 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.641 seconds (JVM running for 3.065)
+2024-01-17 14:20:29.681 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 26804 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:20:29.698 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:20:31.184 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:20:31.195 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:20:31.195 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:20:31.195 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:20:31.285 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:20:31.285 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1535 ms
+2024-01-17 14:20:31.492 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:20:31.596 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:20:31.920 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:20:31.947 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:20:31.958 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.803 seconds (JVM running for 3.196)
+2024-01-17 14:25:25.489 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 41780 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:25:25.491 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:25:27.063 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:25:27.074 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:25:27.074 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:25:27.074 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:25:27.157 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:25:27.157 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1614 ms
+2024-01-17 14:25:27.342 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:25:27.426 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:25:27.711 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:25:27.734 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:25:27.743 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.776 seconds (JVM running for 3.191)
+2024-01-17 14:32:43.322 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 29756 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:32:43.325 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:32:44.949 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:32:44.960 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:32:44.961 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:32:44.961 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:32:45.051 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:32:45.051 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1682 ms
+2024-01-17 14:32:45.240 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:32:45.321 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:32:45.633 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:32:45.657 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:32:45.667 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.863 seconds (JVM running for 3.258)
+2024-01-17 14:37:30.826 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 26916 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:37:30.829 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:37:32.193 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:37:32.205 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:37:32.206 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:37:32.206 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:37:32.292 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:37:32.292 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1414 ms
+2024-01-17 14:37:32.487 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:37:32.566 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:37:32.852 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:37:32.875 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:37:32.885 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.585 seconds (JVM running for 2.992)
+2024-01-17 14:42:05.835 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 31864 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:42:05.838 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:42:07.189 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:42:07.201 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:42:07.201 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:42:07.201 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:42:07.288 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:42:07.288 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1406 ms
+2024-01-17 14:42:07.478 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:42:07.564 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:42:07.843 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:42:07.866 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:42:07.876 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.548 seconds (JVM running for 2.958)
+2024-01-17 14:48:41.815 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 52900 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:48:41.819 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:48:43.290 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:48:43.301 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:48:43.302 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:48:43.302 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:48:43.388 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:48:43.388 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1522 ms
+2024-01-17 14:48:43.578 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:48:43.661 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:48:43.967 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:48:43.992 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:48:44.003 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.724 seconds (JVM running for 3.17)
+2024-01-17 14:49:11.275 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 18960 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:49:11.291 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:49:12.680 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:49:12.691 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:49:12.691 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:49:12.691 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:49:12.781 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:49:12.781 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1439 ms
+2024-01-17 14:49:12.965 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:49:13.048 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:49:13.368 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:49:13.392 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:49:13.403 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.661 seconds (JVM running for 3.078)
+2024-01-17 14:50:32.426 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 42168 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:50:32.429 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:50:33.781 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:50:33.791 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:50:33.792 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:50:33.792 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:50:33.876 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:50:33.876 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1396 ms
+2024-01-17 14:50:34.063 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:50:34.152 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:50:34.442 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:50:34.464 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:50:34.475 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.63 seconds (JVM running for 3.039)
+2024-01-17 14:52:09.842 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 54120 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:52:09.859 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:52:11.377 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:52:11.389 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:52:11.390 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:52:11.390 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:52:11.487 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:52:11.488 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1581 ms
+2024-01-17 14:52:11.744 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:52:11.859 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:52:12.153 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:52:12.175 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:52:12.189 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.879 seconds (JVM running for 3.283)
+2024-01-17 14:54:51.628 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 52660 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:54:51.632 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:54:52.989 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:54:53.000 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:54:53.000 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:54:53.001 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:54:53.084 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:54:53.084 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1405 ms
+2024-01-17 14:54:53.272 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:54:53.358 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:54:53.647 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:54:53.670 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:54:53.679 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.567 seconds (JVM running for 2.958)
+2024-01-17 14:55:40.891 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 45576 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:55:40.894 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:55:42.312 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:55:42.323 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:55:42.324 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:55:42.324 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:55:42.423 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:55:42.425 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1484 ms
+2024-01-17 14:55:42.695 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:55:42.791 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:55:43.116 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:55:43.140 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:55:43.151 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.772 seconds (JVM running for 3.171)
+2024-01-17 14:56:35.698 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 25512 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:56:35.703 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:56:37.076 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:56:37.087 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:56:37.088 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:56:37.088 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:56:37.169 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:56:37.169 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1415 ms
+2024-01-17 14:56:37.356 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:56:37.439 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:56:37.726 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:56:37.749 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:56:37.758 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.65 seconds (JVM running for 3.07)
+2024-01-17 14:59:13.971 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 52088 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:59:13.984 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:59:15.352 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:59:15.363 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:59:15.364 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:59:15.364 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:59:15.450 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:59:15.450 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1417 ms
+2024-01-17 14:59:15.653 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:59:15.738 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:59:16.031 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:59:16.052 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:59:16.061 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.596 seconds (JVM running for 3.015)
+2024-01-17 14:59:51.700 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 34512 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 14:59:51.704 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 14:59:53.399 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 14:59:53.411 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:59:53.411 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 14:59:53.412 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 14:59:53.497 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 14:59:53.498 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1738 ms
+2024-01-17 14:59:53.685 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 14:59:53.773 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 14:59:54.074 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 14:59:54.099 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 14:59:54.111 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.966 seconds (JVM running for 3.381)
+2024-01-17 15:00:37.218 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 3388 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:00:37.223 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:00:38.726 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:00:38.738 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:00:38.738 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:00:38.738 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:00:38.828 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:00:38.828 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1558 ms
+2024-01-17 15:00:39.028 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:00:39.115 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:00:39.452 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:00:39.476 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:00:39.485 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.793 seconds (JVM running for 3.182)
+2024-01-17 15:01:42.820 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 21444 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:01:42.825 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:01:44.405 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:01:44.417 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:01:44.418 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:01:44.418 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:01:44.501 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:01:44.502 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1609 ms
+2024-01-17 15:01:44.687 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:01:44.778 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:01:45.074 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:01:45.099 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:01:45.109 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.843 seconds (JVM running for 3.271)
+2024-01-17 15:03:58.136 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 53396 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:03:58.140 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:03:59.630 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:03:59.645 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:03:59.645 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:03:59.646 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:03:59.736 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:03:59.736 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1551 ms
+2024-01-17 15:03:59.946 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:04:00.046 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:04:00.358 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:04:00.381 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:04:00.393 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.782 seconds (JVM running for 3.204)
+2024-01-17 15:04:36.340 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 29552 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:04:36.345 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:04:37.705 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:04:37.716 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:04:37.716 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:04:37.717 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:04:37.808 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:04:37.808 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1417 ms
+2024-01-17 15:04:37.998 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:04:38.083 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:04:38.375 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:04:38.397 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:04:38.406 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.588 seconds (JVM running for 3.004)
+2024-01-17 15:05:04.804 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 28916 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:05:04.819 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:05:06.260 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:05:06.270 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:05:06.271 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:05:06.271 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:05:06.366 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:05:06.367 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1501 ms
+2024-01-17 15:05:06.552 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:05:06.633 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:05:06.914 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:05:06.937 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:05:06.947 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.668 seconds (JVM running for 3.068)
+2024-01-17 15:07:06.735 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 52476 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:07:06.738 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:07:08.170 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:07:08.180 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:07:08.181 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:07:08.181 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:07:08.262 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:07:08.262 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1480 ms
+2024-01-17 15:07:08.457 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:07:08.545 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:07:08.840 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:07:08.864 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:07:08.873 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.65 seconds (JVM running for 3.103)
+2024-01-17 15:08:30.803 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 48032 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:08:30.819 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:08:32.341 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:08:32.354 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:08:32.355 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:08:32.356 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:08:32.486 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:08:32.487 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1614 ms
+2024-01-17 15:08:32.780 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:08:32.869 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:08:33.155 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:08:33.180 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:08:33.189 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.922 seconds (JVM running for 3.349)
+2024-01-17 15:10:01.004 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 22620 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:10:01.007 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:10:02.507 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:10:02.518 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:10:02.518 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:10:02.519 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:10:02.601 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:10:02.602 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1547 ms
+2024-01-17 15:10:02.799 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:10:02.889 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:10:03.214 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:10:03.237 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:10:03.250 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.794 seconds (JVM running for 3.199)
+2024-01-17 15:11:35.294 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 16316 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:11:35.309 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:11:36.675 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:11:36.686 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:11:36.687 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:11:36.687 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:11:36.774 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:11:36.774 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1420 ms
+2024-01-17 15:11:36.974 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:11:37.059 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:11:37.347 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:11:37.368 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:11:37.378 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.581 seconds (JVM running for 2.981)
+2024-01-17 15:12:41.386 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 41204 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:12:41.389 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:12:42.752 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:12:42.763 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:12:42.764 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:12:42.764 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:12:42.856 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:12:42.857 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1424 ms
+2024-01-17 15:12:43.045 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:12:43.127 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:12:43.413 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:12:43.433 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:12:43.444 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.597 seconds (JVM running for 3.012)
+2024-01-17 15:29:41.104 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 23768 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:29:41.106 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:29:42.505 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:29:42.516 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:29:42.517 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:29:42.517 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:29:42.601 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:29:42.601 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1444 ms
+2024-01-17 15:29:42.790 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:29:42.887 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:29:43.183 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:29:43.209 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:29:43.223 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.652 seconds (JVM running for 3.072)
+2024-01-17 15:31:43.222 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 51288 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:31:43.225 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:31:44.662 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:31:44.673 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:31:44.674 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:31:44.674 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:31:44.760 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:31:44.760 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1484 ms
+2024-01-17 15:31:44.970 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:31:45.059 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:31:45.367 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:31:45.390 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:31:45.401 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.762 seconds (JVM running for 3.176)
+2024-01-17 15:34:36.311 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 50684 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 15:34:36.314 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 15:34:37.859 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 15:34:37.870 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:34:37.870 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 15:34:37.871 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 15:34:37.951 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 15:34:37.952 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1592 ms
+2024-01-17 15:34:38.138 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 15:34:38.223 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 15:34:38.524 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 15:34:38.549 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 15:34:38.560 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.784 seconds (JVM running for 3.191)
+2024-01-17 16:21:40.554 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 49264 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 16:21:40.557 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 16:21:42.001 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 16:21:42.012 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:21:42.013 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 16:21:42.013 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 16:21:42.097 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 16:21:42.098 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1493 ms
+2024-01-17 16:21:42.290 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 16:21:42.373 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 16:21:42.670 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:21:42.696 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 16:21:42.708 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.708 seconds (JVM running for 3.24)
+2024-01-17 16:23:33.544 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 47984 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 16:23:33.558 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 16:23:34.941 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 16:23:34.953 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:23:34.953 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 16:23:34.954 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 16:23:35.042 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 16:23:35.043 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1440 ms
+2024-01-17 16:23:35.226 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 16:23:35.314 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 16:23:35.609 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:23:35.633 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 16:23:35.643 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.596 seconds (JVM running for 3.007)
+2024-01-17 16:25:27.352 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 22596 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 16:25:27.354 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 16:25:28.719 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 16:25:28.731 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:25:28.732 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 16:25:28.732 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 16:25:28.816 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 16:25:28.816 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1411 ms
+2024-01-17 16:25:28.998 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 16:25:29.081 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 16:25:29.369 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:25:29.396 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 16:25:29.407 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.648 seconds (JVM running for 3.085)
+2024-01-17 16:42:40.989 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 40264 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 16:42:40.992 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 16:42:42.357 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 16:42:42.371 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:42:42.372 [main] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 16:42:42.372 [main] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 16:42:42.460 [main] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 16:42:42.460 [main] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1423 ms
+2024-01-17 16:42:42.668 [main] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 16:42:42.760 [main] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 16:42:43.077 [main] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 16:42:43.105 [main] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 16:42:43.117 [main] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 2.751 seconds (JVM running for 3.182)
+2024-01-17 17:34:48.044 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 50644 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:34:48.048 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:34:48.106 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-01-17 17:34:48.107 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-01-17 17:34:49.921 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:34:49.934 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:34:49.934 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:34:49.934 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:34:50.021 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:34:50.021 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1913 ms
+2024-01-17 17:34:50.236 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:34:50.329 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:34:51.387 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:34:51.400 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:34:51.424 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:34:51.435 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 3.942 seconds (JVM running for 4.452)
+2024-01-17 17:37:09.067 [Thread-5] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.shutdown:218 - Shutting down ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:37:09.155 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 50644 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:37:09.156 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:37:09.472 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:37:09.473 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:37:09.473 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:37:09.473 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:37:09.501 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:37:09.502 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 343 ms
+2024-01-17 17:37:09.549 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:37:09.560 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:37:09.616 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:37:09.620 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:37:09.623 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:37:09.627 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.513 seconds (JVM running for 142.642)
+2024-01-17 17:37:09.628 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.ConditionEvaluationDeltaLoggingListener.onApplicationEvent:63 - Condition evaluation unchanged
+2024-01-17 17:37:35.593 [Thread-9] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.shutdown:218 - Shutting down ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:37:35.674 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 50644 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:37:35.674 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:37:35.941 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:37:35.941 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:37:35.941 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:37:35.942 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:37:35.968 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:37:35.969 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 291 ms
+2024-01-17 17:37:36.010 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:37:36.019 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:37:36.063 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:37:36.067 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:37:36.071 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:37:36.074 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.446 seconds (JVM running for 169.09)
+2024-01-17 17:37:36.075 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.ConditionEvaluationDeltaLoggingListener.onApplicationEvent:63 - Condition evaluation unchanged
+2024-01-17 17:37:44.785 [Thread-15] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.shutdown:218 - Shutting down ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:37:44.865 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 50644 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:37:44.865 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:37:45.119 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:37:45.120 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:37:45.120 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:37:45.120 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:37:45.142 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:37:45.142 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 273 ms
+2024-01-17 17:37:45.178 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:37:45.189 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:37:45.229 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:37:45.233 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:37:45.236 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:37:45.239 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.409 seconds (JVM running for 178.254)
+2024-01-17 17:37:45.240 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.ConditionEvaluationDeltaLoggingListener.onApplicationEvent:63 - Condition evaluation unchanged
+2024-01-17 17:38:07.643 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 25568 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:38:07.646 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:38:07.691 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-01-17 17:38:07.692 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-01-17 17:38:09.405 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:38:09.417 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:38:09.418 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:38:09.418 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:38:09.500 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:38:09.501 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 1809 ms
+2024-01-17 17:38:09.708 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:38:09.812 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:38:10.738 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:38:10.753 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:38:10.782 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:38:10.795 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 3.658 seconds (JVM running for 4.142)
+2024-01-17 17:39:25.782 [Thread-5] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.shutdown:218 - Shutting down ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:39:25.870 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 25568 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:39:25.870 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:39:26.175 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:39:26.176 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:39:26.176 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:39:26.176 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:39:26.199 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:39:26.200 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 327 ms
+2024-01-17 17:39:26.242 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:39:26.257 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:39:26.303 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:39:26.307 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:39:26.311 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:39:26.314 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.485 seconds (JVM running for 79.661)
+2024-01-17 17:39:26.315 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.ConditionEvaluationDeltaLoggingListener.onApplicationEvent:63 - Condition evaluation unchanged
+2024-01-17 17:50:02.169 [Thread-9] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.shutdown:218 - Shutting down ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:50:02.279 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 25568 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:50:02.279 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:50:02.622 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:50:02.623 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:50:02.623 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:50:02.624 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:50:02.662 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:50:02.662 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 377 ms
+2024-01-17 17:50:02.718 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:50:02.728 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:50:02.778 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:50:02.781 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:50:02.785 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:50:02.788 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.57 seconds (JVM running for 716.132)
+2024-01-17 17:50:02.790 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.ConditionEvaluationDeltaLoggingListener.onApplicationEvent:63 - Condition evaluation unchanged
+2024-01-17 17:59:29.739 [Thread-15] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.shutdown:218 - Shutting down ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:59:29.822 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 11.0.7 on timothy with PID 25568 (C:\onion_dev\workspace\personal\MK119CommunicationTestSuite\build\classes\java\main started by Timothy in C:\onion_dev\workspace\personal\MK119CommunicationTestSuite)
+2024-01-17 17:59:29.822 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-01-17 17:59:30.060 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-01-17 17:59:30.060 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:59:30.061 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-01-17 17:59:30.061 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-01-17 17:59:30.084 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-01-17 17:59:30.084 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 259 ms
+2024-01-17 17:59:30.120 [restartedMain] INFO org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.initialize:181 - Initializing ExecutorService 'applicationTaskExecutor'
+2024-01-17 17:59:30.130 [restartedMain] INFO org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping.<init>:57 - Adding welcome page template: index
+2024-01-17 17:59:30.170 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-01-17 17:59:30.173 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-01-17 17:59:30.176 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-01-17 17:59:30.178 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.39 seconds (JVM running for 1283.518)
+2024-01-17 17:59:30.179 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.ConditionEvaluationDeltaLoggingListener.onApplicationEvent:63 - Condition evaluation unchanged
