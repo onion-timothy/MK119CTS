@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.onionsoftware.mk119.commtestsuite.db.mapper.DeviceMapper">
+    <update id="createScheme">
+        IF NOT EXISTS (SELECT *
+                       FROM sysobjects
+                       WHERE name = 'DEVICES'
+                         and xtype = 'U')
+        CREATE TABLE cts.dbo.DEVICES
+        (
+            id                       int IDENTITY (1,1) NOT NULL,
+            intTransport             int                NOT NULL,
+            intProtocol              int                NOT NULL,
+            host                     nvarchar(200)      NOT NULL,
+            port                     int                NOT NULL,
+            name                     nvarchar(50)       NOT NULL,
+            enabled                  int                NOT NULL,
+            group_id                 int                NOT NULL,
+            strCommunicationSettings text               NOT NULL
+                CONSTRAINT DEVICES_PK PRIMARY KEY (id),
+            CONSTRAINT DEVICES_UNIQUE UNIQUE (name)
+        );
+    </update>
+
+    <select id="selectDevices" resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Device">
+        SELECT *
+        FROM DEVICES
+    </select>
+
+    <select id="selectDevicesByGroupId" parameterType="java.lang.Integer"
+            resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Device">
+        SELECT *
+        FROM DEVICES
+        WHERE group_id = #{group_id}
+    </select>
+
+    <select id="selectDevice" parameterType="java.lang.Integer"
+            resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Device">
+        SELECT *
+        FROM DEVICES
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insertDevice" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Device">
+        INSERT INTO DEVICES(intTransport, intProtocol, host, port, name, enabled, group_id, strCommunicationSettings)
+        VALUES (#{intTransport}, #{intProtocol}, #{host}, #{port}, #{name}, #{enabled}, #{group_id},
+                #{strCommunicationSettings})
+    </insert>
+
+    <delete id="deleteDevice" parameterType="java.lang.Integer">
+        DELETE
+        FROM DEVICES
+        WHERE id = #{id}
+    </delete>
+
+    <update id="updateDevice">
+        UPDATE DEVICES
+        SET intTransport             = #{intTransport},
+            intProtocol              = #{intProtocol},
+            host                     = #{host},
+            port                     = #{port},
+            name                     = #{name},
+            enabled                  = #{enabled},
+            group_id                 = #{group_id},
+            strCommunicationSettings = #{strCommunicationSettings}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectDeviceEnabled" parameterType="java.lang.Integer" resultType="java.lang.Integer">
+        SELECT enabled
+        FROM DEVICES
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateDeviceEnabled" parameterType="java.lang.Integer">
+        UPDATE DEVICES
+        SET enabled = #{enabled}
+        WHERE id = #{id}
+    </update>
+
+    <select id="identDevices" resultType="java.lang.Integer">
+        SELECT IDENT_CURRENT('DEVICES')
+    </select>
+</mapper>

@@ -41,7 +41,7 @@
 			"field_id":"payload",
 			"field_type":"ITERATION",
 			"data_type":"SI16AB",
-			"value":"rand(100)",
+			"value":null,
 			"iteration_count":"${register_count}"
 		}
 	]

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.onionsoftware.mk119.commtestsuite.db.mapper.SimulationMapper">
+    <update id="createScheme">
+        IF NOT EXISTS (SELECT *
+                       FROM sysobjects
+                       WHERE name = 'SIMULATIONS'
+                         and xtype = 'U')
+        CREATE TABLE cts.dbo.SIMULATIONS
+        (
+            id         int IDENTITY (1,1)                        NOT NULL,
+            device_id  int                                       NOT NULL,
+            target     text COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+            strPolicy  text COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+            [interval] int                                       NOT NULL,
+            enabled    int                                       NOT NULL
+                CONSTRAINT SIMULATIONS_PK PRIMARY KEY (id),
+            CONSTRAINT FK_SIMULATIONS_DEVICES FOREIGN KEY (device_id) REFERENCES cts.dbo.DEVICES (id) ON DELETE CASCADE ON UPDATE CASCADE
+        );
+    </update>
+
+    <select id="selectSimulationsByDeviceId" parameterType="java.lang.Integer"
+            resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Simulation">
+        SELECT *
+        FROM SIMULATIONS
+        WHERE device_id = #{device_id}
+    </select>
+
+    <insert id="insertSimulation" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Simulation">
+        INSERT INTO SIMULATIONS(device_id, target, strPolicy, interval, enabled)
+        VALUES (#{device_id}, #{target}, #{strPolicy}, #{interval}, #{enabled});
+    </insert>
+
+    <select id="selectSimulation" parameterType="java.lang.Integer"
+            resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Simulation">
+        SELECT *
+        FROM SIMULATIONS
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectSimulationEnabled" parameterType="java.lang.Integer" resultType="java.lang.Integer">
+        SELECT enabled
+        FROM SIMULATIONS
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateSimulationEnabled" parameterType="java.lang.Integer">
+        UPDATE SIMULATIONS
+        SET enabled = #{enabled}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteSimulation" parameterType="java.lang.Integer">
+        DELETE
+        FROM SIMULATIONS
+        WHERE id = #{id}
+    </delete>
+
+    <update id="updateSimulation">
+        UPDATE SIMULATIONS
+        SET target    = #{target},
+            strPolicy = #{strPolicy},
+            interval  = #{interval},
+            enabled   = #{enabled}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectSimulations" resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Simulation">
+        SELECT *
+        FROM SIMULATIONS
+    </select>
+
+    <delete id="deleteSimulationByDeviceId" parameterType="java.lang.Integer">
+        DELETE
+        FROM SIMULATIONS
+        WHERE device_id = #{device_id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.onionsoftware.mk119.commtestsuite.db.mapper.GroupMapper">
+    <update id="createScheme">
+        IF
+        NOT EXISTS (SELECT * FROM sysobjects WHERE name='GROUPS' and xtype='U')
+        BEGIN
+        CREATE TABLE cts.dbo.GROUPS
+        (
+            id        int IDENTITY(1,1) NOT NULL,
+            parent_id int NOT NULL,
+            name      nvarchar(50) NOT NULL,
+            CONSTRAINT GROUPS_UNIQUE UNIQUE (parent_id, name)
+        );
+        INSERT INTO GROUPS (parent_id, name)
+        VALUES (0, 'ROOT')
+        END
+    </update>
+
+    <select id="selectGroups" resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Group">
+        SELECT *
+        FROM GROUPS
+    </select>
+
+    <select id="selectGroupsByParentId" parameterType="java.lang.Integer"
+            resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Group">
+        SELECT *
+        FROM GROUPS
+        WHERE parent_id = #{parent_id}
+    </select>
+
+    <insert id="insertGroup" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Group">
+        INSERT INTO GROUPS(parent_id, name)
+        VALUES (#{parent_id}, #{name})
+    </insert>
+
+    <delete id="deleteGroup" parameterType="java.lang.Integer">
+        DELETE
+        FROM GROUPS
+        WHERE id = #{id}
+    </delete>
+
+    <update id="renameGroup" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Group">
+        UPDATE GROUPS
+        SET name = #{name}
+        WHERE id = #{id}
+    </update>
+</mapper>

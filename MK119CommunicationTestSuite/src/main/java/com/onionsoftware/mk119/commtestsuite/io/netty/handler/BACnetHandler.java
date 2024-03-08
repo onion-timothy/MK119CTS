@@ -1,0 +1,96 @@
+package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
+
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
+import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.socket.DatagramPacket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.InetSocketAddress;
+import java.util.Optional;
+
+import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
+
+public class BACnetHandler extends ChannelInboundHandlerAdapter {
+    private final Logger logger = LoggerFactory.getLogger("io");
+
+    public BACnetHandler() {
+    }
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        if (msg instanceof BACnetPacket) {
+            BACnetService bacnetService = BACnetService.getInstance();
+            if (msg instanceof BACnetWhois) {
+                for (Device device : bacnetService.getBacnetDevices()) {
+                    ByteBuf buf = ((BACnetWhois) msg).encodeBACnetWhois(device);
+                    if (buf != null)
+                        ctx.writeAndFlush(new DatagramPacket(buf, new InetSocketAddress(device.getCommunicationSettings().get("broadcast").toString(), 0xbac0)));
+                }
+            } else if (msg instanceof BACnetReadProperty) {
+                BACnetReadProperty readProperty = (BACnetReadProperty) msg;
+                byte instanceNumberSADR = readProperty.getBacnetNPDU().getSadr()[readProperty.getBacnetNPDU().getSadr().length - 1];
+                int instanceNumber = readProperty.getOid().getInstance_number();
+
+                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(
+                        e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) ==
+                                (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device ? instanceNumber : instanceNumberSADR)).findFirst();
+                if (deviceOptional.isPresent()) {
+                    ByteBuf buf = BACnetReadProperty.encodeBACnetReadProperty(deviceOptional.get(), readProperty);
+                    if (buf != null) {
+                        ctx.writeAndFlush(new DatagramPacket(buf, readProperty.getSender()));
+                    } else {
+                        logger.error("BACnet error occur process readProperty {}", readProperty.getSender());
+                        BACnetError error = getBACnetError();
+                        ctx.writeAndFlush(new DatagramPacket(
+                                error.encodeBACnetError(
+                                        deviceOptional.get(),
+                                        readProperty.getBacnetAPDU().getInvoke_id(),
+                                        readProperty.getBacnetAPDU().getService_choice()),
+                                readProperty.getSender()));
+                    }
+                }
+            } else if (msg instanceof BACnetReadPropertyMultiple) {
+                BACnetReadPropertyMultiple readPropertyMultiple = (BACnetReadPropertyMultiple) msg;
+                byte instanceNumberSADR = readPropertyMultiple.getBacnetNPDU().getSadr()[readPropertyMultiple.getBacnetNPDU().getSadr().length - 1];
+
+                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(
+                        e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
+                if (deviceOptional.isPresent()) {
+                    ByteBuf buf = BACnetReadPropertyMultiple.encodeBACnetReadProperty(deviceOptional.get(), readPropertyMultiple);
+                    if (buf != null) {
+                        ctx.writeAndFlush(new DatagramPacket(buf, readPropertyMultiple.getSender()));
+                    } else {
+                        logger.error("BACnet error occur process readPropertyMultiple {}", readPropertyMultiple.getSender());
+                        BACnetError error = getBACnetError();
+                        ctx.writeAndFlush(new DatagramPacket(
+                                error.encodeBACnetError(
+                                        deviceOptional.get(),
+                                        readPropertyMultiple.getBacnetAPDU().getInvoke_id(),
+                                        readPropertyMultiple.getBacnetAPDU().getService_choice()
+                                ), readPropertyMultiple.getSender()));
+                    }
+                }
+            }
+        }
+    }
+
+    private static BACnetError getBACnetError() {
+        BACnetUnsignedInteger errorClass = new BACnetUnsignedInteger(0);
+        errorClass.setTagClass(BACNET_TAG_CLASS_APPLICATION);
+        errorClass.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_ENUMERATED);
+        errorClass.setLength((byte) 1);
+
+        BACnetUnsignedInteger errorCode = new BACnetUnsignedInteger(0);
+        errorCode.setTagClass(BACNET_TAG_CLASS_APPLICATION);
+        errorCode.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_ENUMERATED);
+        errorCode.setLength((byte) 1);
+
+        return new BACnetError(errorClass, errorCode);
+    }
+}

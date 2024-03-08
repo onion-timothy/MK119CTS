@@ -1,0 +1,185 @@
+2024-03-08 10:30:26.477 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 10:30:26.487 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 13:04:46.529 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 83891 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 13:04:46.530 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 13:04:46.550 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 13:04:46.550 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 13:04:46.550 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 13:04:47.014 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 13:04:47.018 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:04:47.019 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 13:04:47.019 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 13:04:47.045 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 13:04:47.045 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 494 ms
+2024-03-08 13:04:47.350 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 13:04:47.359 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:04:47.368 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 13:04:47.373 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 1.088 seconds (JVM running for 1.393)
+2024-03-08 13:04:47.379 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 13:04:47.509 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 13:06:33.630 [HikariPool-1 housekeeper] WARN com.zaxxer.hikari.pool.HikariPool.run:787 - HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=46s4ms).
+2024-03-08 13:06:52.984 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 13:06:52.986 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 13:07:18.994 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 84473 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 13:07:18.995 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 13:07:19.012 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 13:07:19.012 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 13:07:19.013 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 13:07:19.425 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 13:07:19.429 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:07:19.430 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 13:07:19.430 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 13:07:19.455 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 13:07:19.455 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 442 ms
+2024-03-08 13:07:19.753 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 13:07:19.762 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:07:19.771 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 13:07:19.776 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.968 seconds (JVM running for 1.215)
+2024-03-08 13:07:19.782 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 13:07:19.902 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 13:07:37.358 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 13:07:37.359 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 13:08:48.451 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 84743 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 13:08:48.452 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 13:08:48.471 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 13:08:48.471 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 13:08:48.471 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 13:08:48.922 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 13:08:48.927 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:08:48.927 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 13:08:48.927 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 13:08:48.955 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 13:08:48.955 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 484 ms
+2024-03-08 13:08:49.268 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 13:08:49.277 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:08:49.287 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 13:08:49.292 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 1.045 seconds (JVM running for 1.298)
+2024-03-08 13:08:49.299 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 13:08:49.427 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 13:10:28.787 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 13:10:28.788 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 13:11:07.005 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 85147 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 13:11:07.006 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 13:11:07.024 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 13:11:07.024 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 13:11:07.024 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 13:11:07.453 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 13:11:07.457 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:11:07.457 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 13:11:07.457 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 13:11:07.483 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 13:11:07.484 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 460 ms
+2024-03-08 13:11:07.808 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 13:11:07.816 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:11:07.826 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 13:11:07.831 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 1.004 seconds (JVM running for 1.246)
+2024-03-08 13:11:07.837 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 13:11:07.966 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 13:14:03.384 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 13:14:03.386 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 13:14:06.799 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 85671 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 13:14:06.800 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 13:14:06.817 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 13:14:06.817 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 13:14:06.818 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 13:14:07.220 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 13:14:07.224 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:14:07.224 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 13:14:07.225 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 13:14:07.250 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 13:14:07.250 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 432 ms
+2024-03-08 13:14:07.542 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 13:14:07.550 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:14:07.560 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 13:14:07.565 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.934 seconds (JVM running for 1.174)
+2024-03-08 13:14:07.572 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 13:14:07.693 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 13:14:57.745 [http-nio-8081-exec-1] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2024-03-08 13:14:57.745 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:525 - Initializing Servlet 'dispatcherServlet'
+2024-03-08 13:14:57.746 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:547 - Completed initialization in 1 ms
+2024-03-08 13:20:30.119 [HikariPool-1 housekeeper] WARN com.zaxxer.hikari.pool.HikariPool.run:787 - HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=52s281ms).
+2024-03-08 13:20:30.184 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 13:20:30.184 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 13:20:45.251 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 87065 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 13:20:45.253 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 13:20:45.271 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 13:20:45.272 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 13:20:45.272 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 13:20:45.698 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 13:20:45.702 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:20:45.702 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 13:20:45.702 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 13:20:45.728 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 13:20:45.728 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 456 ms
+2024-03-08 13:20:46.035 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 13:20:46.045 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 13:20:46.054 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 13:20:46.059 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.982 seconds (JVM running for 1.219)
+2024-03-08 13:20:46.066 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 13:20:46.176 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 13:49:19.577 [http-nio-8081-exec-1] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2024-03-08 13:49:19.578 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:525 - Initializing Servlet 'dispatcherServlet'
+2024-03-08 13:49:19.579 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:547 - Completed initialization in 1 ms
+2024-03-08 14:16:43.653 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 14:16:43.654 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 14:17:58.502 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 448 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 14:17:58.504 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 14:17:58.528 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 14:17:58.528 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 14:17:58.528 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 14:17:58.981 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 14:17:58.985 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 14:17:58.985 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 14:17:58.985 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 14:17:59.006 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 14:17:59.006 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 477 ms
+2024-03-08 14:17:59.322 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 14:17:59.330 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 14:17:59.340 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 14:17:59.345 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 1.084 seconds (JVM running for 1.336)
+2024-03-08 14:17:59.351 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 14:17:59.489 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 14:25:12.050 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 14:25:12.052 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 14:25:14.113 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 2373 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 14:25:14.115 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 14:25:14.144 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 14:25:14.145 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 14:25:14.145 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 14:25:14.578 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 14:25:14.582 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 14:25:14.583 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 14:25:14.583 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 14:25:14.603 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 14:25:14.603 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 458 ms
+2024-03-08 14:25:14.905 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 14:25:14.914 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 14:25:14.924 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 14:25:14.929 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 0.987 seconds (JVM running for 1.237)
+2024-03-08 14:25:14.936 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 14:25:15.059 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 14:25:19.607 [http-nio-8081-exec-1] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2024-03-08 14:25:19.607 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:525 - Initializing Servlet 'dispatcherServlet'
+2024-03-08 14:25:19.608 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:547 - Completed initialization in 1 ms
+2024-03-08 14:25:51.856 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:350 - HikariPool-1 - Shutdown initiated...
+2024-03-08 14:25:51.857 [SpringContextShutdownHook] INFO com.zaxxer.hikari.HikariDataSource.close:352 - HikariPool-1 - Shutdown completed.
+2024-03-08 14:28:22.679 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarting:55 - Starting Mk119CommunicationTestSuiteApplication using Java 1.8.0_402 on Gangyeonui-MacBookPro.local with PID 2978 (/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/out/production/classes started by gangyeonkim in /Users/gangyeonkim/MK119CTS)
+2024-03-08 14:28:22.680 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStartupProfileInfo:662 - No active profile set, falling back to default profiles: default
+2024-03-08 14:28:22.699 [restartedMain] INFO org.springframework.boot.devtools.restart.ChangeableUrls.logTo:255 - The Class-Path manifest attribute in /Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ireasoningsnmp.jar referenced one or more files that do not exist: file:/Users/gangyeonkim/MK119CTS/MK119CommunicationTestSuite/lib/ui.jar
+2024-03-08 14:28:22.700 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2024-03-08 14:28:22.700 [restartedMain] INFO org.springframework.boot.devtools.env.DevToolsPropertyDefaultsPostProcessor.logTo:255 - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2024-03-08 14:28:23.144 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize:108 - Tomcat initialized with port(s): 8081 (http)
+2024-03-08 14:28:23.148 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Initializing ProtocolHandler ["http-nio-8081"]
+2024-03-08 14:28:23.148 [restartedMain] INFO org.apache.catalina.core.StandardService.log:173 - Starting service [Tomcat]
+2024-03-08 14:28:23.148 [restartedMain] INFO org.apache.catalina.core.StandardEngine.log:173 - Starting Servlet engine: [Apache Tomcat/9.0.44]
+2024-03-08 14:28:23.169 [restartedMain] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring embedded WebApplicationContext
+2024-03-08 14:28:23.170 [restartedMain] INFO org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.prepareWebApplicationContext:289 - Root WebApplicationContext: initialization completed in 470 ms
+2024-03-08 14:28:23.483 [restartedMain] INFO org.springframework.boot.devtools.autoconfigure.OptionalLiveReloadServer.startServer:58 - LiveReload server is running on port 35729
+2024-03-08 14:28:23.492 [restartedMain] INFO org.apache.coyote.http11.Http11NioProtocol.log:173 - Starting ProtocolHandler ["http-nio-8081"]
+2024-03-08 14:28:23.502 [restartedMain] INFO org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start:220 - Tomcat started on port(s): 8081 (http) with context path ''
+2024-03-08 14:28:23.507 [restartedMain] INFO com.onionsoftware.mk119.commtestsuite.Mk119CommunicationTestSuiteApplication.logStarted:61 - Started Mk119CommunicationTestSuiteApplication in 1.018 seconds (JVM running for 1.267)
+2024-03-08 14:28:23.514 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:110 - HikariPool-1 - Starting...
+2024-03-08 14:28:23.627 [restartedMain] INFO com.zaxxer.hikari.HikariDataSource.getConnection:123 - HikariPool-1 - Start completed.
+2024-03-08 14:28:35.945 [http-nio-8081-exec-1] INFO org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].log:173 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2024-03-08 14:28:35.945 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:525 - Initializing Servlet 'dispatcherServlet'
+2024-03-08 14:28:35.948 [http-nio-8081-exec-1] INFO org.springframework.web.servlet.DispatcherServlet.initServletBean:547 - Completed initialization in 3 ms
