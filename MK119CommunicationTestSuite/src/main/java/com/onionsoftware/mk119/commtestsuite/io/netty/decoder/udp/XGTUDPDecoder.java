@@ -12,19 +12,18 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 public class XGTUDPDecoder extends MessageToMessageDecoder<DatagramPacket> {
-	Logger logger = LoggerFactory.getLogger("io");
+    Logger logger = LoggerFactory.getLogger("io");
 
+    @Override
+    protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
+        ByteBuf in = msg.content();
+        ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
 
-	@Override
-	protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
-		ByteBuf in = msg.content();
-		ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
-
-		XGT xgt = ByteBufUtils.parseXGTPacket(in);
-		if(xgt != null){
-			xgt.setSender(msg.sender());
-			out.add(xgt);
-		}
-		ByteBufUtils.clear(in);
-	}
+        XGT xgt = ByteBufUtils.parseXGTPacket(in);
+        if (xgt != null) {
+            xgt.setSender(msg.sender());
+            out.add(xgt);
+        }
+        ByteBufUtils.clear(in);
+    }
 }

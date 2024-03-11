@@ -4,10 +4,12 @@ import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-
-import java.lang.reflect.Field;
+import lombok.Getter;
+import lombok.Setter;
 import java.lang.reflect.Method;
 
+@Getter
+@Setter
 public class XGTData implements ServerData {
     private final byte[] mblock = new byte[65536];
     private final byte[] dblock = new byte[65536];
@@ -15,30 +17,6 @@ public class XGTData implements ServerData {
     private final byte[] kblock = new byte[65536];
     private final byte[] sblock = new byte[65536];
     private final byte[] ublock = new byte[65536];
-
-    public byte[] getMblock() {
-        return mblock;
-    }
-
-    public byte[] getDblock() {
-        return dblock;
-    }
-
-    public byte[] getPblock() {
-        return pblock;
-    }
-
-    public byte[] getKblock() {
-        return kblock;
-    }
-
-    public byte[] getSblock() {
-        return sblock;
-    }
-
-    public byte[] getUblock() {
-        return ublock;
-    }
 
     public void setBlockData(String blockName, DataType dataType, Double value, int startByte) throws Exception {
         Method method = XGTData.class.getMethod("get" + blockName + "block");

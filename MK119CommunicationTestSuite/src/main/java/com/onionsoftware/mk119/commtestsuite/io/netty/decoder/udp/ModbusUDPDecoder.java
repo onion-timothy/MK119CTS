@@ -17,7 +17,7 @@ import java.util.Map;
 public class ModbusUDPDecoder extends MessageToMessageDecoder<DatagramPacket> {
     Logger logger = LoggerFactory.getLogger("io");
     int uid;
-    int type = -1;
+    int type;
 
     public ModbusUDPDecoder(Map<?, ?> communicationSettings) {
         this.uid = Integer.parseInt(communicationSettings.get("unitId").toString());
@@ -29,12 +29,16 @@ public class ModbusUDPDecoder extends MessageToMessageDecoder<DatagramPacket> {
         ByteBuf in = msg.content();
         ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
         Modbus modbus = ByteBufUtils.parseModbusPacket(in, uid, type);
-        modbus.setSender(msg.sender());
-        if (modbus != null && modbus instanceof ModbusTCP && type == Modbus.MODBUS_TCP) {
-            out.add(modbus);
-        } else if (modbus != null && modbus instanceof ModbusRTU && type == Modbus.MODBUS_RTU) {
-            out.add(modbus);
+
+        if (modbus != null) {
+            modbus.setSender(msg.sender());
+            if (modbus instanceof ModbusTCP && type == Modbus.MODBUS_TCP) {
+                out.add(modbus);
+            } else if (modbus instanceof ModbusRTU && type == Modbus.MODBUS_RTU) {
+                out.add(modbus);
+            }
         }
+
         ByteBufUtils.clear(in);
     }
 }

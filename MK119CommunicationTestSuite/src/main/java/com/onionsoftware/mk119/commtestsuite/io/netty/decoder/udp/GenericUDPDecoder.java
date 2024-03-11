@@ -19,11 +19,10 @@ import java.util.Map;
 
 public class GenericUDPDecoder extends MessageToMessageDecoder<DatagramPacket> {
     Logger logger = LoggerFactory.getLogger("io");
-    private List<RXFrame> acceptFrames;
-    static Gson parser = new Gson();
+    private final List<RXFrame> acceptFrames;
 
     public GenericUDPDecoder(Map<?, ?> communicationSettings) {
-        Type listType = new TypeToken<ArrayList<RXFrame>>(){}.getType();
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
         this.acceptFrames = new Gson().fromJson(communicationSettings.get("rx").toString(), listType);
     }
 
@@ -37,7 +36,6 @@ public class GenericUDPDecoder extends MessageToMessageDecoder<DatagramPacket> {
             packet = ByteBufUtils.parsePacket(frame, in);
             if (packet == null) {
                 in.resetReaderIndex();
-                continue;
             } else break;
         }
 

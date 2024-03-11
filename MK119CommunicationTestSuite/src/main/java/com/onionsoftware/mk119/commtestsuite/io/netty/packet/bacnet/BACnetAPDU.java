@@ -17,8 +17,4 @@ public class BACnetAPDU {
     private byte service_choice;
 
     private List<BACnetTag> tags = new ArrayList<>();
-
-    public void addTag(BACnetTag tag) {
-        tags.add(tag);
-    }
 }

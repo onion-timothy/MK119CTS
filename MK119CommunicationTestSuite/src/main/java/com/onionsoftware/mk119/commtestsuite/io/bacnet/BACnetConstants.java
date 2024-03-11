@@ -88,6 +88,7 @@ public class BACnetConstants {
     public static byte BACNET_CHARACTER_STRING_ENCODING_UTF8 = 0;
 
     public static final Map<Byte, BACnetTag> SIMULATION_DEVICE_PROPERTIES = new LinkedHashMap<>();
+
     static {
         BACnetUnsignedInteger system_status = new BACnetUnsignedInteger(0);
         system_status.setTagClass(BACNET_TAG_CLASS_APPLICATION);
@@ -141,14 +142,14 @@ public class BACnetConstants {
         protocol_revision.setLength((byte) 1);
         SIMULATION_DEVICE_PROPERTIES.put(BACNET_PROPERTY_IDENTIFIER_PRTCL_REV, protocol_revision);
 
-        BACnetBitString protocol_services_supported = new BACnetBitString(0x44_0b_48_28_aa_00L,(byte) 6);
+        BACnetBitString protocol_services_supported = new BACnetBitString(0x44_0b_48_28_aa_00L, (byte) 6);
         protocol_services_supported.setTagClass(BACNET_TAG_CLASS_APPLICATION);
         protocol_services_supported.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_BIT_STRING);
         protocol_services_supported.setLength((byte) 5);
         protocol_services_supported.setExtendedLengthValue((byte) 7);
         SIMULATION_DEVICE_PROPERTIES.put(BACNET_PROPERTY_IDENTIFIER_PRTCL_SRVCS_SPRT, protocol_services_supported);
 
-        BACnetBitString protocol_object_type = new BACnetBitString(0xa4_80_10_00_00_80_00_00L,(byte) 3);
+        BACnetBitString protocol_object_type = new BACnetBitString(0xa4_80_10_00_00_80_00_00L, (byte) 3);
         protocol_object_type.setTagClass(BACNET_TAG_CLASS_APPLICATION);
         protocol_object_type.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_BIT_STRING);
         protocol_object_type.setLength((byte) 5);
@@ -209,6 +210,7 @@ public class BACnetConstants {
     }
 
     public static final Map<Byte, BACnetTag> SIMULATION_OBJECT_PROPERTIES = new LinkedHashMap<>();
+
     static {
         BACnetCharacterString description = new BACnetCharacterString("MK119 CTS BACNET SIMULATOR OBJECT", BACNET_CHARACTER_STRING_ENCODING_UTF8);
         description.setTagClass(BACNET_TAG_CLASS_APPLICATION);

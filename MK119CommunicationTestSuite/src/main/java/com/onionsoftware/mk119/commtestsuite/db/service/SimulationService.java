@@ -7,21 +7,21 @@ import com.onionsoftware.mk119.commtestsuite.db.mapper.SimulationMapper;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.simulation.SimulationExecutorService;
 import com.onionsoftware.mk119.commtestsuite.simulation.SimulationJob;
-import com.onionsoftware.mk119.commtestsuite.utils.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class SimulationService {
     private final SimulationMapper simulationMapper;
     private final SimulationExecutorService simulationExecutorService;
-
-    public SimulationService(SimulationMapper simulationMapper, SimulationExecutorService simulationExecutorService) {
-        this.simulationMapper = simulationMapper;
-        this.simulationExecutorService = simulationExecutorService;
-    }
+    private final DeviceService deviceService;
+    private final ObjectProvider<SimulationJob> simulationJobFactory;
+    private final BACnetService bacnetService;
 
     public void createScheme() {
         simulationMapper.createScheme();
@@ -33,9 +33,10 @@ public class SimulationService {
 
     public void startSimulation(Device device, Simulation simulation) {
         if (simulation.getEnabled() == Simulation.ENABLED) {
-            simulationExecutorService.execute(new SimulationJob(simulation));
+            SimulationJob simulationJob = this.simulationJobFactory.getObject(simulation);
+            simulationExecutorService.execute(simulationJob);
             if (device.getProtocol() == Protocol.BACNET) {
-                BACnetService.getInstance().addSimulation(simulation.getDevice_id(), simulation);
+                bacnetService.addSimulation(simulation.getDevice_id(), simulation);
             }
         }
     }
@@ -43,13 +44,12 @@ public class SimulationService {
     public void stopSimulation(Device device, Simulation simulation) {
         simulationExecutorService.terminateJob(simulation.getId());
         if (device.getProtocol() == Protocol.BACNET) {
-            BACnetService.getInstance().removeSimulation(simulation.getDevice_id(), simulation.getId());
+            bacnetService.removeSimulation(simulation.getDevice_id(), simulation.getId());
         }
     }
 
     public void insertSimulation(Simulation simulation) {
         simulationMapper.insertSimulation(simulation);
-        DeviceService deviceService = (DeviceService) BeanUtils.getBean("deviceService");
         Device device = deviceService.selectDevice(simulation.getDevice_id());
         startSimulation(device, simulation);
     }
@@ -59,7 +59,6 @@ public class SimulationService {
     }
 
     public void updateSimulation(Simulation simulation) {
-        DeviceService deviceService = (DeviceService) BeanUtils.getBean("deviceService");
         Device device = deviceService.selectDevice(simulation.getDevice_id());
         stopSimulation(device, simulation);
 
@@ -71,7 +70,6 @@ public class SimulationService {
     public void deleteSimulation(Integer id) {
         Simulation simulation = selectSimulation(id);
         simulationMapper.deleteSimulation(id);
-        DeviceService deviceService = (DeviceService) BeanUtils.getBean("deviceService");
         Device device = deviceService.selectDevice(simulation.getDevice_id());
         stopSimulation(device, simulation);
     }
@@ -84,12 +82,11 @@ public class SimulationService {
         return simulationMapper.selectSimulations();
     }
 
-    public void deleteSimulationByDeviceId(Integer device_id){
+    public void deleteSimulationByDeviceId(Integer device_id) {
         simulationMapper.deleteSimulationByDeviceId(device_id);
     }
 
     public void startDeviceSimulations(Integer device_id) {
-        DeviceService deviceService = (DeviceService) BeanUtils.getBean("deviceService");
         Device device = deviceService.selectDevice(device_id);
         List<Simulation> simulations = selectSimulationsByDeviceId(device_id);
         for (Simulation simulation : simulations) {
@@ -98,7 +95,6 @@ public class SimulationService {
     }
 
     public void stopDeviceSimulations(Integer device_id) {
-        DeviceService deviceService = (DeviceService) BeanUtils.getBean("deviceService");
         Device device = deviceService.selectDevice(device_id);
         List<Simulation> simulations = selectSimulationsByDeviceId(device_id);
         for (Simulation simulation : simulations) {

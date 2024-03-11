@@ -17,7 +17,7 @@ public class BACnetError extends BACnetPacket {
     private BACnetUnsignedInteger errorClass;
     private BACnetUnsignedInteger errorCode;
 
-    public ByteBuf encodeBACnetError(Device device, byte invokeId, byte service){
+    public ByteBuf encodeBACnetError(Device device, byte invokeId, byte service) {
         int deviceInstanceNumber = Integer.parseInt(device.getCommunicationSettings().get("deviceInstanceId").toString());
 
         ByteBuf buf = Unpooled.buffer();

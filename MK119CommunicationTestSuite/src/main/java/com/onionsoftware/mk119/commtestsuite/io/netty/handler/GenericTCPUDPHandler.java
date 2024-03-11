@@ -7,8 +7,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.google.gson.reflect.TypeToken;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXField;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFieldType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import io.netty.buffer.Unpooled;
@@ -61,17 +59,7 @@ public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        cause.printStackTrace();
+        logger.error("[GenericTCPUDPHandler] exception occur. {}", cause.getMessage());
         ctx.close();
-    }
-
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        super.channelInactive(ctx);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        super.channelActive(ctx);
     }
 }

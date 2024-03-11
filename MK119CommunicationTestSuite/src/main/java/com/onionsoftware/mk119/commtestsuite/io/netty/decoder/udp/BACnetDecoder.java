@@ -8,8 +8,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Component;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 import static com.onionsoftware.mk119.commtestsuite.io.netty.tool.BACnetByteBufUtils.*;
@@ -18,8 +21,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Component
+@RequiredArgsConstructor
 public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
     private final Logger logger = LoggerFactory.getLogger("io");
+    private final ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory;
+    private final ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory;
 
     @Override
     protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
@@ -28,11 +35,12 @@ public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
         BACnetPacket bacnet = new BACnetPacket();
         bacnet.setSender(msg.sender());
 
+        // BACnet Virtual Link Control 디코딩
         bacnet.setBvlc_type(in.readByte());
         bacnet.setBvlc_func(in.readByte());
         bacnet.setBvlc_len(in.readShort());
 
-        if (in.readableBytes() + 4 == bacnet.getBvlc_len()) {
+        if (in.readableBytes() + 4 == bacnet.getBvlc_len()) {   // 패킷 길이 검사
             BACnetNPDU bacnetNPDU = new BACnetNPDU();
             bacnetNPDU.setVersion(in.readByte());
             bacnetNPDU.setControl(in.readByte());
@@ -62,6 +70,7 @@ public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
             }
             bacnet.setBacnetNPDU(bacnetNPDU);
             if (bacnetNPDU.getVersion() != BACNET_NPDU_VERSION_ASHRAE_135_1995) {
+                // BACnet version 1 지원
                 ByteBufUtils.clear(in);
                 return;
             }
@@ -71,6 +80,7 @@ public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
             if (bacnetAPDU.getType() == BACNET_APDU_TYPE_UNCONFIRMED_REQ) {
                 bacnetAPDU.setService_choice(in.readByte());
                 if (bacnetAPDU.getService_choice() == BACNET_APDU_SERVICE_I_AM) {
+                    // 다른 장비의 i-AM에는 응답하지 않는다.
                     ByteBufUtils.clear(in);
                     return;
                 } else if (bacnetAPDU.getService_choice() == BACNET_APDU_SERVICE_WHO_IS) {
@@ -94,26 +104,27 @@ public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
                 bacnet.setBacnetAPDU(bacnetAPDU);
 
                 if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY) {
-                    BACnetReadProperty readProperty = new BACnetReadProperty(bacnet);
+                    // 단일 프로퍼티 읽기 readPropertyRequest APDU는 OID 1개와 Property ID 1개로 구성된다.
+                    BACnetReadProperty readProperty = bacnetReadPropertyFactory.getObject(bacnet);
                     readProperty.setOid((BACnetObjectIdentifier) readBACnetTag(in, serviceChoice));
                     readProperty.setPropertyIdentifier((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice));
 
                     bacnet = readProperty;
                 } else if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY_MULTIPLE) {
-                    BACnetReadPropertyMultiple readPropertyMultiple = new BACnetReadPropertyMultiple(bacnet);
+                    // 다중 프로퍼티 읽기 readPropertyMultipleRequest APDU는 {OID, Property List}의 반복으로 구성된다.
+                    BACnetReadPropertyMultiple readPropertyMultiple = bacnetReadPropertyMultipleFactory.getObject(bacnet);
 
-                    while(in.readableBytes() != 0){
+                    while (in.readableBytes() != 0) {
                         BACnetObjectIdentifier oid = (BACnetObjectIdentifier) readBACnetTag(in, serviceChoice);
                         readPropertyMultiple.getOids().add(oid);
                         Map<BACnetObjectIdentifier, List<Byte>> properties = readPropertyMultiple.getPropertyIdentifiers();
                         properties.put(oid, new ArrayList<>());
                         readBACnetTag(in, serviceChoice); // Opening Tag
-                        while(true){
-                            Byte pid = (byte) ((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice)).getValue(); // Property Identifier
+                        while (true) {
+                            Byte pid = (byte) ((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice)).getValue(); // Property ID
                             properties.get(oid).add(pid);
-
-                            // Might be Closing Tag or another porperty identifier
-                            // If BUI is closing tag, end of pid list loop. else rollback reader index.
+                            // 위의 Property가 마지막 Property라면 Closing Tag이다.
+                            // Closing Tag가 아니라면 리더 인덱스를 -2 롤백한다.
                             BACnetUnsignedInteger closingTag = (BACnetUnsignedInteger) readBACnetTag(in, serviceChoice);
                             if (closingTag.getLength() == BACNET_NAMED_TAG_CLOSING_TAG && closingTag.getTagClass() == BACNET_TAG_CLASS_CONTEXT) {
                                 break;
@@ -125,7 +136,6 @@ public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
                     bacnet = readPropertyMultiple;
                 }
             }
-
             out.add(bacnet);
         } else {
             ByteBufUtils.clear(in);

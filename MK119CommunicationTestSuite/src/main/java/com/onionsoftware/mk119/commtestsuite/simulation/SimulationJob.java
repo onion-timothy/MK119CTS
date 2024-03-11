@@ -8,38 +8,48 @@ import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.enums.Policy;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
+import com.onionsoftware.mk119.commtestsuite.io.db.DBDeviceService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
-import com.onionsoftware.mk119.commtestsuite.utils.BeanUtils;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.*;
 
+@Getter
+@RequiredArgsConstructor
 public class SimulationJob implements Runnable {
     static Logger logger = LoggerFactory.getLogger("simulation");
     private final Simulation simulation;
     private static final Map<Integer, Double> accumValues = new HashMap<>();
+    @Autowired
+    private DeviceService deviceService;
+    @Autowired
+    private DBDeviceService dbDeviceService;
+    @Autowired
+    private IOServerInstances ioServerInstances;
+    @Autowired
+    private BACnetService bacnetService;
 
-    public SimulationJob(Simulation simulation) {
-        this.simulation = simulation;
-    }
-
-    private static final Protocol[] nettyProtocols = new Protocol[]{Protocol.GENERIC, Protocol.MODBUS, Protocol.XGT_PLC, Protocol.DAEYUN_RCU, Protocol.OPC_AGENT};
-    private static final DeviceService deviceService = (DeviceService) BeanUtils.getBean("deviceService");
     @Override
     public void run() {
-        SimulationPolicy simulationPolicy = simulation.getPolicy();
-        double value = parseAndMakeValue(simulationPolicy);
+        List<SimulationPolicy> simulationPolicies = simulation.getPolicies();
+        double value;
 
         Device device = deviceService.selectDevice(simulation.getDevice_id());
-        if(device.getProtocol() == Protocol.BACNET){
-            BACnetService service = BACnetService.getInstance();
-            service.getSimulationValues().put(simulation.getId(), (float) value);
-        } else if (Arrays.asList(nettyProtocols).contains(device.getProtocol())){
-            IOServerInstances ioServerInstances = (IOServerInstances) BeanUtils.getBean("ioServerInstances");
+        if (device.getProtocol() == Protocol.BACNET) {
+            value = parseAndMakeValue(simulationPolicies.get(0));
+            bacnetService.getSimulationValues().put(simulation.getId(), (float) value);
+        } else if (Protocol.NETTY_PROTOCOLS.contains(device.getProtocol())) {
+            value = parseAndMakeValue(simulationPolicies.get(0));
             IOServer server = ioServerInstances.getServerInstance(simulation.getDevice_id());
             if (server != null) {
                 ServerData serverData = server.getServerData();
@@ -58,9 +68,9 @@ public class SimulationJob implements Runnable {
                         } else if (function == Modbus.FC_02) {
                             modbusData.setInput_status(value == 1, register);
                         } else if (function == Modbus.FC_03) {
-                            modbusData.setHolding_registers(value, simulationPolicy.getData_type(), register);
+                            modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
                         } else if (function == Modbus.FC_04) {
-                            modbusData.setInput_registers(value, simulationPolicy.getData_type(), register);
+                            modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
                         }
                     } else if (serverData instanceof XGTData) {
                         XGTData xgtData = (XGTData) serverData;
@@ -69,7 +79,7 @@ public class SimulationJob implements Runnable {
                         int address = Integer.parseInt(targetTokens[1]);
 
                         try {
-                            xgtData.setBlockData(block, simulationPolicy.getData_type(), value, address);
+                            xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, address);
                         } catch (Exception e) {
                             logger.error("XGT-PLC set data error.", e);
                         }
@@ -94,11 +104,19 @@ public class SimulationJob implements Runnable {
                     }
                 }
             }
+        } else if (device.getProtocol() == Protocol.DB) {
+            Connection connection = dbDeviceService.getConnection(device);
+            if (connection != null) {
+                try {
+                    PreparedStatement pstmt = connection.prepareStatement(simulation.getTarget());
+                    int res = pstmt.executeUpdate();
+                    if (res == 0)
+                        logger.warn("DB simulation {} for device {} has no affect.", simulation.getTarget(), device.getName());
+                } catch (SQLException e) {
+                    logger.error("SQL error to execute simulation '{}' for device {}", simulation.getTarget(), device.getName(), e);
+                }
+            } else logger.error("Connection not established. {}", device.getName());
         }
-    }
-
-    public Simulation getSimulation() {
-        return this.simulation;
     }
 
     private Double parseAndMakeValue(SimulationPolicy simulationPolicy) {

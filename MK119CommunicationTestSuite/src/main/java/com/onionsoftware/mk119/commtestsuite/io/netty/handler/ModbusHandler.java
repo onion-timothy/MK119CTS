@@ -1,6 +1,5 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
-import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
@@ -8,7 +7,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.CRC16;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
@@ -16,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Map;
 
 public class ModbusHandler extends ChannelInboundHandlerAdapter {
@@ -88,17 +85,7 @@ public class ModbusHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        cause.printStackTrace();
+        logger.error("[ModbusHandler] exception occur. {}", cause.getMessage());
         ctx.close();
-    }
-
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        super.channelInactive(ctx);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        super.channelActive(ctx);
     }
 }

@@ -14,8 +14,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class WebController {
     private final DeviceService deviceService;
     private final SimulationService simulationService;
+
     @Autowired
-    public WebController(DeviceService deviceService, SimulationService simulationService){
+    public WebController(DeviceService deviceService, SimulationService simulationService) {
         this.deviceService = deviceService;
         this.simulationService = simulationService;
     }

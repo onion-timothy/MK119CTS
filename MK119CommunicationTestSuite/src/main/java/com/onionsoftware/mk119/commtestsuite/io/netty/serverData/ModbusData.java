@@ -4,9 +4,13 @@ import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.BitSet;
 
+@Getter
+@Setter
 public class ModbusData implements ServerData {
     private final BitSet coil_status = new BitSet(65536);
     private final BitSet input_status = new BitSet(65536);
@@ -26,8 +30,8 @@ public class ModbusData implements ServerData {
      * 핸들러는 단순히 레지스터를 return만 한다.
      *
      * @param value         설정 값
-     * @param type
-     * @param startRegister
+     * @param type          데이터타입(Enum)
+     * @param startRegister 시작 주소
      */
     public void setHolding_registers(Double value, DataType type, int startRegister) {
         ByteBuf buf = Unpooled.buffer();
@@ -51,19 +55,4 @@ public class ModbusData implements ServerData {
         input_status.set(input, value);
     }
 
-    public BitSet getCoil_status() {
-        return coil_status;
-    }
-
-    public BitSet getInput_status() {
-        return input_status;
-    }
-
-    public short[] getHolding_registers() {
-        return holding_registers;
-    }
-
-    public short[] getInput_registers() {
-        return input_registers;
-    }
 }

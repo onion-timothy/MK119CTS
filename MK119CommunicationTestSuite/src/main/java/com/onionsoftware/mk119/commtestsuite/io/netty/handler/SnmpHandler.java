@@ -11,8 +11,6 @@ import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-
 public class SnmpHandler extends ChannelInboundHandlerAdapter {
     Logger logger = LoggerFactory.getLogger("io");
     private final SnmpData snmpData;
@@ -46,11 +44,11 @@ public class SnmpHandler extends ChannelInboundHandlerAdapter {
 
     private SnmpVarBindList processGetRequest(SnmpPdu packet) {
         SnmpVarBindList ret = new SnmpVarBindList();
-        for(SnmpVarBind snmpVarBind : packet.getVarBinds()){
+        for (SnmpVarBind snmpVarBind : packet.getVarBinds()) {
             SnmpOID oid = snmpVarBind.getName();
             String x = oid.toString();
             Double value = snmpData.getOidValueMap().get(x);
-            if(value != null){
+            if (value != null) {
                 ret.add(new SnmpVarBind(oid, new SnmpOctetString(Double.toString(value))));
             } else {
                 ret.add(new SnmpVarBind(oid, SnmpDataType.NO_SUCH_OBJECT_OBJECT));

@@ -16,7 +16,7 @@ public class OPCAgentUDPDecoder extends MessageToMessageDecoder<DatagramPacket> 
         if (in.readableBytes() == 3) {
             ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
             OPCAgent agent = ByteBufUtils.parseOPCAgentPacket(in);
-            if(agent != null) {
+            if (agent != null) {
                 agent.setSender(msg.sender());
                 out.add(agent);
             }

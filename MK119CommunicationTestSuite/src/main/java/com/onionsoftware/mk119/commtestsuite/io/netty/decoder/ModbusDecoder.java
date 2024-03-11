@@ -17,8 +17,8 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 
 public class ModbusDecoder extends ByteToMessageDecoder {
     Logger logger = LoggerFactory.getLogger("io");
-    int uid = -1;
-    int type = -1;
+    int uid;
+    int type;
 
     public ModbusDecoder(Map<?, ?> communicationSettings) {
         this.uid = Integer.parseInt(communicationSettings.get("unitId").toString());

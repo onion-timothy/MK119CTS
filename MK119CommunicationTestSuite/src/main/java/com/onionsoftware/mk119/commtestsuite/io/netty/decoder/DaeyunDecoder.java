@@ -21,11 +21,9 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 public class DaeyunDecoder extends ByteToMessageDecoder {
     Logger logger = LoggerFactory.getLogger("io");
     private final List<RXFrame> acceptFrames;
-    static Gson parser = new Gson();
 
     public DaeyunDecoder(Map<?, ?> communicationSettings) {
-        Type listType = new TypeToken<ArrayList<RXFrame>>() {
-        }.getType();
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
         this.acceptFrames = new Gson().fromJson(communicationSettings.get("rx").toString(), listType);
     }
 

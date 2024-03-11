@@ -19,13 +19,14 @@
         let simulation;
         let policyEditor;
 
-        const policyExample = {
+        const policyExample = [{
+            "id":"value1",
             "policy": "STATIC",
             "data_type": "SI16AB",
             "value":30.0,
             "range":null,
             "accept_control":false
-        };
+        }];
 
         function onload() {
             device = [[${device}]];

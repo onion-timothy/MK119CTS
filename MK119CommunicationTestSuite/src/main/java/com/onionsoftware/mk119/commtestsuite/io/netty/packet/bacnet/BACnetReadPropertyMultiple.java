@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
 
@@ -26,6 +27,9 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
     List<BACnetObjectIdentifier> oids;
     Map<BACnetObjectIdentifier, List<Byte>> propertyIdentifiers;
 
+    @Autowired
+    BACnetService bacnetService;
+
     public BACnetReadPropertyMultiple(BACnetPacket packet) {
         this.setBvlc_type(packet.getBvlc_type());
         this.setBvlc_func(packet.getBvlc_func());
@@ -37,8 +41,7 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
         this.propertyIdentifiers = new LinkedHashMap<>();
     }
 
-    public static ByteBuf encodeBACnetReadProperty(Device device, BACnetReadPropertyMultiple readPropertyMultiple) {
-        BACnetService service = BACnetService.getInstance();
+    public ByteBuf encodeBACnetReadPropertyMultipleResponse(Device device) {
         int deviceInstanceNumber = Integer.parseInt(device.getCommunicationSettings().get("deviceInstanceId").toString());
 
         ByteBuf buf = Unpooled.buffer();
@@ -50,16 +53,16 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
         writeBACnetNPDU(buf_npdu, deviceInstanceNumber);
 
         buf_apdu.writeByte(BACNET_APDU_TYPE_COMPLEX_ACK << 4);
-        buf_apdu.writeByte(readPropertyMultiple.getBacnetAPDU().getInvoke_id());
+        buf_apdu.writeByte(this.getBacnetAPDU().getInvoke_id());
         buf_apdu.writeByte(BACNET_APDU_SERVICE_READ_PROPERTY_MULTIPLE);
 
-        for (BACnetObjectIdentifier oid : readPropertyMultiple.getOids()) {
+        for (BACnetObjectIdentifier oid : this.getOids()) {
             oid.setTagClass(BACNET_TAG_CLASS_CONTEXT);
             oid.setTagNumber((byte) 0);
             oid.setLength((byte) 4);
 
             writeBACnetTag(buf_apdu, oid);
-            List<Byte> props = readPropertyMultiple.getPropertyIdentifiers().get(oid);
+            List<Byte> props = this.getPropertyIdentifiers().get(oid);
             writeOpeningTag(buf_apdu, (byte) 1);
             if (props.size() == 1 && props.get(0) == BACNET_PROPERTY_IDENTIFIER_ALL && oid.getObject_type() == BACNET_OBJECT_TYPE_device) {
                 writePropIdAllCommonProps(buf_apdu, oid);
@@ -80,7 +83,7 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
                 writeBACnetTag(buf_apdu, olist);
 
                 writeOpeningTag(buf_apdu, (byte) 4);
-                List<Simulation> simulationList = service.getSimulationMap().get(device.getId());
+                List<Simulation> simulationList = bacnetService.getSimulationMap().get(device.getId());
                 if (simulationList != null) {
                     for (Simulation simulation : simulationList) {
                         BACnetObjectIdentifier _oid = BACnetObjectIdentifier.parseSimulationTarget(simulation.getTarget());
@@ -109,7 +112,7 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
             } else if (props.size() == 1 && props.get(0) == BACNET_PROPERTY_IDENTIFIER_ALL && BACNET_OBJECT_TYPE_SUPPORTED.contains((byte) oid.getObject_type())) {
                 writePropIdAllCommonProps(buf_apdu, oid);
 
-                Optional<Simulation> simulationOpt = BACnetService.getInstance().getSimulationMap().get(device.getId()).stream().filter(e -> Objects.equals(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget()), oid)).findFirst();
+                Optional<Simulation> simulationOpt = bacnetService.getSimulationMap().get(device.getId()).stream().filter(e -> Objects.equals(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget()), oid)).findFirst();
                 if (simulationOpt.isPresent()) {
                     Simulation simulation = simulationOpt.get();
 
@@ -142,7 +145,7 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
                     writeBACnetTag(buf_apdu, prop_ovalue);
 
                     writeOpeningTag(buf_apdu, (byte) 4);
-                    Float value = BACnetService.getInstance().getSimulationValues().get(simulation.getId());
+                    Float value = bacnetService.getSimulationValues().get(simulation.getId());
                     if (value == null) {
                         value = Float.NaN;
                     }
@@ -174,9 +177,9 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
                         name.setExtendedLengthValue((byte) (device.getName().getBytes().length + 1));
                         writeBACnetTag(buf_apdu, name);
                     } else if (propertyIdentifier == BACNET_PROPERTY_IDENTIFIER_PRSNT_VAL) {
-                        Optional<Simulation> simulationOpt = BACnetService.getInstance().getSimulationMap().get(device.getId()).stream().filter(e -> Objects.equals(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget()), oid)).findFirst();
-                        if(simulationOpt.isPresent()){
-                            Float value = BACnetService.getInstance().getSimulationValues().get(simulationOpt.get().getId());
+                        Optional<Simulation> simulationOpt = bacnetService.getSimulationMap().get(device.getId()).stream().filter(e -> Objects.equals(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget()), oid)).findFirst();
+                        if (simulationOpt.isPresent()) {
+                            Float value = bacnetService.getSimulationValues().get(simulationOpt.get().getId());
                             if (value == null) {
                                 value = Float.NaN;
                             }

@@ -17,6 +17,6 @@ public class GenericTCPUDPPacket extends Packet {
 
     public GenericTCPUDPPacket(String rx_id) {
         setRx_id(rx_id);
-        setFields(new LinkedList<RXField>());
+        setFields(new LinkedList<>());
     }
 }

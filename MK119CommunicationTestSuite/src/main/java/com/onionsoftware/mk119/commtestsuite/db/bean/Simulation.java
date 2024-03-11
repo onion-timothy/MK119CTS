@@ -4,18 +4,20 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Type;
-import java.util.Map;
+import java.util.List;
 
 @Getter
 @Setter
+@Component
 public class Simulation {
     private int id;
     private int device_id;
     private String target;
     private String strPolicy;
-    private SimulationPolicy policy;
+    private List<SimulationPolicy> policies;
     private int interval;
     private int enabled;
 
@@ -23,8 +25,8 @@ public class Simulation {
 
     public void setStrPolicy(String strPolicy) {
         this.strPolicy = strPolicy;
-        Type policyType = new TypeToken<SimulationPolicy>(){}.getType();
-        this.policy = parser.fromJson(this.strPolicy, policyType);
+        Type policyType = new TypeToken<List<SimulationPolicy>>(){}.getType();
+        this.policies = parser.fromJson(this.strPolicy, policyType);
     }
 
     public static final int ENABLED = 1;

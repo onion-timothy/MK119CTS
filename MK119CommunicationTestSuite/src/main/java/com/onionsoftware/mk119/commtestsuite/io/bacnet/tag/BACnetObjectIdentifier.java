@@ -6,7 +6,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.lang.reflect.Field;
+
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants;
+
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 
 @Getter
@@ -46,7 +48,7 @@ public class BACnetObjectIdentifier extends BACnetTag {
         return this.typeToString() + this.instance_number;
     }
 
-    private String typeToString(){
+    private String typeToString() {
         switch (this.getObject_type()) {
             case BACNET_OBJECT_TYPE_analog_input:
                 return "Analog Input ";

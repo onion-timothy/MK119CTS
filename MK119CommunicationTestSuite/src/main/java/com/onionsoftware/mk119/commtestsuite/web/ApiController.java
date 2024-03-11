@@ -23,7 +23,7 @@ public class ApiController {
     private final SimulationService simulationService;
 
     @Autowired
-    public ApiController(DeviceService deviceService, GroupService groupService, SimulationService simulationService){
+    public ApiController(DeviceService deviceService, GroupService groupService, SimulationService simulationService) {
         this.deviceService = deviceService;
         this.groupService = groupService;
         this.simulationService = simulationService;

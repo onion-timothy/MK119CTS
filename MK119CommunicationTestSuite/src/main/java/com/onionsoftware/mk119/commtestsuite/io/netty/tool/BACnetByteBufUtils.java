@@ -93,7 +93,7 @@ public class BACnetByteBufUtils {
         length_value_type += (byte) (tag.getTagNumber() << 4);
         length_value_type += (byte) (tag.getLength() & 0x7);
 
-        if(!(tag instanceof BACnetBoolean))
+        if (!(tag instanceof BACnetBoolean))
             out.writeByte(length_value_type);
         if (tag.getLength() == BACNET_NAMED_TAG_EXTENDED_VALUE) {
             out.writeByte(tag.getExtendedLengthValue());

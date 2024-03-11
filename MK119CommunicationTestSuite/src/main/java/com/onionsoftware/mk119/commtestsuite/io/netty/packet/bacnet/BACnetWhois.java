@@ -27,7 +27,7 @@ public class BACnetWhois extends BACnetPacket {
         this.setBacnetAPDU(packet.getBacnetAPDU());
     }
 
-    public ByteBuf encodeBACnetWhois(Device device) {
+    public ByteBuf encodeBACnetIAmDeviceResponse(Device device) {
         int deviceInstanceNumber = Integer.parseInt(device.getCommunicationSettings().get("deviceInstanceId").toString());
         if ((this.getDeviceInstanceRangeLowLimit().getValue() == -1 && this.getDeviceInstanceRangeHighLimit().getValue() == -1)
                 || (deviceInstanceNumber >= this.getDeviceInstanceRangeLowLimit().getValue() && deviceInstanceNumber < this.getDeviceInstanceRangeHighLimit().getValue())) {

@@ -7,7 +7,6 @@ import javax.xml.bind.DatatypeConverter;
 
 import com.google.gson.Gson;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFieldType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXField;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXField;
@@ -21,10 +20,8 @@ import io.netty.buffer.ByteBuf;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -102,11 +99,11 @@ public class ByteBufUtils {
     }
 
     public static double readUI32CB(ByteBuf in) {
-        return ((long) readSI32CB(in)) & 0xffffffffl;
+        return ((long) readSI32CB(in)) & 0xffffffffL;
     }
 
     public static double readUI32BC(ByteBuf in) {
-        return ((long) readSI32BC(in)) & 0xffffffffl;
+        return ((long) readSI32BC(in)) & 0xffffffffL;
     }
 
     public static double readUI32DA(ByteBuf in) {
@@ -239,7 +236,7 @@ public class ByteBufUtils {
 
     public static void writeSI64GB(ByteBuf out, Double value) {
         long v = value.longValue();
-        int gh = (int) ((v >> 0) & 0xffff);
+        int gh = (int) ((v) & 0xffff);
         int ef = (int) ((v >> 16) & 0xffff);
         int cd = (int) ((v >> 32) & 0xffff);
         int ab = (int) ((v >> 48) & 0xffff);
@@ -252,7 +249,7 @@ public class ByteBufUtils {
 
     public static void writeSI64BG(ByteBuf out, Double value) {
         long v = value.longValue();
-        int gh = (int) ((v >> 0) & 0xffff);
+        int gh = (int) ((v) & 0xffff);
         int ef = (int) ((v >> 16) & 0xffff);
         int cd = (int) ((v >> 32) & 0xffff);
         int ab = (int) ((v >> 48) & 0xffff);
@@ -297,7 +294,7 @@ public class ByteBufUtils {
 
     public static void writeFP64GB(ByteBuf out, Double value) {
         long lv = Double.doubleToRawLongBits(value);
-        int gh = (int) ((lv >> 0) & 0xffff);
+        int gh = (int) ((lv) & 0xffff);
         int ef = (int) ((lv >> 16) & 0xffff);
         int cd = (int) ((lv >> 32) & 0xffff);
         int ab = (int) ((lv >> 48) & 0xffff);
@@ -310,7 +307,7 @@ public class ByteBufUtils {
 
     public static void writeFP64BG(ByteBuf out, Double value) {
         long lv = Double.doubleToRawLongBits(value);
-        int gh = (int) ((lv >> 0) & 0xffff);
+        int gh = (int) ((lv) & 0xffff);
         int ef = (int) ((lv >> 16) & 0xffff);
         int cd = (int) ((lv >> 32) & 0xffff);
         int ab = (int) ((lv >> 48) & 0xffff);
@@ -469,7 +466,7 @@ public class ByteBufUtils {
     static Gson parser = new Gson();
 
     public static GenericTCPUDPPacket parsePacket(RXFrame frame, ByteBuf in) {
-        GenericTCPUDPPacket ret = null;
+        GenericTCPUDPPacket ret;
         if (frame.getLength() != null && frame.getLength() != in.readableBytes()) {
             return null;
         }
@@ -478,7 +475,7 @@ public class ByteBufUtils {
             for (RXField field : frame.getFields()) {
                 String methodName = "read" + field.getData_type().name();
                 Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class);
-                RXField newFieldObj = (RXField) field.clone();
+                RXField newFieldObj = field.clone();
                 newFieldObj.setValue((Double) method.invoke(null, in));
 
                 if (field.getField_id().equals("CRC16") && field.getData_type() == DataType.SI16AB) {
@@ -561,7 +558,6 @@ public class ByteBufUtils {
                     payloadPacket = ByteBufUtils.parsePacket(frame, temp);
                     if (payloadPacket == null) {
                         temp.resetReaderIndex();
-                        continue;
                     } else break;
                 }
                 if (payloadPacket != null) {

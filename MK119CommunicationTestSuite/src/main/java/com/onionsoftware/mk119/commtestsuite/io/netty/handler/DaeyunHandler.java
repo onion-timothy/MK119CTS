@@ -2,8 +2,6 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.onionsoftware.mk119.commtestsuite.enums.DataType;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXField;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DaeyunData;
@@ -17,8 +15,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.*;
 
@@ -115,16 +111,6 @@ public class DaeyunHandler extends ChannelInboundHandlerAdapter {
             }
         } else {
             logger.error("Message is not matched for handler. {}", msg.getClass().getName());
-        }
-    }
-
-    private void writeData(ByteBuf out, DataType type, Double value) {
-        try {
-            String methodName = "write" + type.name();
-            Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class, Double.class);
-            method.invoke(null, out, value);
-        } catch (Exception e) {
-            logger.error("Write Data Error.", e);
         }
     }
 

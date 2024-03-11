@@ -10,25 +10,28 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 
+@Component
 public class BACnetHandler extends ChannelInboundHandlerAdapter {
     private final Logger logger = LoggerFactory.getLogger("io");
+    private final BACnetService bacnetService;
 
-    public BACnetHandler() {
+    public BACnetHandler(BACnetService bacnetService) {
+        this.bacnetService = bacnetService;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof BACnetPacket) {
-            BACnetService bacnetService = BACnetService.getInstance();
             if (msg instanceof BACnetWhois) {
                 for (Device device : bacnetService.getBacnetDevices()) {
-                    ByteBuf buf = ((BACnetWhois) msg).encodeBACnetWhois(device);
+                    ByteBuf buf = ((BACnetWhois) msg).encodeBACnetIAmDeviceResponse(device);
                     if (buf != null)
                         ctx.writeAndFlush(new DatagramPacket(buf, new InetSocketAddress(device.getCommunicationSettings().get("broadcast").toString(), 0xbac0)));
                 }
@@ -38,10 +41,9 @@ public class BACnetHandler extends ChannelInboundHandlerAdapter {
                 int instanceNumber = readProperty.getOid().getInstance_number();
 
                 Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(
-                        e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) ==
-                                (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device ? instanceNumber : instanceNumberSADR)).findFirst();
+                        e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device ? instanceNumber : instanceNumberSADR)).findFirst();
                 if (deviceOptional.isPresent()) {
-                    ByteBuf buf = BACnetReadProperty.encodeBACnetReadProperty(deviceOptional.get(), readProperty);
+                    ByteBuf buf = readProperty.encodeBACnetReadPropertyResponse(deviceOptional.get());
                     if (buf != null) {
                         ctx.writeAndFlush(new DatagramPacket(buf, readProperty.getSender()));
                     } else {
@@ -62,7 +64,7 @@ public class BACnetHandler extends ChannelInboundHandlerAdapter {
                 Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(
                         e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
                 if (deviceOptional.isPresent()) {
-                    ByteBuf buf = BACnetReadPropertyMultiple.encodeBACnetReadProperty(deviceOptional.get(), readPropertyMultiple);
+                    ByteBuf buf = readPropertyMultiple.encodeBACnetReadPropertyMultipleResponse(deviceOptional.get());
                     if (buf != null) {
                         ctx.writeAndFlush(new DatagramPacket(buf, readPropertyMultiple.getSender()));
                     } else {

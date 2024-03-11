@@ -23,7 +23,7 @@ public class GenericTCPDecoder extends ByteToMessageDecoder {
     private final List<RXFrame> acceptFrames;
 
     public GenericTCPDecoder(Map<?, ?> communicationSettings) {
-        Type listType = new TypeToken<ArrayList<RXFrame>>(){}.getType();
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
         this.acceptFrames = new Gson().fromJson(communicationSettings.get("rx").toString(), listType);
     }
 

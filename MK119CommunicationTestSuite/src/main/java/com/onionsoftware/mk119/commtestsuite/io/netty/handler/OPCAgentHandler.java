@@ -8,8 +8,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Arrays;
 import java.util.Map;
 
 public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
@@ -26,16 +24,16 @@ public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        cause.printStackTrace();
+        logger.error("[OPCAgentHandler] exception occur. {}", cause.getMessage());
         ctx.close();
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof OPCAgent) {
             OPCAgent opc = (OPCAgent) msg;
             int start = opc.getStart();
-            int length = 0;
+            int length;
             if (DEFAULT_TAGS_LENGTH + start > opcAgentData.getValues().length) {
                 length = opcAgentData.getValues().length - start;
             } else length = DEFAULT_TAGS_LENGTH;
@@ -60,15 +58,5 @@ public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
                 ctx.writeAndFlush(new DatagramPacket(out, opc.getSender()));
             else ctx.writeAndFlush(out);
         }
-    }
-
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        super.channelInactive(ctx);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        super.channelActive(ctx);
     }
 }

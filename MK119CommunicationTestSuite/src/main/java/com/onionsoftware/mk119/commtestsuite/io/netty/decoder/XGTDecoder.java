@@ -13,17 +13,17 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 
 public class XGTDecoder extends ByteToMessageDecoder {
-	Logger logger = LoggerFactory.getLogger("io");
-	
-	@Override
-	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
+    Logger logger = LoggerFactory.getLogger("io");
 
-		XGT xgt = ByteBufUtils.parseXGTPacket(in);
-		if(xgt != null){
-			out.add(xgt);
-		}
-		ByteBufUtils.clear(in);
-	}
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
+
+        XGT xgt = ByteBufUtils.parseXGTPacket(in);
+        if (xgt != null) {
+            out.add(xgt);
+        }
+        ByteBufUtils.clear(in);
+    }
 
 }

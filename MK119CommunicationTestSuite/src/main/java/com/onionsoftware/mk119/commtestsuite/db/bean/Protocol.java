@@ -22,5 +22,5 @@ public enum Protocol {
         return this.value;
     }
 
-    public static final List<Protocol> NETTY_PROTOCOLS = Arrays.asList(new Protocol[]{GENERIC, MODBUS, XGT_PLC, DAEYUN_RCU, SNMP, OPC_AGENT});
+    public static final List<Protocol> NETTY_PROTOCOLS = Arrays.asList(GENERIC, MODBUS, XGT_PLC, DAEYUN_RCU, SNMP, OPC_AGENT);
 }
