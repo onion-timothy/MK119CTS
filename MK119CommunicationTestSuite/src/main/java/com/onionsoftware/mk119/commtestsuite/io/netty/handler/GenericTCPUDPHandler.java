@@ -3,14 +3,18 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import com.google.gson.reflect.TypeToken;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
+import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,18 +25,36 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
+@Component("generic")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
     static Logger logger = LoggerFactory.getLogger("io");
-    private final List<TXFrame> sendFrames;
-    private final String transport;
-    private final GenericData genericData;
+    private List<TXFrame> sendFrames;
+    private String transport;
+    private GenericData genericData;
 
-    public GenericTCPUDPHandler(Map<Object, Object> communicationSettings, GenericData genericData) {
-        Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
-        this.sendFrames = new Gson().fromJson(communicationSettings.get("tx").toString(), listType);
-        transport = communicationSettings.get("transport").toString();
-        this.genericData = genericData;
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        logger.info("handler channel active");
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getHandler())).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            device = ioServer.getDevice();
+            genericData = (GenericData) applicationContext.getBean("serverData", device);
+            ioServer.setServerData(genericData);
+            transport = device.getCommunicationSettings().get("transport").toString();
+            Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
+            this.sendFrames = new Gson().fromJson(device.getCommunicationSettings().get("tx").toString(), listType);
+        }
     }
 
     @Override
@@ -60,6 +82,7 @@ public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         logger.error("[GenericTCPUDPHandler] exception occur. {}", cause.getMessage());
+        ExceptionUtil.printStackTrace(cause);
         ctx.close();
     }
 }

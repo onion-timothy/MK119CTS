@@ -6,7 +6,10 @@ import com.onionsoftware.mk119.commtestsuite.db.mapper.DeviceMapper;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.db.DBClientDevice;
 import com.onionsoftware.mk119.commtestsuite.io.db.DBDeviceService;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +19,12 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
+@Getter
 @RequiredArgsConstructor
 public class DeviceService {
     private final DeviceMapper deviceMapper;

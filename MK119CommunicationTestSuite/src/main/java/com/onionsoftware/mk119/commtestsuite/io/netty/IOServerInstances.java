@@ -1,6 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import lombok.Getter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -8,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component("ioServerInstances")
+@Getter
 public class IOServerInstances {
     ObjectProvider<IOServer> ioServerFactory;
 

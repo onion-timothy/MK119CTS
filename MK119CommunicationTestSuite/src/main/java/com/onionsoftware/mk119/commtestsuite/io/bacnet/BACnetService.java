@@ -9,10 +9,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,7 +25,7 @@ import java.util.Map;
 @Service("bacnetService")
 @RequiredArgsConstructor
 public class BACnetService {
-    private IOServer BACnetEndpoint;
+    private IOServer bacnetEndpoint;
     private final ObjectProvider<IOServer> ioServerFactory;
 
     private List<Device> bacnetDevices = new ArrayList<>();
@@ -49,8 +47,8 @@ public class BACnetService {
             localDeviceVirtual.setTransport(Transport.UDP);
             localDeviceVirtual.setStrCommunicationSettings("{}");
 
-            BACnetEndpoint = ioServerFactory.getObject(localDeviceVirtual);
-            BACnetEndpoint.start();
+            bacnetEndpoint = ioServerFactory.getObject(localDeviceVirtual);
+            bacnetEndpoint.start();
         }
         bacnetDevices.add(device);
     }
@@ -64,7 +62,7 @@ public class BACnetService {
     public synchronized void removeDevice(int deviceId) {
         bacnetDevices.removeIf(e -> e.getId() == deviceId);
         if (bacnetDevices.isEmpty()) {
-            BACnetEndpoint.stopServer();
+            bacnetEndpoint.stopServer();
         }
     }
 

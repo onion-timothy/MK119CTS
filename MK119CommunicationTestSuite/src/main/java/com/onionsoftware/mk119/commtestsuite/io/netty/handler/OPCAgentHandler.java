@@ -1,23 +1,44 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.Map;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
+@Component("opc_agent")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
     static Logger logger = LoggerFactory.getLogger("io");
-    private final String transport;
-    private final OPCAgentData opcAgentData;
+    private String transport;
+    private OPCAgentData opcAgentData;
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
 
-    public OPCAgentHandler(Map<Object, Object> communicationSettings, OPCAgentData opcAgentData) {
-        this.opcAgentData = opcAgentData;
-        transport = communicationSettings.get("transport").toString();
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            device = ioServer.getDevice();
+            opcAgentData = (OPCAgentData) applicationContext.getBean("serverData", device);
+            ioServer.setServerData(opcAgentData);
+            transport = device.getCommunicationSettings().get("transport").toString();
+        }
     }
 
     private static final int DEFAULT_TAGS_LENGTH = 1023;

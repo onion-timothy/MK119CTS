@@ -8,8 +8,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
@@ -17,14 +19,12 @@ import java.util.Optional;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 
-@Component
+@Component("bacnet")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class BACnetHandler extends ChannelInboundHandlerAdapter {
     private final Logger logger = LoggerFactory.getLogger("io");
     private final BACnetService bacnetService;
-
-    public BACnetHandler(BACnetService bacnetService) {
-        this.bacnetService = bacnetService;
-    }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {

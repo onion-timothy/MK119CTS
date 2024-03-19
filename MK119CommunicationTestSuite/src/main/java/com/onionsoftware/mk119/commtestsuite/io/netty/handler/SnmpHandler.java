@@ -1,24 +1,46 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.ireasoning.protocol.snmp.*;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.SnmpData;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
+@Component("snmp")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class SnmpHandler extends ChannelInboundHandlerAdapter {
     Logger logger = LoggerFactory.getLogger("io");
-    private final SnmpData snmpData;
+    private SnmpData snmpData;
 
-    public SnmpHandler(SnmpData snmpData) {
-        this.snmpData = snmpData;
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            device = ioServer.getDevice();
+            snmpData = (SnmpData) applicationContext.getBean("serverData", device);
+            ioServer.setServerData(snmpData);
+        }
     }
-
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof SnmpPdu) {

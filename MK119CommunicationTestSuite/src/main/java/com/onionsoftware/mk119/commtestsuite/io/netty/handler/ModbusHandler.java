@@ -1,5 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
@@ -10,20 +13,37 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 import java.util.Arrays;
-import java.util.Map;
+import java.util.Optional;
 
+@Component("modbus")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class ModbusHandler extends ChannelInboundHandlerAdapter {
     static Logger logger = LoggerFactory.getLogger("io");
-    private final String transport;
-    private final ModbusData modbusData;
+    private String transport;
+    private ModbusData modbusData;
 
-    public ModbusHandler(Map<Object, Object> communicationSettings, ModbusData modbusData) {
-        transport = communicationSettings.get("transport").toString();
-        this.modbusData = modbusData;
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            device = ioServer.getDevice();
+            modbusData = (ModbusData) applicationContext.getBean("serverData", device);
+            ioServer.setServerData(modbusData);
+            transport = device.getCommunicationSettings().get("transport").toString();
+        }
     }
 
     @Override
@@ -67,6 +87,12 @@ public class ModbusHandler extends ChannelInboundHandlerAdapter {
                 for (short value : ret) {
                     out.writeShort(value);
                 }
+                break;
+            case Modbus.FC_05:
+                logger.info("FC05");
+                break;
+            case Modbus.FC_06:
+                logger.info("FC06");
                 break;
         }
 

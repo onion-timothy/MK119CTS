@@ -1,27 +1,50 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.XGTData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
+@Component("xgt_plc")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class XGTHandler extends ChannelInboundHandlerAdapter {
     static Logger logger = LoggerFactory.getLogger("io");
-    private final String transport;
-    private final XGTData xgtData;
+    private String transport;
+    private XGTData xgtData;
 
-    public XGTHandler(Map<Object, Object> communicationSettings, XGTData xgtData) {
-        this.xgtData = xgtData;
-        transport = communicationSettings.get("transport").toString();
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            Device device = ioServer.getDevice();
+            xgtData = (XGTData) applicationContext.getBean("serverData", device);
+            ioServer.setServerData(xgtData);
+            transport = device.getCommunicationSettings().get("transport").toString();
+        }
     }
 
     @Override

@@ -80,7 +80,11 @@
 
                     for (let i = 0; i < data.length; i++) {
                         let policy = JSON.parse(data[i].strPolicy);
-                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policy.policy + "</td><td>" + data[i].interval + "</td></tr>";
+                        let policies = [];
+                        for(let j = 0; j < policy.length; j++){
+                            policies.push(policy[j].policy);
+                        }
+                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td></tr>";
                         table.append(markup);
                     }
 

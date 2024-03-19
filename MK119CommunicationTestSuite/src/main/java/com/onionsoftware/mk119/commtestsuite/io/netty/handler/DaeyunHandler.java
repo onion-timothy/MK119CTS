@@ -2,33 +2,57 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DaeyunData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.CRC16;
+import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
 import java.lang.reflect.Type;
 import java.util.*;
 
+@Component("daeyun_rcu")
+@Scope("prototype")
+@RequiredArgsConstructor
 public class DaeyunHandler extends ChannelInboundHandlerAdapter {
     static Logger logger = LoggerFactory.getLogger("io");
-    private final List<TXFrame> sendFrames;
-    private final String transport;
-    private final DaeyunData daeyunData;
+    private List<TXFrame> sendFrames;
+    private String transport;
+    private DaeyunData daeyunData;
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
 
-    public DaeyunHandler(Map<Object, Object> communicationSettings, DaeyunData daeyunData) {
-        Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
-        this.sendFrames = new Gson().fromJson(communicationSettings.get("tx").toString(), listType);
-        transport = communicationSettings.get("transport").toString();
-        this.daeyunData = daeyunData;
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getHandler())).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            device = ioServer.getDevice();
+            daeyunData = (DaeyunData) applicationContext.getBean("serverData", device);
+            ioServer.setServerData(daeyunData);
+            transport = device.getCommunicationSettings().get("transport").toString();
+
+            Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
+            this.sendFrames = new Gson().fromJson(device.getCommunicationSettings().get("tx").toString(), listType);
+        }
     }
 
     @Override
@@ -112,6 +136,13 @@ public class DaeyunHandler extends ChannelInboundHandlerAdapter {
         } else {
             logger.error("Message is not matched for handler. {}", msg.getClass().getName());
         }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        logger.error("[DaeyunHandler] exception occur. {}", cause.getMessage());
+        ExceptionUtil.printStackTrace(cause);
+        ctx.close();
     }
 
     public static final int ERROR_NO_ERROR = 0;

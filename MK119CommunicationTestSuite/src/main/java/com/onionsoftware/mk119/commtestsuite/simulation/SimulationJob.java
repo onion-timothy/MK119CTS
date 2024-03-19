@@ -42,14 +42,13 @@ public class SimulationJob implements Runnable {
     @Override
     public void run() {
         List<SimulationPolicy> simulationPolicies = simulation.getPolicies();
-        double value;
 
         Device device = deviceService.selectDevice(simulation.getDevice_id());
         if (device.getProtocol() == Protocol.BACNET) {
-            value = parseAndMakeValue(simulationPolicies.get(0));
+            double value = parseAndMakeValue(simulationPolicies.get(0));
             bacnetService.getSimulationValues().put(simulation.getId(), (float) value);
         } else if (Protocol.NETTY_PROTOCOLS.contains(device.getProtocol())) {
-            value = parseAndMakeValue(simulationPolicies.get(0));
+            double value = parseAndMakeValue(simulationPolicies.get(0));
             IOServer server = ioServerInstances.getServerInstance(simulation.getDevice_id());
             if (server != null) {
                 ServerData serverData = server.getServerData();
@@ -105,10 +104,15 @@ public class SimulationJob implements Runnable {
                 }
             }
         } else if (device.getProtocol() == Protocol.DB) {
+            String replaced = simulation.getTarget();
+            for(SimulationPolicy policy : simulationPolicies){
+                double value = parseAndMakeValue(policy);
+                replaced = replaced.replaceAll("\\$\\{" + policy.getId() + "}", Double.toString(value));
+            }
             Connection connection = dbDeviceService.getConnection(device);
             if (connection != null) {
                 try {
-                    PreparedStatement pstmt = connection.prepareStatement(simulation.getTarget());
+                    PreparedStatement pstmt = connection.prepareStatement(replaced);
                     int res = pstmt.executeUpdate();
                     if (res == 0)
                         logger.warn("DB simulation {} for device {} has no affect.", simulation.getTarget(), device.getName());

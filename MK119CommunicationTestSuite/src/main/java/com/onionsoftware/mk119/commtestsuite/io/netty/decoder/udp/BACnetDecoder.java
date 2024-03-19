@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Component
+@Component("bacnet_decoder_udp")
 @RequiredArgsConstructor
 public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
     private final Logger logger = LoggerFactory.getLogger("io");
@@ -144,6 +144,6 @@ public class BACnetDecoder extends MessageToMessageDecoder<DatagramPacket> {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        cause.printStackTrace();
+        logger.error("[BACnetDecoder] BACnet packet decode error: {}", cause.getMessage());
     }
 }

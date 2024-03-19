@@ -16,6 +16,7 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 
 @Getter
 @Setter
@@ -31,6 +32,9 @@ public class IOServer extends Thread {
 
     @Autowired
     IOServerFactory ioServerFactory;
+
+    @Autowired
+    ApplicationContext applicationContext;
 
     public IOServer(Device device) {
         this.device = device;
@@ -91,10 +95,16 @@ public class IOServer extends Thread {
     }
 
     private void constructPipeline(Channel channel) {
+        logger.info("channel initializer construct pipeline");
         ChannelPipeline pipeline = channel.pipeline();
         device.getCommunicationSettings().put("transport", device.getTransport().name());
-        pipeline.addLast(this.decoder);
-        pipeline.addLast(this.handler);
+        ChannelInboundHandlerAdapter decoder = (ChannelInboundHandlerAdapter) applicationContext.getBean("decoder", device);
+        ChannelInboundHandlerAdapter handler = (ChannelInboundHandlerAdapter) applicationContext.getBean("handler", device);
+        setDecoder(decoder);
+        setHandler(handler);
+
+        pipeline.addLast(getDecoder());
+        pipeline.addLast(getHandler());
     }
 
     public void stopServer() {

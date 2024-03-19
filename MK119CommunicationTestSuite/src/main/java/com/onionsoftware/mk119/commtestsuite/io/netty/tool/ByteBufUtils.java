@@ -649,7 +649,7 @@ public class ByteBufUtils {
             }
 
             modbusTcp.setFc(in.readByte());
-            if (modbusTcp.getFc() > 4 || modbusTcp.getFc() < 0) {
+            if (!Modbus.SUPPORTED_FUNCTIONS.contains((int) modbusTcp.getFc())) {
                 logger.error("ModbusDecoder format function code error: {}", modbusTcp.getFc());
                 return null;
             }
@@ -670,7 +670,7 @@ public class ByteBufUtils {
             }
 
             modbusRtu.setFc(in.readByte());
-            if (modbusRtu.getFc() > 4 || modbusRtu.getFc() < 0) {
+            if (!Modbus.SUPPORTED_FUNCTIONS.contains((int) modbusRtu.getFc())) {
                 logger.error("ModbusDecoder format function code error: {}", modbusRtu.getFc());
                 return null;
             }

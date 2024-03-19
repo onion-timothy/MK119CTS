@@ -1,27 +1,54 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.ireasoning.protocol.snmp.SnmpConst;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
+import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Configuration;
 
+import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+@Configuration("snmp_decoder_udp")
+@RequiredArgsConstructor
 public class SnmpDecoder extends MessageToMessageDecoder<DatagramPacket> {
     private final Logger logger = LoggerFactory.getLogger("io");
-    private final int version;
-    private final String getCommunity;
-    private final String setCommunity;
+    private int version;
+    private String getCommunity;
+    private String setCommunity;
 
-    public SnmpDecoder(Map<?, ?> communicationSettings) {
-        this.version = Integer.parseInt(communicationSettings.get("snmpVersion").toString());
-        this.getCommunity = communicationSettings.get("getCommunity").toString();
-        this.setCommunity = communicationSettings.get("setCommunity").toString();
+    Device device;
+    final ApplicationContext applicationContext;
+    final IOServerInstances ioServerInstances;
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx){
+        logger.info("decoder channel registered");
+        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getDecoder())).findFirst();
+        if(optionalIOServer.isPresent()){
+            IOServer ioServer = optionalIOServer.get();
+            device = ioServer.getDevice();
+            this.version = Integer.parseInt(device.getCommunicationSettings().get("snmpVersion").toString());
+            this.getCommunity = device.getCommunicationSettings().get("getCommunity").toString();
+            this.setCommunity = device.getCommunicationSettings().get("setCommunity").toString();
+        }
+        ctx.fireChannelActive();
     }
 
     @Override
@@ -41,5 +68,12 @@ public class SnmpDecoder extends MessageToMessageDecoder<DatagramPacket> {
             } else logger.error("Error community or command: {} {}", pdu.getCommunity(), pdu.getCommand());
         } else logger.error("Error snmp version: expected {} received {}", this.version, pdu.getVersion());
 
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        logger.error("[SnmpDecoder] exception occur. {}", cause.getMessage());
+        ExceptionUtil.printStackTrace(cause);
+        ctx.close();
     }
 }
