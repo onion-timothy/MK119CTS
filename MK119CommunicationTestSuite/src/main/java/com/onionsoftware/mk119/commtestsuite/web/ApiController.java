@@ -6,28 +6,38 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoder;
+import com.onionsoftware.mk119.commtestsuite.web.bean.Session;
+import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.SystemUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(value = "/api")
+@RequiredArgsConstructor
 public class ApiController {
     private final DeviceService deviceService;
     private final GroupService groupService;
     private final SimulationService simulationService;
-
-    @Autowired
-    public ApiController(DeviceService deviceService, GroupService groupService, SimulationService simulationService) {
-        this.deviceService = deviceService;
-        this.groupService = groupService;
-        this.simulationService = simulationService;
-    }
+    private final IOServerInstances ioServerInstances;
+    private final Logger logger = LoggerFactory.getLogger("api");
 
     @RequestMapping(value = "/device/devices/{group_id}", method = RequestMethod.GET)
     public List<Device> getDevicesByGroupId(@PathVariable Integer group_id) {
@@ -169,6 +179,51 @@ public class ApiController {
         simulation.setEnabled(enabled);
         simulationService.updateSimulation(simulation);
         return enabled;
+    }
+
+    @RequestMapping(value = "/socketTest", method = RequestMethod.GET)
+    public Boolean socketTest(@RequestParam("host_transport") String host_transport, @RequestParam("port") Integer port) throws IOException {
+        String[] tokens = host_transport.split("_");
+        String host = tokens[0];
+        if (host.equals("0.0.0.0")) host = "\\*";
+        String transport = tokens[1];
+
+        try {
+            if (SystemUtils.IS_OS_MAC) {
+                String regex = transport.toLowerCase() + ".+" + host + "\\." + port + ".+";
+                Process netstat = Runtime.getRuntime().exec(new String[]{
+                        "/bin/sh",
+                        "-c",
+                        "netstat -anv | grep LISTEN"});
+                BufferedReader inStream = new BufferedReader(new InputStreamReader(netstat.getInputStream()));
+                List<String> lines = inStream.lines().collect(Collectors.toList());
+                for(String line : lines){
+                    if(Pattern.matches(regex, line)){
+                        return true;
+                    }
+                }
+                return false;
+            } else if (SystemUtils.IS_OS_WINDOWS) {
+                // TODO IF RUN ON WINDOWS
+                return false;
+            } else return false;
+        } catch (IOException e) {
+            logger.error("Runtime exec error.", e);
+            return false;
+        }
+    }
+
+    @RequestMapping(value="/sessions/{id}", method=RequestMethod.GET)
+    public Map<SocketAddress, Long> sessions(@PathVariable("id") Integer id){
+        IOServer server = ioServerInstances.getServers().get(id);
+        List<Session> sessions = new ArrayList<>();
+        for(InetSocketAddress remote : server.getSessions().keySet()){
+            Session session = new Session();
+            session.setRemoteHost(remote.getHostName());
+            session.setRemotePort(remote.getPort());
+            sessions.add(session);
+        }
+        return null;
     }
 
     @ExceptionHandler({SQLException.class})

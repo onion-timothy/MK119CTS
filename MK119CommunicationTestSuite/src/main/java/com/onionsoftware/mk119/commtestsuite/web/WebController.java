@@ -60,4 +60,9 @@ public class WebController {
         model.addAttribute("device", deviceService.selectDevice(simulation.getDevice_id()));
         return "simulation_editor";
     }
+
+    @RequestMapping("/settings")
+    public String settings() {
+        return "settings";
+    }
 }

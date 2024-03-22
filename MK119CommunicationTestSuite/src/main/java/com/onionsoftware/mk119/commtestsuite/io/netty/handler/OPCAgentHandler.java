@@ -3,6 +3,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
 import io.netty.buffer.ByteBuf;
@@ -16,12 +17,15 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Component("opc_agent")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
+public class OPCAgentHandler extends MkHandler {
     static Logger logger = LoggerFactory.getLogger("io");
     private String transport;
     private OPCAgentData opcAgentData;
@@ -30,13 +34,21 @@ public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             opcAgentData = (OPCAgentData) applicationContext.getBean("serverData", device);
-            ioServer.setServerData(opcAgentData);
+            target.setServerData(opcAgentData);
             transport = device.getCommunicationSettings().get("transport").toString();
         }
     }
@@ -78,6 +90,15 @@ public class OPCAgentHandler extends ChannelInboundHandlerAdapter {
             if (transport.equals("UDP"))
                 ctx.writeAndFlush(new DatagramPacket(out, opc.getSender()));
             else ctx.writeAndFlush(out);
+            super.channelRead(ctx, msg);
         }
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        IOServer server = ioServerInstances.getServerInstance(device.getId());
+        server.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
+        server.getHandlers().removeIf(this::equals);
+        server.getDecoders().removeIf(e->e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().equals(ctx));
     }
 }

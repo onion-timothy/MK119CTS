@@ -3,6 +3,8 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,9 +24,14 @@ import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 @Component("bacnet")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class BACnetHandler extends ChannelInboundHandlerAdapter {
+public class BACnetHandler extends MkHandler {
     private final Logger logger = LoggerFactory.getLogger("io");
     private final BACnetService bacnetService;
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        ctx.fireChannelActive();
+    }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -78,7 +85,8 @@ public class BACnetHandler extends ChannelInboundHandlerAdapter {
                                 ), readPropertyMultiple.getSender()));
                     }
                 }
-            }
+            } else return;
+            super.channelRead(ctx, msg);
         }
     }
 

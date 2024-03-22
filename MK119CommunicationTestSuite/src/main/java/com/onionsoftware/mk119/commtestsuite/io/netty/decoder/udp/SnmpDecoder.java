@@ -11,6 +11,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ import java.util.Optional;
 
 @Configuration("snmp_decoder_udp")
 @RequiredArgsConstructor
-public class SnmpDecoder extends MessageToMessageDecoder<DatagramPacket> {
+public class SnmpDecoder extends MkUDPDecoder {
     private final Logger logger = LoggerFactory.getLogger("io");
     private int version;
     private String getCommunity;
@@ -38,21 +39,29 @@ public class SnmpDecoder extends MessageToMessageDecoder<DatagramPacket> {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        logger.info("decoder channel registered");
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getDecoder())).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getDecoders().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             this.version = Integer.parseInt(device.getCommunicationSettings().get("snmpVersion").toString());
             this.getCommunity = device.getCommunicationSettings().get("getCommunity").toString();
             this.setCommunity = device.getCommunicationSettings().get("setCommunity").toString();
+            ctx.fireChannelActive();
         }
-        ctx.fireChannelActive();
     }
 
     @Override
     protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
+        super.decode(ctx, msg, out);
         ByteBuf buffer = msg.content();
         byte[] cpy = new byte[buffer.readableBytes()];
         buffer.readBytes(cpy);

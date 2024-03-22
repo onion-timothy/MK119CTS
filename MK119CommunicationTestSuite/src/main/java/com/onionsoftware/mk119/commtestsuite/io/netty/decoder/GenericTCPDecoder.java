@@ -13,6 +13,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,7 @@ import org.springframework.stereotype.Component;
 @Component("generic_decoder_tcp")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class GenericTCPDecoder extends ByteToMessageDecoder {
+public class GenericTCPDecoder extends MkDecoder {
     Logger logger = LoggerFactory.getLogger("io");
     private List<RXFrame> acceptFrames;
     Device device;
@@ -40,20 +41,29 @@ public class GenericTCPDecoder extends ByteToMessageDecoder {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        logger.info("decoder channel registered");
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getDecoder())).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getDecoders().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
             this.acceptFrames = new Gson().fromJson(device.getCommunicationSettings().get("rx").toString(), listType);
+            ctx.fireChannelActive();
         }
-        ctx.fireChannelActive();
     }
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        super.decode(ctx, in, out);
+
         ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
         GenericTCPUDPPacket packet = null;
 

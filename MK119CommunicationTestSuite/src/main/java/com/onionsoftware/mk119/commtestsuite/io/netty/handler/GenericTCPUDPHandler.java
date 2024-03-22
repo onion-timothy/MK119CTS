@@ -1,6 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import java.lang.reflect.Type;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -9,6 +10,7 @@ import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
@@ -32,7 +34,7 @@ import org.springframework.stereotype.Component;
 @Component("generic")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
+public class GenericTCPUDPHandler extends MkHandler {
     static Logger logger = LoggerFactory.getLogger("io");
     private List<TXFrame> sendFrames;
     private String transport;
@@ -43,16 +45,24 @@ public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        logger.info("handler channel active");
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getHandler())).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             genericData = (GenericData) applicationContext.getBean("serverData", device);
-            ioServer.setServerData(genericData);
+            target.setServerData(genericData);
             transport = device.getCommunicationSettings().get("transport").toString();
-            Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
+            Type listType = new TypeToken<ArrayList<TXFrame>>() {
+            }.getType();
             this.sendFrames = new Gson().fromJson(device.getCommunicationSettings().get("tx").toString(), listType);
         }
     }
@@ -75,6 +85,7 @@ public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
                 if (transport.equals("UDP")) {
                     ctx.writeAndFlush(new DatagramPacket(out, packet.getSender()));
                 } else ctx.writeAndFlush(out);
+                super.channelRead(ctx, msg);
             }
         }
     }
@@ -84,5 +95,13 @@ public class GenericTCPUDPHandler extends ChannelInboundHandlerAdapter {
         logger.error("[GenericTCPUDPHandler] exception occur. {}", cause.getMessage());
         ExceptionUtil.printStackTrace(cause);
         ctx.close();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        IOServer server = ioServerInstances.getServerInstance(device.getId());
+        server.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
+        server.getHandlers().removeIf(this::equals);
+        server.getDecoders().removeIf(e -> e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().equals(ctx));
     }
 }

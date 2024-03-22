@@ -3,6 +3,9 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.ModbusDecoder;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.ModbusUDPDecoder;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
@@ -19,13 +22,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
+
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 @Component("modbus")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class ModbusHandler extends ChannelInboundHandlerAdapter {
+public class ModbusHandler extends MkHandler {
     static Logger logger = LoggerFactory.getLogger("io");
     private String transport;
     private ModbusData modbusData;
@@ -35,13 +42,21 @@ public class ModbusHandler extends ChannelInboundHandlerAdapter {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             modbusData = (ModbusData) applicationContext.getBean("serverData", device);
-            ioServer.setServerData(modbusData);
+            target.setServerData(modbusData);
             transport = device.getCommunicationSettings().get("transport").toString();
         }
     }
@@ -107,11 +122,20 @@ public class ModbusHandler extends ChannelInboundHandlerAdapter {
         if (transport.equals("UDP")) {
             ctx.writeAndFlush(new DatagramPacket(out, modbus.getSender()));
         } else ctx.writeAndFlush(out);
+        super.channelRead(ctx, msg);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         logger.error("[ModbusHandler] exception occur. {}", cause.getMessage());
         ctx.close();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        IOServer server = ioServerInstances.getServerInstance(device.getId());
+        server.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
+        server.getHandlers().removeIf(this::equals);
+        server.getDecoders().removeIf(e->e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().channel().equals(ctx.channel()));
     }
 }

@@ -20,11 +20,18 @@ import org.springframework.stereotype.Component;
 @Component("xgt_plc_decoder_tcp")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class XGTDecoder extends ByteToMessageDecoder {
+public class XGTDecoder extends MkDecoder {
     Logger logger = LoggerFactory.getLogger("io");
 
     @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        ctx.fireChannelActive();
+    }
+
+    @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        super.decode(ctx, in, out);
         ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
 
         XGT xgt = ByteBufUtils.parseXGTPacket(in);

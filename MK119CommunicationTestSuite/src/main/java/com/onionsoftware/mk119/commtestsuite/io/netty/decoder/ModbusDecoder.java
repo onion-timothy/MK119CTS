@@ -13,6 +13,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,7 @@ import org.springframework.stereotype.Component;
 @Component("modbus_decoder_tcp")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class ModbusDecoder extends ByteToMessageDecoder {
+public class ModbusDecoder extends MkDecoder {
     Logger logger = LoggerFactory.getLogger("io");
     int uid;
     int type;
@@ -41,21 +42,30 @@ public class ModbusDecoder extends ByteToMessageDecoder {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        logger.info("decoder channel registered");
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getDecoder())).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getDecoders().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
 
             this.uid = Integer.parseInt(device.getCommunicationSettings().get("unitId").toString());
             this.type = Integer.parseInt(device.getCommunicationSettings().get("packetType").toString());
+            ctx.fireChannelActive();
         }
-        ctx.fireChannelActive();
     }
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        super.decode(ctx, in, out);
+
         ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
         Modbus modbus = ByteBufUtils.parseModbusPacket(in, uid, type);
         if (modbus instanceof ModbusTCP && type == Modbus.MODBUS_TCP) {

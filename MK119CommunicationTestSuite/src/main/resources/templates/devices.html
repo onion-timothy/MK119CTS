@@ -90,7 +90,7 @@
                                         if (key === 'add') {
                                             location.href = '/addDevice';
                                         } else if (key === 'edit') {
-                                            if (id != undefined) {
+                                            if (typeof(id) != 'undefined') {
                                                 location.href = '/editDevice/' + id;
                                             }
                                         } else if (key === 'delete') {

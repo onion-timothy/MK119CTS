@@ -100,6 +100,15 @@
             }
         }
 
+        function validatePanel2() {
+            let groupselected = typeof($.jstree.reference('#tree-container').get_selected()[0]);
+            if (groupselected === 'undefined') {
+                alert('Group not selected.');
+            } else {
+                stepper.next();
+            }
+        }
+
         let rxJsonEditor;
         let txJsonEditor;
         let rxJsonRCUEditor;
@@ -457,7 +466,7 @@
                                                 </div>
                                                 <button class="btn btn-primary" onclick="stepper.previous()">Previous
                                                 </button>
-                                                <button class="btn btn-primary" onclick="stepper.next()">Next</button>
+                                                <button class="btn btn-primary" onclick="validatePanel2()">Next</button>
                                             </div>
                                             <div id="test-l-3" role="tabpanel" class="bs-stepper-pane"
                                                  aria-labelledby="stepper1trigger3">

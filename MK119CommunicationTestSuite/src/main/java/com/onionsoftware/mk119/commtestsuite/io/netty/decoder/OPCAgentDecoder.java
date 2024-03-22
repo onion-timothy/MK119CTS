@@ -17,11 +17,17 @@ import java.util.List;
 @Component("opc_agent_decoder_tcp")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class OPCAgentDecoder extends ByteToMessageDecoder {
+public class OPCAgentDecoder extends MkDecoder {
     Logger logger = LoggerFactory.getLogger("io");
 
     @Override
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        ctx.fireChannelActive();
+    }
+    @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        super.decode(ctx, in, out);
         if (in.readableBytes() == 3) {
             ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
             OPCAgent agent = ByteBufUtils.parseOPCAgentPacket(in);

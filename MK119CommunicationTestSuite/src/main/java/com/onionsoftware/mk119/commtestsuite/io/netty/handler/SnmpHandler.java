@@ -19,28 +19,41 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Component("snmp")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class SnmpHandler extends ChannelInboundHandlerAdapter {
+public class SnmpHandler extends MkHandler {
     Logger logger = LoggerFactory.getLogger("io");
     private SnmpData snmpData;
 
     Device device;
     final ApplicationContext applicationContext;
     final IOServerInstances ioServerInstances;
+
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             snmpData = (SnmpData) applicationContext.getBean("serverData", device);
-            ioServer.setServerData(snmpData);
+            target.setServerData(snmpData);
         }
     }
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof SnmpPdu) {
@@ -58,6 +71,7 @@ public class SnmpHandler extends ChannelInboundHandlerAdapter {
             try {
                 buffer.writeBytes(SnmpPdu.encodePdu(ret));
                 ctx.writeAndFlush(new DatagramPacket(buffer, packet.getSender()));
+                super.channelRead(ctx, msg);
             } catch (SnmpEncodingException e) {
                 throw new RuntimeException(e);
             }

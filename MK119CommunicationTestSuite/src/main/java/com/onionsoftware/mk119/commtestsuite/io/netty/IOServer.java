@@ -13,10 +13,17 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.Getter;
 import lombok.Setter;
+import org.checkerframework.checker.units.qual.A;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -27,21 +34,25 @@ public class IOServer extends Thread {
     EventLoopGroup workerGroup;
 
     private ServerData serverData;
-    private ChannelInboundHandlerAdapter decoder;
-    private ChannelInboundHandlerAdapter handler;
+    private List<ChannelInboundHandlerAdapter> decoders;
+    private List<ChannelInboundHandlerAdapter> handlers;
 
     @Autowired
     IOServerFactory ioServerFactory;
 
     @Autowired
     ApplicationContext applicationContext;
+    Map<InetSocketAddress, Long> sessions = new HashMap<>();
 
     public IOServer(Device device) {
         this.device = device;
+        this.setName(device.getName() + "[" + device.getHost() + ":" + device.getPort() + "(" + device.getTransport() + ")]");
     }
 
     @Override
     public void run() {
+        decoders = new ArrayList<>();
+        handlers = new ArrayList<>();
         bossGroup = new NioEventLoopGroup();
         workerGroup = new NioEventLoopGroup();
 
@@ -61,7 +72,7 @@ public class IOServer extends Thread {
             });
 
             try {
-                ChannelFuture f = bootstrap.bind(device.getPort()).sync();
+                ChannelFuture f = bootstrap.bind(new InetSocketAddress(device.getHost(), device.getPort())).sync();
                 f.channel().closeFuture().sync();
             } catch (InterruptedException e) {
                 logger.error("Server [{}] interrupted.", device.getName());
@@ -95,16 +106,17 @@ public class IOServer extends Thread {
     }
 
     private void constructPipeline(Channel channel) {
-        logger.info("channel initializer construct pipeline");
         ChannelPipeline pipeline = channel.pipeline();
         device.getCommunicationSettings().put("transport", device.getTransport().name());
         ChannelInboundHandlerAdapter decoder = (ChannelInboundHandlerAdapter) applicationContext.getBean("decoder", device);
         ChannelInboundHandlerAdapter handler = (ChannelInboundHandlerAdapter) applicationContext.getBean("handler", device);
-        setDecoder(decoder);
-        setHandler(handler);
+        getDecoders().add(decoder);
+        getHandlers().add(handler);
 
-        pipeline.addLast(getDecoder());
-        pipeline.addLast(getHandler());
+        pipeline.addLast(decoder);
+        pipeline.addLast(handler);
+
+        sessions.put((InetSocketAddress) channel.remoteAddress(), System.currentTimeMillis());
     }
 
     public void stopServer() {

@@ -3,6 +3,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.XGTData;
@@ -18,15 +19,14 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Component("xgt_plc")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class XGTHandler extends ChannelInboundHandlerAdapter {
+public class XGTHandler extends MkHandler {
     static Logger logger = LoggerFactory.getLogger("io");
     private String transport;
     private XGTData xgtData;
@@ -36,13 +36,21 @@ public class XGTHandler extends ChannelInboundHandlerAdapter {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->e.getHandler().equals(this)).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            Device device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            Device device = target.getDevice();
             xgtData = (XGTData) applicationContext.getBean("serverData", device);
-            ioServer.setServerData(xgtData);
+            target.setServerData(xgtData);
             transport = device.getCommunicationSettings().get("transport").toString();
         }
     }
@@ -103,6 +111,7 @@ public class XGTHandler extends ChannelInboundHandlerAdapter {
             if (transport.equals("UDP")) {
                 ctx.writeAndFlush(new DatagramPacket(out, xgt.getSender()));
             } else ctx.writeAndFlush(out);
+            super.channelRead(ctx, msg);
         }
     }
 
@@ -110,5 +119,13 @@ public class XGTHandler extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         logger.error("[XGTHandler] exception occur. {}", cause.getMessage());
         ctx.close();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        IOServer server = ioServerInstances.getServerInstance(device.getId());
+        server.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
+        server.getHandlers().removeIf(this::equals);
+        server.getDecoders().removeIf(e->e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().equals(ctx));
     }
 }

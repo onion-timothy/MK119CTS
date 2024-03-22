@@ -5,6 +5,7 @@ import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DaeyunData;
@@ -26,12 +27,13 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Type;
+import java.net.InetSocketAddress;
 import java.util.*;
 
 @Component("daeyun_rcu")
 @Scope("prototype")
 @RequiredArgsConstructor
-public class DaeyunHandler extends ChannelInboundHandlerAdapter {
+public class DaeyunHandler extends MkHandler {
     static Logger logger = LoggerFactory.getLogger("io");
     private List<TXFrame> sendFrames;
     private String transport;
@@ -41,13 +43,22 @@ public class DaeyunHandler extends ChannelInboundHandlerAdapter {
     final IOServerInstances ioServerInstances;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx){
-        Optional<IOServer> optionalIOServer = ioServerInstances.getServers().values().stream().filter(e->this.equals(e.getHandler())).findFirst();
-        if(optionalIOServer.isPresent()){
-            IOServer ioServer = optionalIOServer.get();
-            device = ioServer.getDevice();
+    public void channelActive(ChannelHandlerContext ctx) {
+        super.channelActive(ctx);
+
+        IOServer target = null;
+        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
+        for (IOServer server : ioServers) {
+            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
+            if (optionalDecoder.isPresent()) {
+                target = server;
+                break;
+            }
+        }
+        if (target != null) {
+            device = target.getDevice();
             daeyunData = (DaeyunData) applicationContext.getBean("serverData", device);
-            ioServer.setServerData(daeyunData);
+            target.setServerData(daeyunData);
             transport = device.getCommunicationSettings().get("transport").toString();
 
             Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
@@ -132,6 +143,8 @@ public class DaeyunHandler extends ChannelInboundHandlerAdapter {
                 if (transport.equals("UDP")) {
                     ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
                 } else ctx.writeAndFlush(out);
+                super.channelRead(ctx, msg);
+
             }
         } else {
             logger.error("Message is not matched for handler. {}", msg.getClass().getName());
@@ -148,4 +161,12 @@ public class DaeyunHandler extends ChannelInboundHandlerAdapter {
     public static final int ERROR_NO_ERROR = 0;
     public static final int ERROR_AI_DI_CHANNEL_RANGE = 1;
     public static final int ERROR_TX_MATCH_NOT_FOUND = 2;
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        IOServer server = ioServerInstances.getServerInstance(device.getId());
+        server.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
+        server.getHandlers().removeIf(this::equals);
+        server.getDecoders().removeIf(e->e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().equals(ctx));
+    }
 }
