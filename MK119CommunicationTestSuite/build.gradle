@@ -30,6 +30,7 @@ dependencies {
 	implementation group: 'jakarta.xml.bind', name: 'jakarta.xml.bind-api', version: '2.3.3'
 	implementation group: 'org.bgee.log4jdbc-log4j2', name:'log4jdbc-log4j2-jdbc4.1', version: '1.16'
 	implementation group: 'com.google.guava', name: 'guava', version: '32.0.1-jre'
+	implementation group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
 
 	annotationProcessor 'org.projectlombok:lombok'
 	implementation files('lib/ireasoningsnmp.jar')

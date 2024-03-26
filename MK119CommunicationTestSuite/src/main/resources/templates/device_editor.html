@@ -227,9 +227,36 @@
             } else if (dev.intProtocol == 2) {
                 communicationSettings.unitId = $('#uid').val();
                 communicationSettings.packetType = $('#packetType').val();
+
+                if(communicationSettings.unitId === '' || isNaN(communicationSettings.unitId)){
+                    alert('Unit ID must assigned to number.');
+                    return;
+                }
+                if (communicationSettings.unitId < 0 || communicationSettings.unitId > 255) {
+                    alert('Invalid Unit ID. Modbus Unit ID must in 0~255.');
+                    return;
+                }
             } else if (dev.intProtocol == 3) {
                 communicationSettings.cpuId = $('#cpuid').val();
                 communicationSettings.maxBlockSize = $('#blocksize').val();
+
+                if(communicationSettings.cpuId === '' || isNaN(communicationSettings.cpuId)) {
+                    alert('CPU ID must assigned to number.')
+                    return
+                }
+                if (communicationSettings.cpuId < 0 || communicationSettings.cpuId > 255) {
+                    alert('Invalid CPU ID. XGT CPU ID must in 0~255.')
+                    return
+                }
+
+                if(communicationSettings.maxBlockSize === '' || isNaN(communicationSettings.maxBlockSize)) {
+                    alert('Block size must assigned to number.')
+                    return
+                }
+                if (communicationSettings.maxBlockSize < 1 || communicationSettings.cpuId > 1400) {
+                    alert('Invalid Block size. Block size must in 1~1400.')
+                    return
+                }
             } else if (dev.intProtocol == 4) {
                 communicationSettings.rx = rxJsonRCUEditor.get();
                 communicationSettings.tx = txJsonRCUEditor.get();
@@ -238,21 +265,70 @@
                 communicationSettings.doCount = doCount.bootstrapSlider('getValue');
                 communicationSettings.aiCount = aiCount.bootstrapSlider('getValue');
                 communicationSettings.rsCount = rsCount.bootstrapSlider('getValue');
+
+                if(communicationSettings.cpuAddr === '' || isNaN(communicationSettings.cpuAddr)) {
+                    alert('CPU ID must assigned to number.')
+                    return
+                }
+                if (communicationSettings.cpuAddr < 0 || communicationSettings.cpuAddr > 255) {
+                    alert('Invalid CPU Address. MK RCU CPU Address must in 0~255.')
+                    return
+                }
             } else if (dev.intProtocol == 5) {
                 communicationSettings.snmpVersion = $('#snmpVersion').val();
                 communicationSettings.getCommunity = $('#getCommunity').val();
                 communicationSettings.setCommunity = $('#setCommunity').val();
+                if(communicationSettings.snmpVersion === '' || isNaN(communicationSettings.snmpVersion)) {
+                    alert('SNMP Version must assigned to number.')
+                    return
+                }
+                if (communicationSettings.snmpVersion < 1 || communicationSettings.snmpVersion > 2) {
+                    alert('Invalid SNMP Version. SNMP Version must in 1 or 2.')
+                    return
+                }
             } else if (dev.intProtocol == 6) {
                 communicationSettings.deviceInstanceId = $('#deviceInstanceId').val();
                 communicationSettings.broadcast = $('#broadcast').val();
+
+                if(communicationSettings.deviceInstanceId === '' || isNaN(communicationSettings.deviceInstanceId)) {
+                    alert('BACnet device instance number must assigned to number.')
+                    return
+                }
+                if (communicationSettings.deviceInstanceId < 1 || communicationSettings.deviceInstanceId > 65536) {
+                    alert('Invalid BACnet device instance number. BACnet device instance number must in 1~65536.')
+                    return
+                }
+                if(communicationSettings.broadcast === ''){
+                    alert('BACnet broadcast address cannot be empty.')
+                }
             } else if (dev.intProtocol == 7) {
                 communicationSettings.agentTagsCount = $('#agentTagsCount').val();
+                if(communicationSettings.agentTagsCount === '' || isNaN(communicationSettings.agentTagsCount)) {
+                    alert('OPC Agent tags count must assigned to number.')
+                    return
+                }
             } else if (dev.intProtocol == 8) {
                 communicationSettings.dbdriver = $('#dbDriver').val();
                 communicationSettings.dbUrl = $('#dbUrl').val();
                 communicationSettings.dbUsername = $('#dbUsername').val();
                 communicationSettings.dbPassword = document.getElementById("dbPassword").value;
                 communicationSettings.dbDatabase = $('#dbDatabase').val();
+
+                if(communicationSettings.dbdriver === ''){
+                    alert('DB Driver cannot be empty.')
+                }
+                if(communicationSettings.dbUrl === ''){
+                    alert('DB URL cannot be empty.')
+                }
+                if(communicationSettings.dbUsername === ''){
+                    alert('DB Username cannot be empty.')
+                }
+                if(communicationSettings.dbPassword === ''){
+                    alert('DB Password cannot be empty.')
+                }
+                if(communicationSettings.dbDatabase === ''){
+                    alert('DB name cannot be empty.')
+                }
             }
 
             dev.strCommunicationSettings = JSON.stringify(communicationSettings);
@@ -495,7 +571,7 @@
                                                     <div class="form-group">
                                                         <label for="port">Port</label>
                                                         <input type="number" class="form-control form-control-border"
-                                                               id="port" placeholder="Binding port for device">
+                                                               id="port" placeholder="Binding port for device" oninput="this.value|=0"/>
                                                     </div>
                                                 </div>
                                                 <button class="btn btn-primary" onclick="stepper.previous()">Previous
@@ -519,7 +595,7 @@
                                                     <div class="form-group">
                                                         <label for="uid">Unit ID</label>
                                                         <input type="number" class="form-control form-control-border"
-                                                               id="uid" placeholder="Unit ID for modbus device">
+                                                               id="uid" placeholder="Unit ID for modbus device" oninput="this.value|=0">
                                                     </div>
                                                     <div class="form-group">
                                                         <label for="packetType">Packet Type</label>
@@ -534,20 +610,20 @@
                                                     <div class="form-group">
                                                         <label for="cpuid">CPU ID</label>
                                                         <input type="number" class="form-control form-control-border"
-                                                               id="cpuid" placeholder="CPU ID for PLC device">
+                                                               id="cpuid" placeholder="CPU ID for PLC device" oninput="this.value|=0">
                                                     </div>
                                                     <div class="form-group">
                                                         <label for="blocksize">Max block size</label>
                                                         <input type="number" class="form-control form-control-border"
                                                                id="blocksize"
-                                                               placeholder="Max size per block read request">
+                                                               placeholder="Max size per block read request" oninput="this.value|=0">
                                                     </div>
                                                 </div>
                                                 <div id="formMKRCU" style="display: none">
                                                     <div class="form-group">
                                                         <label for="cpuAddr">CPU Address</label>
                                                         <input type="number" class="form-control form-control-border"
-                                                               id="cpuAddr" placeholder="CPU Address for MK RCU">
+                                                               id="cpuAddr" placeholder="CPU Address for MK RCU" oninput="this.value|=0">
                                                     </div>
                                                     <label for="diCount">DI Channels</label>
                                                     <div class="slider-green">
@@ -610,7 +686,7 @@
                                                         <label for="deviceInstanceId">BACnet local device number</label>
                                                         <input type="number" class="form-control form-control-border"
                                                                id="deviceInstanceId"
-                                                               placeholder="Instance number of BACnet local device">
+                                                               placeholder="Instance number of BACnet local device" oninput="this.value|=0">
                                                     </div>
                                                     <div class="form-group">
                                                         <label for="broadcast">BACnet broadcast address</label>
@@ -624,7 +700,7 @@
                                                         <label for="agentTagsCount">Count of agent's tags</label>
                                                         <input type="number" class="form-control form-control-border"
                                                                id="agentTagsCount"
-                                                               placeholder="Instance number of BACnet local device">
+                                                               placeholder="Instance number of BACnet local device" oninput="this.value|=0">
                                                     </div>
                                                 </div>
                                                 <div id="formDB" style="display: none">

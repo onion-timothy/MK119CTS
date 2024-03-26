@@ -9,7 +9,11 @@ import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoder;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
+import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import com.onionsoftware.mk119.commtestsuite.web.bean.Session;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.SystemUtils;
 import org.slf4j.Logger;
@@ -194,7 +198,7 @@ public class ApiController {
                 Process netstat = Runtime.getRuntime().exec(new String[]{
                         "/bin/sh",
                         "-c",
-                        "netstat -anv | grep LISTEN"});
+                        transport.equals("TCP") ? "netstat -anv | grep LISTEN" : "netstat -anv | grep udp"});
                 BufferedReader inStream = new BufferedReader(new InputStreamReader(netstat.getInputStream()));
                 List<String> lines = inStream.lines().collect(Collectors.toList());
                 for(String line : lines){
@@ -214,16 +218,61 @@ public class ApiController {
     }
 
     @RequestMapping(value="/sessions/{id}", method=RequestMethod.GET)
-    public Map<SocketAddress, Long> sessions(@PathVariable("id") Integer id){
+    public List<Session> sessions(@PathVariable("id") Integer id){
         IOServer server = ioServerInstances.getServers().get(id);
         List<Session> sessions = new ArrayList<>();
-        for(InetSocketAddress remote : server.getSessions().keySet()){
-            Session session = new Session();
-            session.setRemoteHost(remote.getHostName());
-            session.setRemotePort(remote.getPort());
-            sessions.add(session);
+        if(server != null){
+            for(InetSocketAddress remote : server.getSessions().keySet()){
+                Session session = new Session();
+                session.setRemoteHost(remote.getHostName());
+                session.setRemotePort(remote.getPort());
+                session.setUptime(System.currentTimeMillis() - server.getSessions().get(remote));
+                MkHandler handler_target = null;
+                for(ChannelInboundHandlerAdapter handler : server.getHandlers()){
+                    MkHandler mkHandler = (MkHandler) handler;
+                    if(mkHandler.getContext().channel().remoteAddress().equals(remote)){
+                        handler_target = mkHandler;
+                    }
+                }
+                MkDecoderInterface decoder_target = null;
+                for(ChannelInboundHandlerAdapter decoder : server.getDecoders()){
+                    MkDecoderInterface mkDecoder = (MkDecoderInterface) decoder;
+                    if(mkDecoder.getContext().channel().remoteAddress().equals(remote)){
+                        decoder_target = mkDecoder;
+                    }
+                }
+                if(handler_target != null && decoder_target != null){
+                    session.setTx(handler_target.getTxCounter());
+                    session.setRx(decoder_target.getRxCounter());
+                    sessions.add(session);
+                }
+            }
         }
-        return null;
+        return sessions;
+    }
+
+    @RequestMapping(value="/disconnect/{server}/{remoteAddr}", method=RequestMethod.DELETE)
+    public Boolean disconnect(@PathVariable Integer server, @PathVariable String remoteAddr){
+        IOServer ioServer = ioServerInstances.getServerInstance(server);
+        logger.info("remote {}", remoteAddr);
+        for(ChannelInboundHandlerAdapter handler : ioServer.getHandlers()){
+            MkHandler mkHandler = (MkHandler) handler;
+            InetSocketAddress addr = (InetSocketAddress) mkHandler.getContext().channel().remoteAddress();
+
+            if(remoteAddr.equals(addr.getHostName() + ":" + addr.getPort())){
+                mkHandler.getContext().close();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @RequestMapping(value="/logs/{level}", method = RequestMethod.GET)
+    public List<MkLogger> logs(@PathVariable String level){
+        if(level.equals("ALL")){
+            return new ArrayList<>(MkLogger.LATEST_LOGS);
+        }
+        return MkLogger.LATEST_LOGS.stream().filter(e->e.getLevel().toString().toUpperCase().equals(level)).collect(Collectors.toList());
     }
 
     @ExceptionHandler({SQLException.class})

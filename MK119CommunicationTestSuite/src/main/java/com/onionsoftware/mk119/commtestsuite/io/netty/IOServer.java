@@ -3,6 +3,8 @@ package com.onionsoftware.mk119.commtestsuite.io.netty;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -13,7 +15,6 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.Getter;
 import lombok.Setter;
-import org.checkerframework.checker.units.qual.A;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,6 @@ import java.util.Map;
 @Getter
 @Setter
 public class IOServer extends Thread {
-    private final Logger logger = LoggerFactory.getLogger("io");
     private final Device device;
     EventLoopGroup bossGroup;
     EventLoopGroup workerGroup;
@@ -75,8 +75,10 @@ public class IOServer extends Thread {
                 ChannelFuture f = bootstrap.bind(new InetSocketAddress(device.getHost(), device.getPort())).sync();
                 f.channel().closeFuture().sync();
             } catch (InterruptedException e) {
-                logger.error("Server [{}] interrupted.", device.getName());
+                MkLogger.log("io", LogLevel.WARNING, "Server for device {} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
+            } catch(Exception e) {
+                MkLogger.log("io", e, "General exception to initialize TCP server.");
             } finally {
                 bossGroup.shutdownGracefully();
                 workerGroup.shutdownGracefully();
@@ -97,8 +99,10 @@ public class IOServer extends Thread {
                 ChannelFuture f = bootstrap.bind().sync();
                 f.channel().closeFuture().sync();
             } catch (InterruptedException e) {
-                logger.error("Server [{}] interrupted.", device.getName());
+                MkLogger.log("io", LogLevel.WARNING, "Server for device {} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
+            } catch(Exception e) {
+                MkLogger.log("io", e, "General exception to initialize UDP server.");
             } finally {
                 bossGroup.shutdownGracefully();
             }

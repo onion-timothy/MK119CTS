@@ -2,15 +2,14 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import io.netty.handler.codec.MessageToMessageDecoder;
-import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -22,11 +21,15 @@ import java.util.List;
 import java.util.Map;
 
 @Component("bacnet_decoder_udp")
-@RequiredArgsConstructor
 public class BACnetDecoder extends MkUDPDecoder {
-    private final Logger logger = LoggerFactory.getLogger("io");
     private final ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory;
     private final ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory;
+
+    public BACnetDecoder(IOServerInstances ioServerInstances, ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory, ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory) {
+        super(ioServerInstances);
+        this.bacnetReadPropertyFactory = bacnetReadPropertyFactory;
+        this.bacnetReadPropertyMultipleFactory = bacnetReadPropertyMultipleFactory;
+    }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
@@ -145,12 +148,8 @@ public class BACnetDecoder extends MkUDPDecoder {
             }
             out.add(bacnet);
         } else {
+            MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
             ByteBufUtils.clear(in);
         }
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        logger.error("[BACnetDecoder] BACnet packet decode error: {}", cause.getMessage());
     }
 }

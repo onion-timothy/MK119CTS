@@ -177,7 +177,9 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
                         name.setExtendedLengthValue((byte) (device.getName().getBytes().length + 1));
                         writeBACnetTag(buf_apdu, name);
                     } else if (propertyIdentifier == BACNET_PROPERTY_IDENTIFIER_PRSNT_VAL) {
-
+                        if (bacnetService.getSimulationMap().get(device.getId()) == null) {
+                            return null;
+                        }
                         Optional<Simulation> simulationOpt = bacnetService.getSimulationMap().get(device.getId()).stream().filter(e -> Objects.equals(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget()), oid)).findFirst();
                         if (simulationOpt.isPresent()) {
                             Float value = bacnetService.getSimulationValues().get(simulationOpt.get().getId());

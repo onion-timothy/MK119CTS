@@ -56,6 +56,11 @@
             sim.enabled = $('#enabled').val();
             sim.device_id = device.id;
 
+            if(sim.interval === '' || isNaN(sim.interval) || sim.interval === '0'){
+                alert('Simulation interval must be a natural number.');
+                return;
+            }
+
             if(simulation != null){
                 sim.id = simulation.id;
             }
@@ -215,7 +220,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="interval">Interval</label>
-                                    <input type="number" class="form-control form-control-border" id="interval" placeholder="Interval of execute simulation">
+                                    <input type="number" class="form-control form-control-border" id="interval" placeholder="Interval of execute simulation" oninput="this.value|=0">
                                 </div>
                                 <div class="form-group">
                                     <label for="enabled">Initial state</label>

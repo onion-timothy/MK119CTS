@@ -20,15 +20,20 @@
     <script>
         function socketTest(host, port) {
             $.ajax({
-                url: '/api/socketTest?host_transport=' + host +'&port=' + port,
+                url: '/api/socketTest?host_transport=' + host + '&port=' + port,
                 type: 'GET',
                 success: function (data) {
-                    alert(data)
+                    if (data) {
+                        alert(host + ":" + port + ' is listening now.');
+                    } else {
+                        alert(host + ":" + port + ' isn\'t listening');
+                    }
                 }
             });
         }
 
         let clientsTable;
+        let selectedServer;
 
         /*<![CDATA[*/
         window.onload = function () {
@@ -67,9 +72,65 @@
             });
         }
 
-        function viewClients(id){
+        function viewClients(id) {
+            $.ajax({
+                url: '/api/sessions/' + id,
+                type: 'GET',
+                success: function (data) {
+                    clientsTable.destroy()
+                    let table = $('#clientsTable');
+                    $('#clientsTable > tbody').empty();
 
+                    for (let i = 0; i < data.length; i++) {
+                        let button = "<td><button class='btn btn-danger' id='" + data[i].remoteHost + ":" + data[i].remotePort + "' onclick='disconnect(this.id)'></button></td>"
+                        let markup = "<tr><td>" + data[i].remoteHost + "</td><td>" + data[i].remotePort + "</td><td>" + data[i].tx + "</td><td>" + data[i].rx + "</td><td>" + sessionTimeFormat(data[i].uptime) + "</td>" + button + "</tr>"
+                        table.append(markup);
+                    }
+
+                    clientsTable = table.DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+
+                    selectedServer = id;
+                }
+            });
         }
+
+        function sessionTimeFormat(msec) {
+            var sec_num = parseInt(msec / 1000);
+            var hours = Math.floor(sec_num / 3600);
+            var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
+            var seconds = sec_num - (hours * 3600) - (minutes * 60);
+
+            if (hours < 10) {
+                hours = "0" + hours;
+            }
+            if (minutes < 10) {
+                minutes = "0" + minutes;
+            }
+            if (seconds < 10) {
+                seconds = "0" + seconds;
+            }
+            return hours + ' : ' + minutes + ' : ' + seconds;
+        }
+
+        function disconnect(remoteAddr) {
+            $.ajax({
+                url: '/api/disconnect/' + selectedServer + '/' + remoteAddr,
+                type: 'DELETE',
+                success: function (data) {
+                    if(data)
+                        viewClients(selectedServer);
+                }
+            });
+        }
+
         /*]]>*/
     </script>
 </head>
@@ -232,7 +293,7 @@
                 <!-- /.row -->
                 <div class="row">
                     <div class="col-md-12">
-                        <div class="card">
+                        <div class="card card-primary">
                             <div class="card-header">
                                 <h3 class="card-title">Clients List</h3>
                             </div>

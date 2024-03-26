@@ -3,16 +3,14 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
-import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -23,10 +21,14 @@ import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 
 @Component("bacnet")
 @Scope("prototype")
-@RequiredArgsConstructor
 public class BACnetHandler extends MkHandler {
-    private final Logger logger = LoggerFactory.getLogger("io");
     private final BACnetService bacnetService;
+
+    public BACnetHandler(BACnetService bacnetService, ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
+        super(applicationContext, ioServerInstances);
+        this.bacnetService = bacnetService;
+    }
+
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
@@ -39,8 +41,10 @@ public class BACnetHandler extends MkHandler {
             if (msg instanceof BACnetWhois) {
                 for (Device device : bacnetService.getBacnetDevices()) {
                     ByteBuf buf = ((BACnetWhois) msg).encodeBACnetIAmDeviceResponse(device);
-                    if (buf != null)
+                    if (buf != null) {
+                        lastSent = buf.copy();
                         ctx.writeAndFlush(new DatagramPacket(buf, new InetSocketAddress(device.getCommunicationSettings().get("broadcast").toString(), 0xbac0)));
+                    }
                 }
             } else if (msg instanceof BACnetReadProperty) {
                 BACnetReadProperty readProperty = (BACnetReadProperty) msg;
@@ -52,16 +56,16 @@ public class BACnetHandler extends MkHandler {
                 if (deviceOptional.isPresent()) {
                     ByteBuf buf = readProperty.encodeBACnetReadPropertyResponse(deviceOptional.get());
                     if (buf != null) {
+                        lastSent = buf.copy();
                         ctx.writeAndFlush(new DatagramPacket(buf, readProperty.getSender()));
                     } else {
-                        logger.error("BACnet error occur process readProperty {}", readProperty.getSender());
+                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readProperty {0}", readProperty.getSender());
                         BACnetError error = getBACnetError();
-                        ctx.writeAndFlush(new DatagramPacket(
-                                error.encodeBACnetError(
-                                        deviceOptional.get(),
-                                        readProperty.getBacnetAPDU().getInvoke_id(),
-                                        readProperty.getBacnetAPDU().getService_choice()),
-                                readProperty.getSender()));
+                        lastSent = error.encodeBACnetError(
+                                deviceOptional.get(),
+                                readProperty.getBacnetAPDU().getInvoke_id(),
+                                readProperty.getBacnetAPDU().getService_choice());
+                        ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), readProperty.getSender()));
                     }
                 }
             } else if (msg instanceof BACnetReadPropertyMultiple) {
@@ -73,16 +77,16 @@ public class BACnetHandler extends MkHandler {
                 if (deviceOptional.isPresent()) {
                     ByteBuf buf = readPropertyMultiple.encodeBACnetReadPropertyMultipleResponse(deviceOptional.get());
                     if (buf != null) {
+                        lastSent = buf.copy();
                         ctx.writeAndFlush(new DatagramPacket(buf, readPropertyMultiple.getSender()));
                     } else {
-                        logger.error("BACnet error occur process readPropertyMultiple {}", readPropertyMultiple.getSender());
+                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readPropertyMultiple {0}", readPropertyMultiple.getSender());
                         BACnetError error = getBACnetError();
-                        ctx.writeAndFlush(new DatagramPacket(
-                                error.encodeBACnetError(
-                                        deviceOptional.get(),
-                                        readPropertyMultiple.getBacnetAPDU().getInvoke_id(),
-                                        readPropertyMultiple.getBacnetAPDU().getService_choice()
-                                ), readPropertyMultiple.getSender()));
+                        lastSent = error.encodeBACnetError(
+                                deviceOptional.get(),
+                                readPropertyMultiple.getBacnetAPDU().getInvoke_id(),
+                                readPropertyMultiple.getBacnetAPDU().getService_choice());
+                        ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), readPropertyMultiple.getSender()));
                     }
                 }
             } else return;

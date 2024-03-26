@@ -44,9 +44,7 @@ public class ByteBufUtils {
 
     public static void writeTXPacketLog(ByteBuf in, String className) {
         byte[] orig = new byte[in.readableBytes()];
-
-        for (int i = 0; i < orig.length; i++)
-            orig[i] = in.getByte(i);
+        in.getBytes(0, orig);
         logger.info("[{}] TX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
     }
 

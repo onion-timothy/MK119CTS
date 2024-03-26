@@ -114,6 +114,9 @@ public class BACnetReadProperty extends BACnetPacket {
                     writeBACnetTag(buf_apdu, tag);
                 else return null;
             } else if (BACNET_OBJECT_TYPE_SUPPORTED.contains((byte) oid.getObject_type()) && this.getPropertyIdentifier().getValue() == BACNET_PROPERTY_IDENTIFIER_PRSNT_VAL) {
+                if(simulationList == null){
+                    return null;
+                }
                 Optional<Simulation> simulationOpt = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(oid)).findAny();
                 if (simulationOpt.isPresent()) {
                     Simulation simulation = simulationOpt.get();

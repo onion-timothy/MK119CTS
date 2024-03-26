@@ -4,4 +4,5 @@ import io.netty.channel.ChannelHandlerContext;
 
 public interface MkDecoderInterface {
     ChannelHandlerContext getContext();
+    long getRxCounter();
 }

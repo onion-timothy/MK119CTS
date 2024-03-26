@@ -13,6 +13,8 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -27,7 +29,7 @@ import java.util.*;
 @Getter
 @RequiredArgsConstructor
 public class SimulationJob implements Runnable {
-    static Logger logger = LoggerFactory.getLogger("simulation");
+    Logger logger = LoggerFactory.getLogger("simulation");
     private final Simulation simulation;
     private static final Map<Integer, Double> accumValues = new HashMap<>();
     @Autowired
@@ -57,19 +59,23 @@ public class SimulationJob implements Runnable {
                         GenericData genericData = (GenericData) serverData;
                         genericData.getTxFieldsIdValueMap().put(simulation.getTarget(), value);
                     } else if (serverData instanceof ModbusData) {
-                        ModbusData modbusData = (ModbusData) serverData;
-                        String[] targetTokens = simulation.getTarget().split("_");
-                        int function = Integer.parseInt(targetTokens[0]);
-                        int register = Integer.parseInt(targetTokens[1]);
+                        try {
+                            ModbusData modbusData = (ModbusData) serverData;
+                            String[] targetTokens = simulation.getTarget().split("_");
+                            int function = Integer.parseInt(targetTokens[0]);
+                            int register = Integer.parseInt(targetTokens[1]);
 
-                        if (function == Modbus.FC_01) {
-                            modbusData.setCoil_status(value == 1, register);
-                        } else if (function == Modbus.FC_02) {
-                            modbusData.setInput_status(value == 1, register);
-                        } else if (function == Modbus.FC_03) {
-                            modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
-                        } else if (function == Modbus.FC_04) {
-                            modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
+                            if (function == Modbus.FC_01) {
+                                modbusData.setCoil_status(value == 1, register);
+                            } else if (function == Modbus.FC_02) {
+                                modbusData.setInput_status(value == 1, register);
+                            } else if (function == Modbus.FC_03) {
+                                modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
+                            } else if (function == Modbus.FC_04) {
+                                modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
+                            }
+                        } catch (NumberFormatException e) {
+                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for Modbus simulation for device {1}. Format target to {Function}_{Register}", getSimulation().getTarget(), getSimulation().getDevice_id());
                         }
                     } else if (serverData instanceof XGTData) {
                         XGTData xgtData = (XGTData) serverData;
@@ -105,7 +111,7 @@ public class SimulationJob implements Runnable {
             }
         } else if (device.getProtocol() == Protocol.DB) {
             String replaced = simulation.getTarget();
-            for(SimulationPolicy policy : simulationPolicies){
+            for (SimulationPolicy policy : simulationPolicies) {
                 double value = parseAndMakeValue(policy);
                 replaced = replaced.replaceAll("\\$\\{" + policy.getId() + "}", Double.toString(value));
             }

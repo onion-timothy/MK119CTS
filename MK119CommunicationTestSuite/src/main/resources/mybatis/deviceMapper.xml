@@ -18,7 +18,7 @@
             group_id                 int                NOT NULL,
             strCommunicationSettings text               NOT NULL
                 CONSTRAINT DEVICES_PK PRIMARY KEY (id),
-            CONSTRAINT DEVICES_UNIQUE UNIQUE (name)
+            CONSTRAINT DEVICES_UNIQUE UNIQUE (name, group_id)
         );
     </update>
 
