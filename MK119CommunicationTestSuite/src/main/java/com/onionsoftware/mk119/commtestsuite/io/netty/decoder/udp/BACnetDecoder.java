@@ -1,6 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
+import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetReal;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
@@ -24,11 +25,13 @@ import java.util.Map;
 public class BACnetDecoder extends MkUDPDecoder {
     private final ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory;
     private final ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory;
+    private final ObjectProvider<BACnetWriteProperty> bacnetWritePropertyFactory;
 
-    public BACnetDecoder(IOServerInstances ioServerInstances, ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory, ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory) {
+    public BACnetDecoder(IOServerInstances ioServerInstances, ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory, ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory, ObjectProvider<BACnetWriteProperty> bacnetWritePropertyFactory) {
         super(ioServerInstances);
         this.bacnetReadPropertyFactory = bacnetReadPropertyFactory;
         this.bacnetReadPropertyMultipleFactory = bacnetReadPropertyMultipleFactory;
+        this.bacnetWritePropertyFactory = bacnetWritePropertyFactory;
     }
 
     @Override
@@ -144,7 +147,17 @@ public class BACnetDecoder extends MkUDPDecoder {
                         }
                     }
                     bacnet = readPropertyMultiple;
-                }
+                } else if (serviceChoice == BACNET_APDU_SERVICE_WRITE_PROPERTY) {
+                    BACnetWriteProperty writeProperty = bacnetWritePropertyFactory.getObject(bacnet);
+                    writeProperty.setOid((BACnetObjectIdentifier) readBACnetTag(in, serviceChoice));
+                    writeProperty.setPropertyIdentifier((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice));
+
+                    readBACnetTag(in, serviceChoice); // Opening tag
+                    writeProperty.setValue((BACnetReal) readBACnetTag(in, serviceChoice));
+                    readBACnetTag(in, serviceChoice); // Closing tag
+                    writeProperty.setPriority((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice));
+                    bacnet = writeProperty;
+                } else return;
             }
             out.add(bacnet);
         } else {

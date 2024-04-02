@@ -43,7 +43,7 @@ public class WebController {
     }
 
     @RequestMapping("/simulations")
-    public String editDevice() {
+    public String valueSimulation() {
         return "simulations";
     }
 
@@ -59,6 +59,11 @@ public class WebController {
         model.addAttribute("simulation", simulation);
         model.addAttribute("device", deviceService.selectDevice(simulation.getDevice_id()));
         return "simulation_editor";
+    }
+
+    @RequestMapping("/errors")
+    public String errorSimulation() {
+        return "errors";
     }
 
     @RequestMapping("/settings")

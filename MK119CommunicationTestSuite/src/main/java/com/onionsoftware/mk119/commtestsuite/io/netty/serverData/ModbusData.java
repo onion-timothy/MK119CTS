@@ -2,11 +2,14 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.serverData;
 
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.BitSet;
 
 @Getter
@@ -18,9 +21,17 @@ public class ModbusData implements ServerData {
     private final short[] input_registers = new short[65536];
 
     public void setInput_registers(Double value, DataType type, int startRegister) {
-        ByteBuf buf = Unpooled.buffer();
-        ByteBufUtils.writeData(buf, type, value);
-        writeByteBufToRegisters(buf, input_registers, startRegister);
+        if(type == null){
+            MkLogger.log("simulation", LogLevel.ERROR, "Invalid data type for simulation.");
+            return;
+        }
+        try {
+            ByteBuf buf = Unpooled.buffer();
+            ByteBufUtils.writeData(buf, type, value);
+            writeByteBufToRegisters(buf, input_registers, startRegister);
+        } catch (Exception e) {
+            MkLogger.log("simulation", e, "Reflection error write modbus simluation value.");
+        }
     }
 
     /**
@@ -34,9 +45,17 @@ public class ModbusData implements ServerData {
      * @param startRegister 시작 주소
      */
     public void setHolding_registers(Double value, DataType type, int startRegister) {
-        ByteBuf buf = Unpooled.buffer();
-        ByteBufUtils.writeData(buf, type, value);
-        writeByteBufToRegisters(buf, holding_registers, startRegister);
+        if(type == null){
+            MkLogger.log("simulation", LogLevel.ERROR, "Invalid data type for simulation.");
+            return;
+        }
+        try {
+            ByteBuf buf = Unpooled.buffer();
+            ByteBufUtils.writeData(buf, type, value);
+            writeByteBufToRegisters(buf, holding_registers, startRegister);
+        } catch (Exception e) {
+            MkLogger.log("simulation", e, "Reflection error write modbus simluation value.");
+        }
     }
 
     private void writeByteBufToRegisters(ByteBuf buf, short[] registers, int startRegister) {

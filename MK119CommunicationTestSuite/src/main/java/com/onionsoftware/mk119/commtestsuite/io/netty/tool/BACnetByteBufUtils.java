@@ -60,14 +60,20 @@ public class BACnetByteBufUtils {
                 if (length >= 2) {
                     ret = readObjectIdentifier(in, length);
                 } else throw new BACnetParseException("Length of BACnet OID must bigger than 2.");
+            } else if (tagNumber == BACNET_APPLICATION_TAG_NUMBER_REAL) {
+                ret = new BACnetReal(in.readFloat());
             }
         } else {
             if (serviceChoice == BACNET_APDU_SERVICE_WHO_IS) {
                 ret = readUnsignedInteger(in, length);
-            } else if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY) {
+            } else if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY || serviceChoice == BACNET_APDU_SERVICE_WRITE_PROPERTY) {
                 if (tagNumber == 0) {
                     ret = readObjectIdentifier(in, length);
                 } else if (tagNumber == 1) {
+                    ret = readUnsignedInteger(in, length);
+                } else if (tagNumber == 3) {
+                    // Closing, Opeing Tag
+                } else if (tagNumber == 4) {
                     ret = readUnsignedInteger(in, length);
                 }
             } else if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY_MULTIPLE) {

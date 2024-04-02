@@ -282,7 +282,7 @@
                     alert('SNMP Version must assigned to number.')
                     return
                 }
-                if (communicationSettings.snmpVersion < 1 || communicationSettings.snmpVersion > 2) {
+                if (communicationSettings.snmpVersion < 0 || communicationSettings.snmpVersion > 1) {
                     alert('Invalid SNMP Version. SNMP Version must in 1 or 2.')
                     return
                 }
@@ -431,7 +431,15 @@
                         <a href="/simulations" class="nav-link">
                             <i class="nav-icon fas fa-chart-area"></i>
                             <p>
-                                Simulations
+                                Value Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/errors" class="nav-link">
+                            <i class="nav-icon fas fa-bomb"></i>
+                            <p>
+                                Error Simulations
                             </p>
                         </a>
                     </li>

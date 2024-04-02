@@ -16,10 +16,12 @@ public class BACnetConstants {
     public static final byte BACNET_APDU_TYPE_UNCONFIRMED_REQ = 0x01;
     public static final byte BACNET_APDU_TYPE_CONFIRMED_REQ = 0x00;
     public static final byte BACNET_APDU_TYPE_COMPLEX_ACK = 0x03;
+    public static final byte BACNET_APDU_TYPE_SIMPLE_ACK = 0x02;
     public static final byte BACNET_APDU_SERVICE_WHO_IS = 0x08;
     public static final byte BACNET_APDU_SERVICE_I_AM = 0x00;
     public static final byte BACNET_APDU_SERVICE_READ_PROPERTY = 0x0c;
     public static final byte BACNET_APDU_SERVICE_READ_PROPERTY_MULTIPLE = 0x0e;
+    public static final byte BACNET_APDU_SERVICE_WRITE_PROPERTY = 0x0f;
     public static final byte BACNET_TAG_CLASS_APPLICATION = 0x00;
     public static final byte BACNET_TAG_CLASS_CONTEXT = 0x01;
     public static final byte BACNET_APPLICATION_TAG_NUMBER_OBJECT_IDENTIFIER = 0x0c;

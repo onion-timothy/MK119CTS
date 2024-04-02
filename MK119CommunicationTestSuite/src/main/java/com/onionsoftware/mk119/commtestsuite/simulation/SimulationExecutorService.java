@@ -47,7 +47,7 @@ public class SimulationExecutorService extends ThreadPoolExecutor {
                 Thread.sleep(job.getSimulation().getInterval() * 1000L);
             } catch (InterruptedException e) {
                 logger.error("Interval interrupted.", e);
-                executingSimulations.remove(job.getSimulation().getInterval());
+                executingSimulations.remove(job.getSimulation().getId());
                 return;
             } finally {
                 threads.remove(job.getSimulation().getId());

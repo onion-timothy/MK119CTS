@@ -1,6 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.ireasoning.protocol.snmp.*;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.SnmpData;
@@ -11,6 +13,8 @@ import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 @Component("snmp")
 @Scope("prototype")
@@ -41,7 +45,11 @@ public class SnmpHandler extends MkHandler {
             ret.setCommunity(packet.getCommunity());
             ret.setRequestID(packet.getRequestID());
 
-            ret.addVarBinds(processGetRequest(packet));
+            if (packet.getCommand() == SnmpConst.SET) {
+                ret.addVarBinds(processSetRequest(packet));
+            } else {
+                ret.addVarBinds(processGetRequest(packet));
+            }
             ByteBuf buffer = Unpooled.buffer();
             try {
                 buffer.writeBytes(SnmpPdu.encodePdu(ret));
@@ -58,12 +66,41 @@ public class SnmpHandler extends MkHandler {
         SnmpVarBindList ret = new SnmpVarBindList();
         for (SnmpVarBind snmpVarBind : packet.getVarBinds()) {
             SnmpOID oid = snmpVarBind.getName();
-            String x = oid.toString();
-            Double value = snmpData.getOidValueMap().get(x);
+            Double value = snmpData.getOidValueMap().get(oid.toString());
             if (value != null) {
                 ret.add(new SnmpVarBind(oid, new SnmpOctetString(Double.toString(value))));
             } else {
-                ret.add(new SnmpVarBind(oid, SnmpDataType.NO_SUCH_OBJECT_OBJECT));
+                if (packet.getVersion() == SnmpConst.SNMPV2 && packet.getCommand() == SnmpConst.GET_BULK)
+                    ret.add(new SnmpVarBind(oid, SnmpDataType.NO_SUCH_OBJECT_OBJECT));
+                else {
+                    packet.setErrorIndex(1);
+                    packet.setErrorStatus(2);
+                    return null;
+                }
+            }
+        }
+        return ret;
+    }
+
+    private SnmpVarBindList processSetRequest(SnmpPdu packet) {
+        SnmpVarBindList ret = new SnmpVarBindList();
+        for (SnmpVarBind snmpVarBind : packet.getVarBinds()) {
+            SnmpOID oid = snmpVarBind.getName();
+            SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
+            Optional<Simulation> simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals(oid.toString())).findAny();
+            if (simulationOptional.isPresent()) {
+                Simulation simulation = simulationOptional.get();
+                ret.add(snmpVarBind);
+                double valueToWrite = Double.parseDouble(snmpVarBind.getValue().toString());
+                snmpData.getOidValueMap().put(oid.toString(), valueToWrite);
+                if(simulation.getPolicies().get(0).isStopOnControl()){
+                    simulation.setEnabled(Simulation.DISABLED);
+                    simulationService.updateSimulation(simulation);
+                }
+            } else {
+                packet.setErrorIndex(1);
+                packet.setErrorStatus(2);
+                return null;
             }
         }
         return ret;

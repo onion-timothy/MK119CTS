@@ -37,7 +37,6 @@ public class ModbusDecoder extends MkDecoder {
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         super.decode(ctx, in, out);
 
-        ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
         Modbus modbus = ByteBufUtils.parseModbusPacket(in, uid, type);
         if (modbus instanceof ModbusTCP && type == Modbus.MODBUS_TCP) {
             out.add(modbus);

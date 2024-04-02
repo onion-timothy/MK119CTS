@@ -38,11 +38,9 @@ public class MkLogger implements Comparable<MkLogger> {
             message = message.replace("{" + i + "}", args[i].toString());
         }
         this.setMessage(message + "\n" + e.toString());
-        this.setLevel(level);
+        this.setLevel(LogLevel.ERROR);
         this.setTimestamp(System.currentTimeMillis());
-        if (level == LogLevel.ERROR) {
-            logger.error(message, e);
-        }
+        logger.error(message, e);
     }
 
     public static void log(String loggerName, LogLevel level, String message, Object... args) {

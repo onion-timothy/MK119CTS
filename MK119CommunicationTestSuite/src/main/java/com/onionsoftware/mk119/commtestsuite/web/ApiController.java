@@ -189,8 +189,8 @@ public class ApiController {
     public Boolean socketTest(@RequestParam("host_transport") String host_transport, @RequestParam("port") Integer port) throws IOException {
         String[] tokens = host_transport.split("_");
         String host = tokens[0];
-        if (host.equals("0.0.0.0")) host = "\\*";
         String transport = tokens[1];
+        if (host.equals("0.0.0.0") || transport.equalsIgnoreCase("udp")) host = "\\*";
 
         try {
             if (SystemUtils.IS_OS_MAC) {
@@ -254,7 +254,6 @@ public class ApiController {
     @RequestMapping(value="/disconnect/{server}/{remoteAddr}", method=RequestMethod.DELETE)
     public Boolean disconnect(@PathVariable Integer server, @PathVariable String remoteAddr){
         IOServer ioServer = ioServerInstances.getServerInstance(server);
-        logger.info("remote {}", remoteAddr);
         for(ChannelInboundHandlerAdapter handler : ioServer.getHandlers()){
             MkHandler mkHandler = (MkHandler) handler;
             InetSocketAddress addr = (InetSocketAddress) mkHandler.getContext().channel().remoteAddress();
@@ -269,10 +268,13 @@ public class ApiController {
 
     @RequestMapping(value="/logs/{level}", method = RequestMethod.GET)
     public List<MkLogger> logs(@PathVariable String level){
+        List<MkLogger> logs = new ArrayList<>(MkLogger.LATEST_LOGS);
+        Collections.sort(logs);
+
         if(level.equals("ALL")){
-            return new ArrayList<>(MkLogger.LATEST_LOGS);
+            return logs;
         }
-        return MkLogger.LATEST_LOGS.stream().filter(e->e.getLevel().toString().toUpperCase().equals(level)).collect(Collectors.toList());
+        return logs.stream().filter(e->e.getLevel().name().toUpperCase().equals(level)).collect(Collectors.toList());
     }
 
     @ExceptionHandler({SQLException.class})

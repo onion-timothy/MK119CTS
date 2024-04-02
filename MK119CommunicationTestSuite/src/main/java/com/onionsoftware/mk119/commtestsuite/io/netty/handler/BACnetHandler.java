@@ -1,7 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
+import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
@@ -15,6 +18,8 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
@@ -51,8 +56,7 @@ public class BACnetHandler extends MkHandler {
                 byte instanceNumberSADR = readProperty.getBacnetNPDU().getSadr()[readProperty.getBacnetNPDU().getSadr().length - 1];
                 int instanceNumber = readProperty.getOid().getInstance_number();
 
-                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(
-                        e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device ? instanceNumber : instanceNumberSADR)).findFirst();
+                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device ? instanceNumber : instanceNumberSADR)).findFirst();
                 if (deviceOptional.isPresent()) {
                     ByteBuf buf = readProperty.encodeBACnetReadPropertyResponse(deviceOptional.get());
                     if (buf != null) {
@@ -72,8 +76,7 @@ public class BACnetHandler extends MkHandler {
                 BACnetReadPropertyMultiple readPropertyMultiple = (BACnetReadPropertyMultiple) msg;
                 byte instanceNumberSADR = readPropertyMultiple.getBacnetNPDU().getSadr()[readPropertyMultiple.getBacnetNPDU().getSadr().length - 1];
 
-                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(
-                        e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
+                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
                 if (deviceOptional.isPresent()) {
                     ByteBuf buf = readPropertyMultiple.encodeBACnetReadPropertyMultipleResponse(deviceOptional.get());
                     if (buf != null) {
@@ -87,6 +90,39 @@ public class BACnetHandler extends MkHandler {
                                 readPropertyMultiple.getBacnetAPDU().getInvoke_id(),
                                 readPropertyMultiple.getBacnetAPDU().getService_choice());
                         ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), readPropertyMultiple.getSender()));
+                    }
+                }
+            } else if (msg instanceof BACnetWriteProperty) {
+                BACnetWriteProperty writeProperty = (BACnetWriteProperty) msg;
+                byte instanceNumberSADR = writeProperty.getBacnetNPDU().getSadr()[writeProperty.getBacnetNPDU().getSadr().length - 1];
+
+                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
+                if (deviceOptional.isPresent()) {
+                    Device device = deviceOptional.get();
+                    List<Simulation> simulationList = bacnetService.getSimulationMap().get(device.getId());
+                    Optional<Simulation> optionalSimulation = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(writeProperty.getOid())).findAny();
+                    if (optionalSimulation.isPresent()) {
+                        Simulation simulation = optionalSimulation.get();
+                        if (simulation.getPolicies().get(0).isStopOnControl()) {
+                            SimulationService service = (SimulationService) applicationContext.getBean("simulationService");
+                            simulation.setEnabled(Simulation.DISABLED);
+                            service.updateSimulation(simulation);
+                        }
+                        bacnetService.getSimulationValues().put(simulation.getId(), writeProperty.getValue().getValue());
+
+                        ByteBuf buf = writeProperty.encodeBACnetWritePropertyResponse(device);
+                        if (buf != null) {
+                            lastSent = buf.copy();
+                            ctx.writeAndFlush(new DatagramPacket(buf, writeProperty.getSender()));
+                        } else {
+                            MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process writePropertyMultiple {0}", writeProperty.getSender());
+                            BACnetError error = getBACnetError();
+                            lastSent = error.encodeBACnetError(
+                                    device,
+                                    writeProperty.getBacnetAPDU().getInvoke_id(),
+                                    writeProperty.getBacnetAPDU().getService_choice());
+                            ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), writeProperty.getSender()));
+                        }
                     }
                 }
             } else return;

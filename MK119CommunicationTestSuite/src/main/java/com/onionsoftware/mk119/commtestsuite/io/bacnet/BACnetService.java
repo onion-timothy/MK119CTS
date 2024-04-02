@@ -29,7 +29,15 @@ public class BACnetService {
     private final ObjectProvider<IOServer> ioServerFactory;
 
     private List<Device> bacnetDevices = new ArrayList<>();
+    /**
+     * Key: Device ID
+     * Value: List of simulations
+     */
     private Map<Integer, List<Simulation>> simulationMap = new HashMap<>();
+    /**
+     * Key: Simulation ID
+     * Value: Current value
+     */
     private Map<Integer, Float> simulationValues = new HashMap<>();
 
     /**
@@ -76,7 +84,8 @@ public class BACnetService {
      */
     public void addSimulation(int deviceId, Simulation simulation) {
         List<Simulation> simulations = simulationMap.computeIfAbsent(deviceId, k -> new ArrayList<>());
-        simulations.add(simulation);
+        if(simulations.stream().noneMatch(e->e.getTarget().equals(simulation.getTarget())))
+            simulations.add(simulation);
     }
 
     /**

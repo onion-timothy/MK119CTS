@@ -12,6 +12,8 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXField;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.*;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,13 +22,14 @@ import io.netty.buffer.ByteBuf;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ByteBufUtils {
-    static Logger logger = LoggerFactory.getLogger("io");
+    static Logger packetLogger = LoggerFactory.getLogger("io");
 
     public static void clear(ByteBuf in) {
         while (in.isReadable()) {
@@ -39,13 +42,13 @@ public class ByteBufUtils {
 
         for (int i = 0; i < orig.length; i++)
             orig[i] = in.getByte(i);
-        logger.info("[{}] RX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
+        packetLogger.info("[{}] RX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
     }
 
     public static void writeTXPacketLog(ByteBuf in, String className) {
         byte[] orig = new byte[in.readableBytes()];
         in.getBytes(0, orig);
-        logger.info("[{}] TX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
+        packetLogger.info("[{}] TX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
     }
 
     public static double readSI8(ByteBuf in) {
@@ -327,7 +330,7 @@ public class ByteBufUtils {
             Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class, Double.class);
             method.invoke(null, out, value);
         } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            logger.error("method invoke failed.", e);
+            //logger.error("method invoke failed.", e);
         }
         byte[] ret = null;
         int byteCount = 0;
@@ -359,27 +362,31 @@ public class ByteBufUtils {
     public static void _writeTXPacketByFrame(TXFrame frame, ByteBuf out, GenericTCPUDPPacket packet) {
         // 필드에 따른 버퍼 쓰기
         int length = calulateTXLength(frame.getFields());
-        for (TXField field : frame.getFields()) {
-            switch (field.getField_type()) {
-                case STATIC:
-                    writeData(out, field.getData_type(), Double.parseDouble(field.getValue()));
-                    break;
-                case REFERENCE:
-                    writeData(out, field.getData_type(), evalRefField(packet, field.getValue()));
-                    break;
-                case SIMULATION:
-                    Double value = packet.getGenericData().getTxFieldsIdValueMap().get(field.getField_id());
-                    if (value == null) value = 0d;
-                    writeData(out, field.getData_type(), value);
-                    break;
-                case CRC16:
-                    int start = (int) Double.parseDouble(field.getValue());
-                    byte[] toCRC = new byte[length - 2 - start];
-                    out.getBytes(start, toCRC, 0, length - 2 - start);
-                    short crc = CRC16.getCRC16(toCRC);
-                    out.writeShort(crc);
-                    break;
+        try {
+            for (TXField field : frame.getFields()) {
+                switch (field.getField_type()) {
+                    case STATIC:
+                        writeData(out, field.getData_type(), Double.parseDouble(field.getValue()));
+                        break;
+                    case REFERENCE:
+                        writeData(out, field.getData_type(), evalRefField(packet, field.getValue()));
+                        break;
+                    case SIMULATION:
+                        Double value = packet.getGenericData().getTxFieldsIdValueMap().get(field.getField_id());
+                        if (value == null) value = 0d;
+                        writeData(out, field.getData_type(), value);
+                        break;
+                    case CRC16:
+                        int start = (int) Double.parseDouble(field.getValue());
+                        byte[] toCRC = new byte[length - 2 - start];
+                        out.getBytes(start, toCRC, 0, length - 2 - start);
+                        short crc = CRC16.getCRC16(toCRC);
+                        out.writeShort(crc);
+                        break;
+                }
             }
+        } catch (Exception e) {
+            MkLogger.log("io", e, "Generic Packet generation error.");
         }
     }
 
@@ -400,19 +407,15 @@ public class ByteBufUtils {
         try {
             ret = (double) engine.eval(ref);
         } catch (ScriptException e1) {
-            logger.error("Field eval failed.", e1);
+            MkLogger.log("io", e1, "Field evaluation failed.");
         }
         return ret;
     }
 
-    public static void writeData(ByteBuf out, DataType type, Double value) {
-        try {
-            String methodName = "write" + type.name();
-            Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class, Double.class);
-            method.invoke(null, out, value);
-        } catch (Exception e) {
-            logger.error("Write Data Error.", e);
-        }
+    public static void writeData(ByteBuf out, DataType type, Double value) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+        String methodName = "write" + type.name();
+        Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class, Double.class);
+        method.invoke(null, out, value);
     }
 
     public static int calulateTXLength(List<TXField> fields) {
@@ -466,6 +469,7 @@ public class ByteBufUtils {
     public static GenericTCPUDPPacket parsePacket(RXFrame frame, ByteBuf in) {
         GenericTCPUDPPacket ret;
         if (frame.getLength() != null && frame.getLength() != in.readableBytes()) {
+            MkLogger.log("io", LogLevel.ERROR, "Designated length not matched for generic packet. {0}", parser.toJson(frame));
             return null;
         }
         try {
@@ -482,20 +486,23 @@ public class ByteBufUtils {
                     in.getBytes(0, cpy, 0, crcByteCount);
                     short crc16 = CRC16.getCRC16(cpy);
                     if (crc16 != (short) newFieldObj.getValue().doubleValue()) {
+                        MkLogger.log("io", LogLevel.ERROR, "CRC doesn't match for generic packet. {0}", parser.toJson(frame));
                         return null;
                     }
                 }
                 if (!methodName.contains("FP") && newFieldObj.getRequired_value() != null && !newFieldObj.getRequired_value().equals(newFieldObj.getValue())) {
+                    MkLogger.log("io", LogLevel.ERROR, "Designated value not matched for generic packet. {0}", parser.toJson(frame));
                     return null;
                 }
                 ret.getFields().add(newFieldObj);
             }
         } catch (Exception e) {
-            logger.error("packet parse error. {}", parser.toJson(frame), e);
+            MkLogger.log("io", e, "Cannot parse generic packet. {0}", parser.toJson(frame));
             return null;
         }
 
         if (in.isReadable()) {
+            MkLogger.log("io", LogLevel.ERROR, "Buffer remaining after parse generic packet. {0}", parser.toJson(frame));
             return null;
         }
 
@@ -508,7 +515,10 @@ public class ByteBufUtils {
         agent.setStart(in.readUnsignedShort());
         if (agent.getProtocolHeader() == 0 && in.readableBytes() == 0) {
             return agent;
-        } else return null;
+        } else {
+            MkLogger.log("io", LogLevel.ERROR, "OPC Agent packet parse error. {0} {1}", agent.getProtocolHeader(), agent.getStart());
+            return null;
+        }
     }
 
     public static Daeyun parseDaeyunPacket(ByteBuf in, List<RXFrame> acceptFrames) {
@@ -524,7 +534,8 @@ public class ByteBufUtils {
                 // AI & DI
                 daeyun.setCardAddress(in.readShort());
                 if (daeyun.getCardAddress() != 0x0000) {
-                    logger.error("DaeyunDecoder format card address error: {}", daeyun.getCardAddress());
+                    MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU wrong card address. {0}", daeyun.getCardAddress());
+                    return null;
                 }
                 daeyun.setInputChannelCount(in.readShort());
             } else if (daeyun.getFunction() == Daeyun.VI_FUNCTION) {
@@ -540,7 +551,7 @@ public class ByteBufUtils {
                 daeyun.setDOTarget(in.readShort());
                 daeyun.setDOParam(in.readUnsignedShort());
                 if (daeyun.getDOParam() != 0xff00 && daeyun.getDOParam() != 0x0000) {
-                    logger.error("DaeyunDecoder format do parameter error: {}", daeyun.getDOParam());
+                    MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU wrong DO parameter. {0}", daeyun.getDOParam());
                     return null;
                 }
             } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION && acceptFrames != null) {
@@ -561,25 +572,25 @@ public class ByteBufUtils {
                 if (payloadPacket != null) {
                     daeyun.setPacket(payloadPacket);
                 } else {
-                    logger.error("no matched rx frame.");
+                    MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU RS not matched generic parser.");
                     return null;
                 }
             } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
-                logger.error("DaeyunDecoder serial request received but no designated format.");
+                MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU RS no generic parser.");
                 return null;
             } else {
-                logger.error("DaeyunDecoder format function error: {}", daeyun.getFunction());
+                MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU Invalid function. {0}", daeyun.getFunction());
                 return null;
             }
 
             short crcReceived = in.readShort();
             if (_crc != crcReceived) {
-                logger.error("DaeyunDecoder format crc error: {}", crcReceived);
+                MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU CRC Error.");
                 return null;
             }
             return daeyun;
         } else {
-            logger.error("DaeyunDecoder format address error: {}", daeyun.getAddress());
+            MkLogger.log("io", LogLevel.ERROR, "DaeyunRCU Invalid address. {0}", daeyun.getAddress());
             return null;
         }
     }
@@ -594,7 +605,7 @@ public class ByteBufUtils {
             in.skipBytes(13);
             xgt.setSource(in.readByte());
             if (xgt.getSource() != 0x33) {
-                logger.error("XGTDecoder format source error : {}", xgt.getSource());
+                MkLogger.log("io", LogLevel.ERROR, "XGTPLC Invalid source. {0}", xgt.getSource());
                 return null;
             }
             xgt.setInvokeId(in.readShortLE());
@@ -602,25 +613,49 @@ public class ByteBufUtils {
             in.skipBytes(2);
 
             xgt.setCode(in.readShortLE());
-            if (xgt.getCode() != 0x54) {
-                logger.error("XGTDecoder format function code error : {}", xgt.getCode());
+            if (xgt.getCode() != 0x54 && xgt.getCode() != 0x58) {
+                MkLogger.log("io", LogLevel.ERROR, "XGTPLC Invalid function code. {0}", xgt.getCode());
                 return null;
             }
 
             xgt.setDataType(in.readShortLE());
-            if (xgt.getDataType() != 0x14) {
-                logger.error("XGTDecoder format function code error : {}", xgt.getDataType());
-                return null;
+            if (xgt.getCode() == 0x54) {
+                if (xgt.getDataType() != 0x14) {
+                    MkLogger.log("io", LogLevel.ERROR, "XGTPLC Invalid data type. {0}", xgt.getDataType());
+                    return null;
+                }
+
+                in.skipBytes(4);
+
+                byte[] varBuff = new byte[in.readShortLE()];
+                in.readBytes(varBuff);
+                xgt.setVariable(new String(varBuff));
+                xgt.setBlockSize(in.readShortLE());
+            } else {
+                in.skipBytes(2);
+                xgt.setVar_count(in.readShortLE());
+                xgt.setVariableList(new ArrayList<>(xgt.getVar_count()));
+                for (int i = 0; i < xgt.getVar_count(); i++) {
+                    XGTVariable variable = new XGTVariable();
+                    variable.setVarname_length(in.readShortLE());
+                    byte[] nameBuffer = new byte[variable.getVarname_length()];
+                    in.readBytes(nameBuffer);
+                    variable.setVarname(new String(nameBuffer));
+                    xgt.getVariableList().add(variable);
+                }
+
+                for (int i = 0; i < xgt.getVar_count(); i++) {
+                    XGTVariable variable = xgt.getVariableList().get(i);
+                    in.skipBytes(2);
+                    variable.setValue(in.readShortLE());
+                }
+
             }
-
-            in.skipBytes(4);
-
-            byte[] varBuff = new byte[in.readShortLE()];
-            in.readBytes(varBuff);
-            xgt.setVariable(new String(varBuff));
-            xgt.setBlockSize(in.readShortLE());
             return xgt;
-        } else return null;
+        } else {
+            MkLogger.log("io", LogLevel.ERROR, "XGTPLC Invalid header. {0}", cid);
+            return null;
+        }
 
     }
 
@@ -630,25 +665,25 @@ public class ByteBufUtils {
             modbusTcp.setTid(in.readShort());
             modbusTcp.setPid(in.readShort());
             if (modbusTcp.getPid() != ModbusTCP.PROTOCOL_ID) {
-                logger.error("ModbusDecoder format pid error: {}", modbusTcp.getPid());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid PID. {0}", modbusTcp.getPid());
                 return null;
             }
 
             modbusTcp.setTcpLength(in.readShort());
             if (modbusTcp.getTcpLength() != 6) {
-                logger.error("ModbusDecoder format length error: {}", modbusTcp.getTcpLength());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid tcp length. {0}", modbusTcp.getTcpLength());
                 return null;
             }
 
             modbusTcp.setUid(in.readByte());
             if (uid != 0 && modbusTcp.getUid() != uid) {
-                logger.error("ModbusDecoder format uid error: {}", modbusTcp.getUid());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid UID. {0}", modbusTcp.getUid());
                 return null;
             }
 
             modbusTcp.setFc(in.readByte());
             if (!Modbus.SUPPORTED_FUNCTIONS.contains((int) modbusTcp.getFc())) {
-                logger.error("ModbusDecoder format function code error: {}", modbusTcp.getFc());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid function code. {0}", modbusTcp.getFc());
                 return null;
             }
 
@@ -663,20 +698,20 @@ public class ByteBufUtils {
 
             modbusRtu.setUid(in.readByte());
             if (uid != 0 && modbusRtu.getUid() != uid) {
-                logger.error("ModbusDecoder format uid error: {}", modbusRtu.getUid());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid UID. {0}", modbusRtu.getUid());
                 return null;
             }
 
             modbusRtu.setFc(in.readByte());
             if (!Modbus.SUPPORTED_FUNCTIONS.contains((int) modbusRtu.getFc())) {
-                logger.error("ModbusDecoder format function code error: {}", modbusRtu.getFc());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid function code. {0}", modbusRtu.getFc());
                 return null;
             }
             modbusRtu.setRegister(in.readShort());
             modbusRtu.setRequestSize(in.readShort());
             modbusRtu.setCrc(in.readShort());
             if (crc != modbusRtu.getCrc()) {
-                logger.error("ModbusDecoder format crc error: {}", modbusRtu.getCrc());
+                MkLogger.log("io", LogLevel.ERROR, "Modbus CRC Error.");
                 return null;
             }
             return modbusRtu;

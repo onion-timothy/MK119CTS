@@ -17,4 +17,10 @@ public class BACnetPacketFactory {
     public BACnetReadPropertyMultiple bacnetReadPropertyMultiple(BACnetPacket packet) {
         return new BACnetReadPropertyMultiple(packet);
     }
+
+    @Bean
+    @Scope("prototype")
+    public BACnetWriteProperty bacnetWriteProperty(BACnetPacket packet) {
+        return new BACnetWriteProperty(packet);
+    }
 }

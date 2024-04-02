@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS</title>
+
+    <!-- Google Font: Source Sans Pro -->
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
+    <!-- Theme style -->
+    <link rel="stylesheet" href="css/adminlte.min.css">
+    <!-- jTree -->
+    <link rel="stylesheet" href="css/style.min.css"/>
+    <!-- DataTables -->
+    <link rel="stylesheet" href="plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
+    <link rel="stylesheet" href="plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+
+    <script>
+        /*<![CDATA[*/
+        let devicesTable;
+        let simulationsTable;
+        let tree;
+        let device_id;
+
+        function onload() {
+            let tableFirstRowId;
+            $.ajax({
+                url: '/api/device/devices',
+                type: 'GET',
+                async: false,
+                success: function (data) {
+                    let table = $('#devicesTable');
+
+                    for (let i = 0; i < data.length; i++) {
+                        let markup = "<tr onclick='viewSimulations(this.id)' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + "</td><td>" + data[i].protocol + "</td><td>" + data[i].host + "</td><td>" + data[i].port + "</td><td>" + data[i].name + "</tr>";
+                        table.append(markup);
+                        if (i == 0) {
+                            tableFirstRowId = data[i].id;
+                        }
+                    }
+
+                    devicesTable = $('#devicesTable').DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+                }
+            });
+
+            simulationsTable = $('#simulationsTable').DataTable({
+                "paging": true,
+                "lengthChange": false,
+                "searching": false,
+                "ordering": true,
+                "info": true,
+                "autoWidth": false,
+                "responsive": true,
+            });
+            viewSimulations(tableFirstRowId);
+        }
+
+        function viewSimulations(id) {
+            device_id = id;
+
+            if (simulationsTable)
+                simulationsTable.destroy();
+
+            $.ajax({
+                url: '/api/simulation/simulations/' + id,
+                type: 'GET',
+                success: function (data) {
+                    let table = $('#simulationsTable');
+                    $('#simulationsTable > tbody').empty();
+
+                    for (let i = 0; i < data.length; i++) {
+                        let policy = JSON.parse(data[i].strPolicy);
+                        let policies = [];
+                        for (let j = 0; j < policy.length; j++) {
+                            policies.push(policy[j].policy);
+                        }
+                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + (data[i].enabled === 0 ? "Disabled" : "Enabled") + "</td></tr>";
+                        table.append(markup);
+                    }
+
+                    simulationsTable = $('#simulationsTable').DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+
+                    $(function () {
+                        $('#simulationsTable').contextMenu({
+                            selector: 'td',
+                            callback: function (key, options) {
+                                let id = $(this).parent().attr('id');
+                                if (key === 'add') {
+                                    location.href = '/addSimulation/' + device_id;
+                                } else if (key === 'edit') {
+                                    if (id != undefined) {
+                                        location.href = '/editSimulation/' + id;
+                                    }
+                                } else if (key === 'delete') {
+                                    if (id != undefined) {
+                                        if (confirm("Confirm to delete simulation '" + id + "'")) {
+                                            $.ajax({
+                                                url: '/api/simulation/deleteSimulation/' + id,
+                                                type: 'DELETE',
+                                                contentType: 'application/json',
+                                                success: function () {
+                                                    location.reload();
+                                                },
+                                                error: function (request, status, error) {
+                                                    alert(request.status + request.responseText);
+                                                }
+                                            });
+                                        }
+                                    }
+                                } else if (key === 'toggle') {
+                                    if (id != undefined) {
+                                        let enabled;
+                                        $.ajax({
+                                            url: '/api/simulation/getEnabled/' + id,
+                                            type: 'GET',
+                                            async: false,
+                                            contentType: 'application/json',
+                                            success: function (data) {
+                                                enabled = data;
+                                            },
+                                            error: function (request, status, error) {
+                                                alert(request.status + request.responseText);
+                                            }
+                                        });
+
+                                        if (confirm((enabled ? 'Disable' : 'Enable') + " simulation '" + id + "'?")) {
+                                            $.ajax({
+                                                url: '/api/simulation/setEnabled/' + id + '/' + (enabled ? 0 : 1),
+                                                type: 'POST',
+                                                contentType: 'application/json',
+                                                success: function (data) {
+                                                    location.reload()
+                                                },
+                                                error: function (request, status, error) {
+                                                    alert(request.status + request.responseText);
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                            },
+                            items: {
+                                "add": {name: "Add simulation", icon: "fas fa-plus"},
+                                "edit": {name: "Edit simulation", icon: "fas fa-pen"},
+                                "delete": {name: "Delete simulation", icon: "fas fa-trash"},
+                                "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        /*]]>*/
+    </script>
+</head>
+<body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+
+    <!-- Preloader -->
+    <div class="preloader flex-column justify-content-center align-items-center">
+        <img class="animation__shake" src="img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
+    </div>
+
+    <!-- Navbar -->
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <!-- Left navbar links -->
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+            </li>
+            <li class="nav-item d-none d-sm-inline-block">
+                <a href="index3.html" class="nav-link">Home</a>
+            </li>
+            <li class="nav-item d-none d-sm-inline-block">
+                <a href="#" class="nav-link">Contact</a>
+            </li>
+        </ul>
+
+        <!-- Right navbar links -->
+        <ul class="navbar-nav ml-auto">
+            <!-- Navbar Search -->
+            <li class="nav-item">
+                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
+                    <i class="fas fa-search"></i>
+                </a>
+                <div class="navbar-search-block">
+                    <form class="form-inline">
+                        <div class="input-group input-group-sm">
+                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
+                                   aria-label="Search">
+                            <div class="input-group-append">
+                                <button class="btn btn-navbar" type="submit">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
+                    <i class="fas fa-expand-arrows-alt"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    <!-- /.navbar -->
+
+    <!-- Main Sidebar Container -->
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <!-- Brand Logo -->
+        <a href="index3.html" class="brand-link">
+            <img src="img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
+                 style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Sidebar Menu -->
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
+                    data-accordion="false">
+                    <!-- Add icons to the links using the .nav-icon class
+                         with font-awesome or any other icon font library -->
+
+                    <li class="nav-item">
+                        <a href="/" class="nav-link">
+                            <i class="nav-icon fas fa-table"></i>
+                            <p>
+                                Devices
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/simulations" class="nav-link">
+                            <i class="nav-icon fas fa-chart-area"></i>
+                            <p>
+                                Value Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/errors" class="nav-link active">
+                            <i class="nav-icon fas fa-bomb"></i>
+                            <p>
+                                Error Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/settings" class="nav-link">
+                            <i class="nav-icon fas fa-sliders-h"></i>
+                            <p>
+                                Settings
+                            </p>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <!-- /.sidebar-menu -->
+        </div>
+        <!-- /.sidebar -->
+    </aside>
+
+    <!-- Content Wrapper. Contains page content -->
+    <div class="content-wrapper">
+        <!-- Content Header (Page header) -->
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1 class="m-0">Error Simulations</h1>
+                    </div><!-- /.col -->
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="#">Home</a></li>
+                            <li class="breadcrumb-item active">Error Simulations</li>
+                        </ol>
+                    </div><!-- /.col -->
+                </div><!-- /.row -->
+            </div><!-- /.container-fluid -->
+        </div>
+        <!-- /.content-header -->
+
+        <!-- Main content -->
+        <section class="content">
+            <div class="container-fluid">
+                <!-- Small boxes (Stat box) -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Devices</h3>
+                            </div>
+                            <!-- ./card-header -->
+                            <div class="card-body p-2">
+                                <table id="devicesTable" class="table table-bordered table-hover">
+                                    <thead>
+                                    <th>ID</th>
+                                    <th>Transport</th>
+                                    <th>Protocol</th>
+                                    <th>Host</th>
+                                    <th>Port</th>
+                                    <th>Name</th>
+                                    </thead>
+                                    <tbody>
+
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- /.card-body -->
+                        </div>
+                        <!-- /.card -->
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card card-primary">
+                            <div class="card-header">
+                                <h3 class="card-title" id="device-title">Simulations</h3>
+                            </div>
+                            <!-- /.card-header -->
+                            <div class="card-body p-2">
+                                <table id="simulationsTable" class="table table-bordered table-hover">
+                                    <thead>
+                                    <th>ID</th>
+                                    <th>Target</th>
+                                    <th>Policy</th>
+                                    <th>Interval</th>
+                                    <th>Enabled</th>
+                                    </thead>
+                                    <tbody>
+
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- /.card-body -->
+                        </div>
+                    </div>
+                </div>
+                <!-- /.row -->
+            </div><!-- /.container-fluid -->
+        </section>
+        <!-- /.content -->
+    </div>
+    <!-- /.content-wrapper -->
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+        <div class="float-right d-none d-sm-inline-block">
+            <b>Version</b> 0.1-alpha
+        </div>
+    </footer>
+</div>
+<!-- ./wrapper -->
+
+<!-- jQuery -->
+<script src="plugins/jquery/jquery.min.js"></script>
+<!-- jQuery UI 1.11.4 -->
+<script src="plugins/jquery-ui/jquery-ui.min.js"></script>
+<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
+<script>
+    $.widget.bridge('uibutton', $.ui.button)
+</script>
+<!-- Bootstrap 4 -->
+<script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<!-- AdminLTE App -->
+<script src="js/adminlte.js"></script>
+<script src="js/jstree.min.js"></script>
+<!-- DataTables  & Plugins -->
+<script src="plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
+<script src="plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
+<script src="plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
+<script src="plugins/pdfmake/vfs_fonts.js"></script>
+<script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
+<script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
+<script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.ui.position.js"></script>
+
+</body>
+</html>

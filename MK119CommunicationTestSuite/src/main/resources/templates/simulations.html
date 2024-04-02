@@ -81,10 +81,10 @@
                     for (let i = 0; i < data.length; i++) {
                         let policy = JSON.parse(data[i].strPolicy);
                         let policies = [];
-                        for(let j = 0; j < policy.length; j++){
+                        for (let j = 0; j < policy.length; j++) {
                             policies.push(policy[j].policy);
                         }
-                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td></tr>";
+                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + (data[i].enabled === 0 ? "Disabled" : "Enabled") + "</td></tr>";
                         table.append(markup);
                     }
 
@@ -257,7 +257,15 @@
                         <a href="/simulations" class="nav-link active">
                             <i class="nav-icon fas fa-chart-area"></i>
                             <p>
-                                Simulations
+                                Value Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/errors" class="nav-link">
+                            <i class="nav-icon fas fa-bomb"></i>
+                            <p>
+                                Error Simulations
                             </p>
                         </a>
                     </li>
@@ -283,12 +291,12 @@
             <div class="container-fluid">
                 <div class="row mb-2">
                     <div class="col-sm-6">
-                        <h1 class="m-0">Simulations</h1>
+                        <h1 class="m-0">Value Simulations</h1>
                     </div><!-- /.col -->
                     <div class="col-sm-6">
                         <ol class="breadcrumb float-sm-right">
                             <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active">Simulations</li>
+                            <li class="breadcrumb-item active">Value Simulations</li>
                         </ol>
                     </div><!-- /.col -->
                 </div><!-- /.row -->
@@ -339,6 +347,7 @@
                                     <th>Target</th>
                                     <th>Policy</th>
                                     <th>Interval</th>
+                                    <th>Enabled</th>
                                     </thead>
                                     <tbody>
 

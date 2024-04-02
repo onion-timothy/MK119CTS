@@ -39,7 +39,6 @@ public class DaeyunDecoder extends MkDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         super.decode(ctx, in, out);
-        ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
         Daeyun daeyun = ByteBufUtils.parseDaeyunPacket(in, acceptFrames);
         if (daeyun != null) out.add(daeyun);
         else

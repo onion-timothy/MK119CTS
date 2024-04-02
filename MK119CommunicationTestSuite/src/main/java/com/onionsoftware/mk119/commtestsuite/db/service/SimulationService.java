@@ -44,7 +44,7 @@ public class SimulationService {
     public void stopSimulation(Device device, Simulation simulation) {
         simulationExecutorService.terminateJob(simulation.getId());
         if (device.getProtocol() == Protocol.BACNET) {
-            bacnetService.removeSimulation(simulation.getDevice_id(), simulation.getId());
+            //bacnetService.removeSimulation(simulation.getDevice_id(), simulation.getId());
         }
     }
 

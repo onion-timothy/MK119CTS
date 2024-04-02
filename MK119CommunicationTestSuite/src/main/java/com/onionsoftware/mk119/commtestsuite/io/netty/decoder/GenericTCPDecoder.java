@@ -42,8 +42,6 @@ public class GenericTCPDecoder extends MkDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         super.decode(ctx, in, out);
-
-        ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
         GenericTCPUDPPacket packet = null;
 
         for (RXFrame frame : acceptFrames) {

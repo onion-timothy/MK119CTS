@@ -17,8 +17,6 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Connection;
@@ -29,7 +27,6 @@ import java.util.*;
 @Getter
 @RequiredArgsConstructor
 public class SimulationJob implements Runnable {
-    Logger logger = LoggerFactory.getLogger("simulation");
     private final Simulation simulation;
     private static final Map<Integer, Double> accumValues = new HashMap<>();
     @Autowired
@@ -75,18 +72,57 @@ public class SimulationJob implements Runnable {
                                 modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
                             }
                         } catch (NumberFormatException e) {
-                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for Modbus simulation for device {1}. Format target to {Function}_{Register}", getSimulation().getTarget(), getSimulation().getDevice_id());
+                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for Modbus simulation device {1}({2}). Format target to {Function}_{Register}", getSimulation().getTarget(), device.getName(), device.getId());
                         }
                     } else if (serverData instanceof XGTData) {
-                        XGTData xgtData = (XGTData) serverData;
-                        String[] targetTokens = simulation.getTarget().split("B");
-                        String block = targetTokens[0];
-                        int address = Integer.parseInt(targetTokens[1]);
-
                         try {
-                            xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, address);
-                        } catch (Exception e) {
-                            logger.error("XGT-PLC set data error.", e);
+                            XGTData xgtData = (XGTData) serverData;
+                            String target = simulation.getTarget();
+                            int addr = extractNumbers(target);
+                            String block = String.valueOf(target.charAt(1));
+                            char dataTypeChar = target.charAt(2);
+                            DataType dataType = simulationPolicies.get(0).getData_type();
+
+                            if (dataTypeChar == 'B') {
+                                if (dataType == null || !dataType.name().contains("8")) {
+                                    MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
+                                    return;
+                                }
+                            } else if (dataTypeChar == 'W') {
+                                if (dataType == null || !dataType.name().contains("16")) {
+                                    MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
+                                    return;
+                                }
+                                addr *= 2;
+                            } else if (dataTypeChar == 'D') {
+                                if (dataType == null || !dataType.name().contains("32")) {
+                                    MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
+                                    return;
+                                }
+                                addr *= 4;
+                            }
+
+                            try {
+                                xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, addr);
+                            } catch (Exception e) {
+                                MkLogger.log("simulation", e, "XGTPLC data set error.");
+                            }
+
+
+                            /*
+                            String[] targetTokens = simulation.getTarget().split("B");
+                            String block = targetTokens[0];
+                            int address = Integer.parseInt(targetTokens[1]);
+
+                            try {
+                                xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, address);
+                            } catch (Exception e) {
+                                MkLogger.log("simulation", e, "XGTPLC data set error.");
+                            }
+
+                             */
+                        } catch (NumberFormatException e) {
+                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for XGTPLC simulation device {1}({2}). Format target to {Block}B{Address}.", getSimulation().getTarget(), device.getName(), device.getId());
                         }
                     } else if (serverData instanceof DaeyunData) {
                         DaeyunData daeyunData = (DaeyunData) serverData;
@@ -100,9 +136,13 @@ public class SimulationJob implements Runnable {
                             daeyunData.getTxFieldsIdValueMap().put(simulation.getTarget(), value);
                         }
                     } else if (serverData instanceof OPCAgentData) {
-                        OPCAgentData opcAgentData = (OPCAgentData) serverData;
-                        int index = Integer.parseInt(simulation.getTarget());
-                        opcAgentData.setValue(index, value);
+                        try {
+                            OPCAgentData opcAgentData = (OPCAgentData) serverData;
+                            int index = Integer.parseInt(simulation.getTarget());
+                            opcAgentData.setValue(index, value);
+                        } catch (NumberFormatException e) {
+                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for OPCAgent simulation device {1}({2}). Format target to Integer.", getSimulation().getTarget(), device.getName(), device.getId());
+                        }
                     } else if (serverData instanceof SnmpData) {
                         SnmpData snmpData = (SnmpData) serverData;
                         snmpData.getOidValueMap().put(simulation.getTarget(), value);
@@ -120,12 +160,14 @@ public class SimulationJob implements Runnable {
                 try {
                     PreparedStatement pstmt = connection.prepareStatement(replaced);
                     int res = pstmt.executeUpdate();
-                    if (res == 0)
-                        logger.warn("DB simulation {} for device {} has no affect.", simulation.getTarget(), device.getName());
+                    if (res == 0) {
+                        MkLogger.log("simluation", LogLevel.WARNING, "DB simulation device {0} target {1} has no effect.", simulation.getTarget(), device.getName());
+                    }
                 } catch (SQLException e) {
-                    logger.error("SQL error to execute simulation '{}' for device {}", simulation.getTarget(), device.getName(), e);
+                    MkLogger.log("simluation", e, "DB simulation device {0} SQL Error : {1}", device.getName(), simulation.getTarget());
                 }
-            } else logger.error("Connection not established. {}", device.getName());
+            } else
+                MkLogger.log("simluation", LogLevel.WARNING, "DB simulation device {0} target {1} has no effect.", simulation.getTarget(), device.getName());
         }
     }
 
@@ -156,5 +198,18 @@ public class SimulationJob implements Runnable {
             accumValues.put(simulation.getId(), value);
         }
         return value;
+    }
+
+    private int extractNumbers(String input) {
+        StringBuilder numbers = new StringBuilder();
+
+        for (int i = 0; i < input.length(); i++) {
+            char ch = input.charAt(i);
+            if (Character.isDigit(ch)) {
+                numbers.append(ch);
+            }
+        }
+
+        return Integer.parseInt(numbers.toString());
     }
 }

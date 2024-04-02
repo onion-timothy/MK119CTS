@@ -9,10 +9,12 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Scope;
 
 import java.util.List;
 
 @Configuration("snmp_decoder_udp")
+@Scope("prototype")
 public class SnmpDecoder extends MkUDPDecoder {
     private int version;
     private String getCommunity;

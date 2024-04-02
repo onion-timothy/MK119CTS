@@ -18,6 +18,12 @@
     <link rel="stylesheet" href="plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
 
     <script>
+        let level = 'ALL'
+
+        function changeLevel(_level){
+            level = _level;
+        }
+
         function socketTest(host, port) {
             $.ajax({
                 url: '/api/socketTest?host_transport=' + host + '&port=' + port,
@@ -70,6 +76,44 @@
                 "autoWidth": false,
                 "responsive": true,
             });
+            reloadLogsTable()
+            setInterval(reloadLogsTable, 1000)
+        }
+
+        let logsTable;
+
+        let formatter = new Intl.DateTimeFormat('ko-KR', {
+            dateStyle:'medium',
+            timeStyle:'medium',
+            timeZone:'Asia/Seoul'
+        })
+
+        function reloadLogsTable(){
+            $.ajax({
+                url: '/api/logs/' + level,
+                type: 'GET',
+                success: function (data) {
+                    if(logsTable)
+                        logsTable.destroy();
+                    let table = $('#logsTable');
+                    $('#logsTable > tbody').empty();
+
+                    for (let i = 0; i < data.length; i++) {
+                        let markup = "<tr><td>" + data[i].subject + "</td><td>" + data[i].level + "</td><td>" + data[i].message + "</td><td>" + formatter.format(new Date(data[i].timestamp)) + "</td></tr>"
+                        table.append(markup);
+                    }
+
+                    logsTable = table.DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": false,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+                }
+            });
         }
 
         function viewClients(id) {
@@ -77,7 +121,8 @@
                 url: '/api/sessions/' + id,
                 type: 'GET',
                 success: function (data) {
-                    clientsTable.destroy()
+                    if(clientsTable)
+                        clientsTable.destroy()
                     let table = $('#clientsTable');
                     $('#clientsTable > tbody').empty();
 
@@ -219,7 +264,15 @@
                         <a href="/simulations" class="nav-link">
                             <i class="nav-icon fas fa-chart-area"></i>
                             <p>
-                                Simulations
+                                Value Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/errors" class="nav-link">
+                            <i class="nav-icon fas fa-bomb"></i>
+                            <p>
+                                Error Simulations
                             </p>
                         </a>
                     </li>
@@ -293,7 +346,7 @@
                 <!-- /.row -->
                 <div class="row">
                     <div class="col-md-12">
-                        <div class="card card-primary">
+                        <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">Clients List</h3>
                             </div>
@@ -307,6 +360,35 @@
                                     <th>RX</th>
                                     <th>Uptime</th>
                                     <th>Invalidate</th>
+                                    </thead>
+                                    <tbody>
+
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- /.card-body -->
+                        </div>
+                        <!-- /.card -->
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Realtime Logs</h3>
+                            </div>
+                            <!-- ./card-header -->
+                            <div class="card-body p-2">
+                                <button class="btn btn-success" onclick="changeLevel('ALL')">ALL</button>
+                                <button class="btn btn-danger" onclick="changeLevel('ERROR')">ERROR</button>
+                                <button class="btn btn-warning" onclick="changeLevel('WARNING')">WARNING</button>
+                                <button class="btn btn-primary" onclick="changeLevel('INFO')">INFO</button>
+                                <table id="logsTable" class="table table-bordered table-hover">
+                                    <thead>
+                                    <th>Subject</th>
+                                    <th>Level</th>
+                                    <th>Message</th>
+                                    <th>Timestamp</th>
                                     </thead>
                                     <tbody>
 
