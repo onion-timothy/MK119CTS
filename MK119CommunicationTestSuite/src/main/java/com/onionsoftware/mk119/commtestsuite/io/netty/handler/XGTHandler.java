@@ -1,6 +1,9 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
@@ -26,7 +29,6 @@ import java.util.regex.Pattern;
 @Scope("prototype")
 public class XGTHandler extends MkHandler {
     private String transport;
-    private XGTData xgtData;
 
     public XGTHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
         super(applicationContext, ioServerInstances);
@@ -35,8 +37,6 @@ public class XGTHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        xgtData = (XGTData) applicationContext.getBean("serverData", target.getDevice());
-        target.setServerData(xgtData);
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
     }
 
@@ -45,6 +45,7 @@ public class XGTHandler extends MkHandler {
         ByteBuf out;
 
         if (msg instanceof XGT) {
+            XGTData xgtData = (XGTData) target.getServerData();
             XGT xgt = (XGT) msg;
             out = ctx.alloc().buffer(32 + xgt.getBlockSize());
             // XGT Header.
@@ -119,7 +120,7 @@ public class XGTHandler extends MkHandler {
                         Optional<Simulation> simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals(variable.getVarname())).findAny();
                         if (simulationOptional.isPresent()) {
                             Simulation simulation = simulationOptional.get();
-                            if(simulation.getPolicies().get(0).isStopOnControl()){
+                            if (simulation.getPolicies().get(0).isStopOnControl()) {
                                 simulation.setEnabled(Simulation.DISABLED);
                                 simulationService.updateSimulation(simulation);
                             }
@@ -129,6 +130,23 @@ public class XGTHandler extends MkHandler {
                     }
                 }
             }
+            ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+            Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+            if (errorSimulation != null) {
+                ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+                switch (_ret.getResultType()) {
+                    case ErrorResult.RESULT_TYPE_DISCONNECT:
+                        ctx.close();
+                        break;
+                    case ErrorResult.RESULT_TYPE_TIMEOUT:
+                    case ErrorResult.RESULT_TYPE_GARBAGE:
+                        out = _ret.getBufToWrite();
+                        break;
+                    case ErrorResult.RESULT_TYPE_DISCARD:
+                        return;
+                }
+            }
+
             lastSent = out.copy();
             if (transport.equals("UDP")) {
                 ctx.writeAndFlush(new DatagramPacket(out, xgt.getSender()));

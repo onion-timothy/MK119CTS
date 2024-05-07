@@ -2,6 +2,9 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
@@ -27,7 +30,6 @@ import java.util.*;
 public class DaeyunHandler extends MkHandler {
     private List<TXFrame> sendFrames;
     private String transport;
-    private DaeyunData daeyunData;
 
     public DaeyunHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
         super(applicationContext, ioServerInstances);
@@ -36,8 +38,6 @@ public class DaeyunHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        daeyunData = (DaeyunData) applicationContext.getBean("serverData", target.getDevice());
-        target.setServerData(daeyunData);
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
 
         Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
@@ -50,6 +50,7 @@ public class DaeyunHandler extends MkHandler {
         int error = ERROR_NO_ERROR;
         int length = 0;
         if (msg instanceof Daeyun) {
+            DaeyunData daeyunData = (DaeyunData) target.getServerData();
             Daeyun daeyun = (Daeyun) msg;
             out.writeByte(0x01);
             out.writeByte(daeyun.getFunction());
@@ -86,14 +87,54 @@ public class DaeyunHandler extends MkHandler {
                 out.writeByte(0);
                 out.writeByte(4);
                 out.writeByte(0);
+
+                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+                if (errorSimulation != null) {
+                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+                    switch (_ret.getResultType()) {
+                        case ErrorResult.RESULT_TYPE_DISCONNECT:
+                            ctx.close();
+                            break;
+                        case ErrorResult.RESULT_TYPE_TIMEOUT:
+                        case ErrorResult.RESULT_TYPE_GARBAGE:
+                            out = _ret.getBufToWrite();
+                            break;
+                        case ErrorResult.RESULT_TYPE_DISCARD:
+                            return;
+                    }
+                }
+
                 lastSent = out.copy();
-                ctx.writeAndFlush(out);
+                if (transport.equals("UDP")) {
+                    ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
+                } else ctx.writeAndFlush(out);
                 super.channelRead(ctx, msg);
                 return;
             } else if (daeyun.getFunction() == Daeyun.HB_FUNCTION) {
                 out.writeByte(0);
+
+                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+                if (errorSimulation != null) {
+                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+                    switch (_ret.getResultType()) {
+                        case ErrorResult.RESULT_TYPE_DISCONNECT:
+                            ctx.close();
+                            break;
+                        case ErrorResult.RESULT_TYPE_TIMEOUT:
+                        case ErrorResult.RESULT_TYPE_GARBAGE:
+                            out = _ret.getBufToWrite();
+                            break;
+                        case ErrorResult.RESULT_TYPE_DISCARD:
+                            return;
+                    }
+                }
+
                 lastSent = out.copy();
-                ctx.writeAndFlush(out);
+                if (transport.equals("UDP")) {
+                    ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
+                } else ctx.writeAndFlush(out);
                 super.channelRead(ctx, msg);
                 return;
             } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
@@ -110,8 +151,7 @@ public class DaeyunHandler extends MkHandler {
                     out.writeBytes(temp);
                     length = len + 6;
                 } else {
-                    // TODO 매치 RX 프레임 없음
-                    return;
+                    error = ERROR_TX_MATCH_NOT_FOUND;
                 }
             }
 
@@ -120,6 +160,24 @@ public class DaeyunHandler extends MkHandler {
                 out.getBytes(0, toCRC, 0, length);
                 short crc = CRC16.getCRC16(toCRC);
                 out.writeShort(crc);
+
+                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+                if (errorSimulation != null) {
+                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+                    switch (_ret.getResultType()) {
+                        case ErrorResult.RESULT_TYPE_DISCONNECT:
+                            ctx.close();
+                            break;
+                        case ErrorResult.RESULT_TYPE_TIMEOUT:
+                        case ErrorResult.RESULT_TYPE_GARBAGE:
+                            out = _ret.getBufToWrite();
+                            break;
+                        case ErrorResult.RESULT_TYPE_DISCARD:
+                            return;
+                    }
+                }
+
                 lastSent = out.copy();
                 if (transport.equals("UDP")) {
                     ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
@@ -128,8 +186,6 @@ public class DaeyunHandler extends MkHandler {
                 super.channelRead(ctx, msg);
 
             }
-        } else {
-            // TODO 핸들러 매치 프레임 없음
         }
     }
 

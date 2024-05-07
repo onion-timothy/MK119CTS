@@ -12,6 +12,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component("bacnet_decoder_udp")
+@Scope("prototype")
 public class BACnetDecoder extends MkUDPDecoder {
     private final ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory;
     private final ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory;

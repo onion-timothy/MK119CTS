@@ -5,10 +5,12 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Protocol;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -39,6 +41,7 @@ public class BACnetService {
      * Value: Current value
      */
     private Map<Integer, Float> simulationValues = new HashMap<>();
+    private final IOServerInstances ioServerInstances;
 
     /**
      * DeviceService에서 장비 활성화 시 실행된다.
@@ -54,9 +57,7 @@ public class BACnetService {
             localDeviceVirtual.setProtocol(Protocol.BACNET);
             localDeviceVirtual.setTransport(Transport.UDP);
             localDeviceVirtual.setStrCommunicationSettings("{}");
-
-            bacnetEndpoint = ioServerFactory.getObject(localDeviceVirtual);
-            bacnetEndpoint.start();
+            ioServerInstances.addServerInstance(localDeviceVirtual);
         }
         bacnetDevices.add(device);
     }
@@ -70,7 +71,7 @@ public class BACnetService {
     public synchronized void removeDevice(int deviceId) {
         bacnetDevices.removeIf(e -> e.getId() == deviceId);
         if (bacnetDevices.isEmpty()) {
-            bacnetEndpoint.stopServer();
+            ioServerInstances.stopServerInstance(deviceId);
         }
     }
 

@@ -68,7 +68,8 @@
                             $('#devicesTable > tbody').empty();
 
                             for (let i = 0; i < data.length; i++) {
-                                let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + "</td><td>" + data[i].protocol + "</td><td>" + data[i].host + "</td><td>" + data[i].port + "</td><td>" + data[i].name + "</tr>";
+                                let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleDevice(" + data[i].id + "," + data[i].enabled + ", this.id)' id='" + data[i].name + "'></button>"
+                                let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + " " + data[i].host + ":" + data[i].port + "</td><td>" + data[i].protocol + "</td><td>" + data[i].name + "</td><td>" + button + "</tr>";
                                 table.append(markup);
                             }
 
@@ -90,7 +91,7 @@
                                         if (key === 'add') {
                                             location.href = '/addDevice';
                                         } else if (key === 'edit') {
-                                            if (typeof(id) != 'undefined') {
+                                            if (typeof (id) != 'undefined') {
                                                 location.href = '/editDevice/' + id;
                                             }
                                         } else if (key === 'delete') {
@@ -103,7 +104,7 @@
                                                         success: function () {
                                                             location.reload();
                                                         },
-                                                        error: function (request, status, error) {
+                                                        error: function (request) {
                                                             alert(request.status + request.responseText);
                                                         }
                                                     });
@@ -120,14 +121,14 @@
                                                     success: function (data) {
                                                         enabled = data;
                                                     },
-                                                    error: function (request, status, error) {
+                                                    error: function (request) {
                                                         alert(request.status + request.responseText);
                                                     }
                                                 });
                                                 let deviceName = '';
                                                 for (let i = 0; i < devicesTable.rows().count(); i++) {
-                                                    if (devicesTable.cell(i, 0).data() == id) {
-                                                        deviceName = devicesTable.cell(i, 5).data();
+                                                    if (devicesTable.cell(i, 0).data() === id) {
+                                                        deviceName = devicesTable.cell(i, 3).data();
                                                     }
                                                 }
                                                 if (confirm((enabled ? 'Disable' : 'Enable') + " device '" + deviceName + "'?")) {
@@ -135,10 +136,10 @@
                                                         url: '/api/device/setEnabled/' + id + '/' + (enabled ? 0 : 1),
                                                         type: 'POST',
                                                         contentType: 'application/json',
-                                                        success: function (data) {
+                                                        success: function () {
                                                             location.reload()
                                                         },
-                                                        error: function (request, status, error) {
+                                                        error: function (request) {
                                                             alert(request.status + request.responseText);
                                                         }
                                                     });
@@ -252,6 +253,22 @@
                 delete items.renameGroup;
             }
             return items;
+        }
+
+        function toggleDevice(id, enabled, deviceName) {
+            if (confirm((enabled === 1 ? 'Disable' : 'Enable') + " device '" + deviceName + "'?")) {
+                $.ajax({
+                    url: '/api/device/setEnabled/' + id + '/' + (enabled === 1 ? 0 : 1),
+                    type: 'POST',
+                    contentType: 'application/json',
+                    success: function (data) {
+                        location.reload()
+                    },
+                    error: function (request, status, error) {
+                        alert(request.status + request.responseText);
+                    }
+                });
+            }
         }
 
         /*]]>*/
@@ -417,11 +434,10 @@
                                 <table id="devicesTable" class="table table-bordered table-hover">
                                     <thead>
                                     <th>ID</th>
-                                    <th>Transport</th>
+                                    <th>Address</th>
                                     <th>Protocol</th>
-                                    <th>Host</th>
-                                    <th>Port</th>
                                     <th>Name</th>
+                                    <th>Enabled</th>
                                     </thead>
                                     <tbody>
 

@@ -2,8 +2,10 @@ package com.onionsoftware.mk119.commtestsuite;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Lazy;
@@ -13,23 +15,19 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class ServiceInitializer {
     private final DeviceService deviceService;
     private final SimulationService simulationService;
     private final GroupService groupService;
-
-    @Autowired
-    public ServiceInitializer(DeviceService deviceService, GroupService groupService, SimulationService simulationService) {
-        this.deviceService = deviceService;
-        this.groupService = groupService;
-        this.simulationService = simulationService;
-    }
+    private final ErrorService errorService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void afterStart() {
         deviceService.createScheme();
         simulationService.createScheme();
         groupService.createScheme();
+        errorService.createScheme();
 
         List<Device> devices = deviceService.selectDevices();
         for (Device device : devices) {

@@ -687,7 +687,7 @@ public class ByteBufUtils {
                 return null;
             }
 
-            modbusTcp.setRegister(in.readShort());
+            modbusTcp.setRegister(in.readUnsignedShort());
             modbusTcp.setRequestSize(in.readShort());
             return modbusTcp;
         } else if (in.readableBytes() == 8 && type == Modbus.MODBUS_RTU) {

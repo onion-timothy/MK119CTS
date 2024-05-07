@@ -1,9 +1,11 @@
 package com.onionsoftware.mk119.commtestsuite.web;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Group;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
@@ -41,6 +43,7 @@ public class ApiController {
     private final GroupService groupService;
     private final SimulationService simulationService;
     private final IOServerInstances ioServerInstances;
+    private final ErrorService errorService;
     private final Logger logger = LoggerFactory.getLogger("api");
 
     @RequestMapping(value = "/device/devices/{group_id}", method = RequestMethod.GET)
@@ -201,8 +204,8 @@ public class ApiController {
                         transport.equals("TCP") ? "netstat -anv | grep LISTEN" : "netstat -anv | grep udp"});
                 BufferedReader inStream = new BufferedReader(new InputStreamReader(netstat.getInputStream()));
                 List<String> lines = inStream.lines().collect(Collectors.toList());
-                for(String line : lines){
-                    if(Pattern.matches(regex, line)){
+                for (String line : lines) {
+                    if (Pattern.matches(regex, line)) {
                         return true;
                     }
                 }
@@ -217,31 +220,31 @@ public class ApiController {
         }
     }
 
-    @RequestMapping(value="/sessions/{id}", method=RequestMethod.GET)
-    public List<Session> sessions(@PathVariable("id") Integer id){
+    @RequestMapping(value = "/sessions/{id}", method = RequestMethod.GET)
+    public List<Session> sessions(@PathVariable("id") Integer id) {
         IOServer server = ioServerInstances.getServers().get(id);
         List<Session> sessions = new ArrayList<>();
-        if(server != null){
-            for(InetSocketAddress remote : server.getSessions().keySet()){
+        if (server != null) {
+            for (InetSocketAddress remote : server.getSessions().keySet()) {
                 Session session = new Session();
                 session.setRemoteHost(remote.getHostName());
                 session.setRemotePort(remote.getPort());
                 session.setUptime(System.currentTimeMillis() - server.getSessions().get(remote));
                 MkHandler handler_target = null;
-                for(ChannelInboundHandlerAdapter handler : server.getHandlers()){
+                for (ChannelInboundHandlerAdapter handler : server.getHandlers()) {
                     MkHandler mkHandler = (MkHandler) handler;
-                    if(mkHandler.getContext().channel().remoteAddress().equals(remote)){
+                    if (mkHandler.getContext().channel().remoteAddress().equals(remote)) {
                         handler_target = mkHandler;
                     }
                 }
                 MkDecoderInterface decoder_target = null;
-                for(ChannelInboundHandlerAdapter decoder : server.getDecoders()){
+                for (ChannelInboundHandlerAdapter decoder : server.getDecoders()) {
                     MkDecoderInterface mkDecoder = (MkDecoderInterface) decoder;
-                    if(mkDecoder.getContext().channel().remoteAddress().equals(remote)){
+                    if (mkDecoder.getContext().channel().remoteAddress().equals(remote)) {
                         decoder_target = mkDecoder;
                     }
                 }
-                if(handler_target != null && decoder_target != null){
+                if (handler_target != null && decoder_target != null) {
                     session.setTx(handler_target.getTxCounter());
                     session.setRx(decoder_target.getRxCounter());
                     sessions.add(session);
@@ -251,14 +254,14 @@ public class ApiController {
         return sessions;
     }
 
-    @RequestMapping(value="/disconnect/{server}/{remoteAddr}", method=RequestMethod.DELETE)
-    public Boolean disconnect(@PathVariable Integer server, @PathVariable String remoteAddr){
+    @RequestMapping(value = "/disconnect/{server}/{remoteAddr}", method = RequestMethod.DELETE)
+    public Boolean disconnect(@PathVariable Integer server, @PathVariable String remoteAddr) {
         IOServer ioServer = ioServerInstances.getServerInstance(server);
-        for(ChannelInboundHandlerAdapter handler : ioServer.getHandlers()){
+        for (ChannelInboundHandlerAdapter handler : ioServer.getHandlers()) {
             MkHandler mkHandler = (MkHandler) handler;
             InetSocketAddress addr = (InetSocketAddress) mkHandler.getContext().channel().remoteAddress();
 
-            if(remoteAddr.equals(addr.getHostName() + ":" + addr.getPort())){
+            if (remoteAddr.equals(addr.getHostName() + ":" + addr.getPort())) {
                 mkHandler.getContext().close();
                 return true;
             }
@@ -266,15 +269,38 @@ public class ApiController {
         return false;
     }
 
-    @RequestMapping(value="/logs/{level}", method = RequestMethod.GET)
-    public List<MkLogger> logs(@PathVariable String level){
+    @RequestMapping(value = "/logs/{level}", method = RequestMethod.GET)
+    public List<MkLogger> logs(@PathVariable String level) {
         List<MkLogger> logs = new ArrayList<>(MkLogger.LATEST_LOGS);
         Collections.sort(logs);
 
-        if(level.equals("ALL")){
+        if (level.equals("ALL")) {
             return logs;
         }
-        return logs.stream().filter(e->e.getLevel().name().toUpperCase().equals(level)).collect(Collectors.toList());
+        return logs.stream().filter(e -> e.getLevel().name().toUpperCase().equals(level)).collect(Collectors.toList());
+    }
+
+    @RequestMapping(value = "/error/{device_id}", method = RequestMethod.GET)
+    public Error gerError(@PathVariable Integer device_id) {
+        return errorService.selectErrorByDeviceId(device_id);
+    }
+
+    @RequestMapping(value = "/error/addError", method = RequestMethod.PUT)
+    public String addError(@RequestBody Error error) {
+        errorService.insertError(error);
+        return "success";
+    }
+
+    @RequestMapping(value = "/error/updateError", method = RequestMethod.POST)
+    public String updateError(@RequestBody Error error) {
+        errorService.updateError(error);
+        return "success";
+    }
+
+    @RequestMapping(value = "/error/deleteError/{device_id}", method = RequestMethod.DELETE)
+    public String deleteError(@PathVariable Integer device_id) {
+        errorService.deleteError(device_id);
+        return "success";
     }
 
     @ExceptionHandler({SQLException.class})

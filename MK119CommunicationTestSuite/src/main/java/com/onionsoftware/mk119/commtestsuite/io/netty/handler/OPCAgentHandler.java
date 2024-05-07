@@ -1,5 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
@@ -14,7 +17,6 @@ import org.springframework.stereotype.Component;
 @Scope("prototype")
 public class OPCAgentHandler extends MkHandler {
     private String transport;
-    private OPCAgentData opcAgentData;
 
     public OPCAgentHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
         super(applicationContext, ioServerInstances);
@@ -23,9 +25,6 @@ public class OPCAgentHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-
-        opcAgentData = (OPCAgentData) applicationContext.getBean("serverData", target.getDevice());
-        target.setServerData(opcAgentData);
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
     }
 
@@ -34,6 +33,7 @@ public class OPCAgentHandler extends MkHandler {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof OPCAgent) {
+            OPCAgentData opcAgentData = (OPCAgentData) target.getServerData();
             OPCAgent opc = (OPCAgent) msg;
             int start = opc.getStart();
             int length;
@@ -41,21 +41,38 @@ public class OPCAgentHandler extends MkHandler {
                 length = opcAgentData.getValues().length - start;
             } else length = DEFAULT_TAGS_LENGTH;
 
-            final ByteBuf out = ctx.alloc().buffer(length * 8 + 3);
+            ByteBuf out = ctx.alloc().buffer(length * 8 + 3);
 
-            double[] ret = opcAgentData.getValues(start, length);
-            out.writeShort(ret.length);
-            for (double v : ret) {
+            double[] values = opcAgentData.getValues(start, length);
+            out.writeShort(values.length);
+            for (double v : values) {
                 out.writeDouble(v);
             }
 
-            byte[] bytes = new byte[ret.length * 8 + 2];
+            byte[] bytes = new byte[values.length * 8 + 2];
             out.getBytes(0, bytes);
             int sum = 0;
             for (byte b : bytes) {
                 sum += b;
             }
             out.writeByte(sum & 0xff);
+
+            ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+            Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+            if (errorSimulation != null) {
+                ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+                switch (_ret.getResultType()) {
+                    case ErrorResult.RESULT_TYPE_DISCONNECT:
+                        ctx.close();
+                        break;
+                    case ErrorResult.RESULT_TYPE_TIMEOUT:
+                    case ErrorResult.RESULT_TYPE_GARBAGE:
+                        out = _ret.getBufToWrite();
+                        break;
+                    case ErrorResult.RESULT_TYPE_DISCARD:
+                        return;
+                }
+            }
 
             lastSent = out.copy();
             if (transport.equals("UDP")) {

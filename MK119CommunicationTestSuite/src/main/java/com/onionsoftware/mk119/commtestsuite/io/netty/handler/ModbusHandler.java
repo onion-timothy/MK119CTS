@@ -1,8 +1,12 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
+import com.onionsoftware.mk119.commtestsuite.enums.ErrorMode;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
@@ -22,12 +26,12 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 
 @Component("modbus")
 @Scope("prototype")
 public class ModbusHandler extends MkHandler {
     private String transport;
-    private ModbusData modbusData;
 
     public ModbusHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
         super(applicationContext, ioServerInstances);
@@ -36,8 +40,6 @@ public class ModbusHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        modbusData = (ModbusData) applicationContext.getBean("serverData", target.getDevice());
-        target.setServerData(modbusData);
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
     }
 
@@ -60,8 +62,9 @@ public class ModbusHandler extends MkHandler {
         out.writeByte(modbus.getFc());
 
         SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
-        Optional<Simulation> simulationOptional = Optional.empty();
+        Optional<Simulation> simulationOptional;
 
+        ModbusData modbusData = (ModbusData) target.getServerData();
         // Common Payload Data
         switch (modbus.getFc()) {
             case Modbus.FC_01:
@@ -118,6 +121,26 @@ public class ModbusHandler extends MkHandler {
             short crc = CRC16.getCRC16(toCRC);
             out.writeShort(crc);
         }
+
+        ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+        Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+        if (errorSimulation != null) {
+            ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+            if(_ret != null) {
+                switch (_ret.getResultType()) {
+                    case ErrorResult.RESULT_TYPE_DISCONNECT:
+                        ctx.close();
+                        break;
+                    case ErrorResult.RESULT_TYPE_TIMEOUT:
+                    case ErrorResult.RESULT_TYPE_GARBAGE:
+                        out = _ret.getBufToWrite();
+                        break;
+                    case ErrorResult.RESULT_TYPE_DISCARD:
+                        return;
+                }
+            }
+        }
+
         lastSent = out.copy();
         if (transport.equals("UDP")) {
             ctx.writeAndFlush(new DatagramPacket(out, modbus.getSender()));

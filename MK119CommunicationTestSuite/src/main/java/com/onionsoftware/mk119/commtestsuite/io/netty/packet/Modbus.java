@@ -11,7 +11,7 @@ import java.util.List;
 public class Modbus extends Packet {
     protected byte uid;
     protected byte fc;
-    protected short register;
+    protected int register;
     protected short requestSize;
 
     public static final int FC_01 = 1;

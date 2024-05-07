@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Optional;
 
 import com.google.gson.reflect.TypeToken;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
@@ -27,7 +30,6 @@ import org.springframework.stereotype.Component;
 public class GenericTCPUDPHandler extends MkHandler {
     private List<TXFrame> sendFrames;
     private String transport;
-    private GenericData genericData;
 
     public GenericTCPUDPHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
         super(applicationContext, ioServerInstances);
@@ -36,9 +38,6 @@ public class GenericTCPUDPHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-
-        genericData = (GenericData) applicationContext.getBean("serverData", target.getDevice());
-        target.setServerData(genericData);
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
         Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
         this.sendFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("tx").toString(), listType);
@@ -49,7 +48,7 @@ public class GenericTCPUDPHandler extends MkHandler {
         ByteBuf out = null;
         if (msg instanceof GenericTCPUDPPacket) {
             GenericTCPUDPPacket packet = (GenericTCPUDPPacket) msg;
-            packet.setGenericData(genericData);
+            packet.setGenericData((GenericData) target.getServerData());
             Optional<TXFrame> optionalTX = sendFrames.stream().filter(e -> e.getTx_id().equals(packet.getRx_id())).findFirst();
             if (optionalTX.isPresent()) {
                 out = Unpooled.buffer();
@@ -59,6 +58,23 @@ public class GenericTCPUDPHandler extends MkHandler {
             }
 
             if (out != null) {
+                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+                if (errorSimulation != null) {
+                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
+                    switch (_ret.getResultType()) {
+                        case ErrorResult.RESULT_TYPE_DISCONNECT:
+                            ctx.close();
+                            break;
+                        case ErrorResult.RESULT_TYPE_TIMEOUT:
+                        case ErrorResult.RESULT_TYPE_GARBAGE:
+                            out = _ret.getBufToWrite();
+                            break;
+                        case ErrorResult.RESULT_TYPE_DISCARD:
+                            return;
+                    }
+                }
+
                 lastSent = out.copy();
                 if (transport.equals("UDP")) {
                     ctx.writeAndFlush(new DatagramPacket(out, packet.getSender()));

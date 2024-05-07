@@ -21,7 +21,9 @@ public class IOServerFactory {
     @Scope("prototype")
     public IOServer ioServer(Device device) {
         device.getCommunicationSettings().put("transport", device.getTransport().name());
-        return new IOServer(device);
+        IOServer ioServer = new IOServer(device);
+        ioServer.setServerData(serverData(device));
+        return ioServer;
     }
 
     @Bean
@@ -48,7 +50,6 @@ public class IOServerFactory {
     @Bean
     @Scope("prototype")
     public ChannelInboundHandlerAdapter decoder(Device device) {
-        ChannelInboundHandlerAdapter ret = null;
         String beanName = device.getProtocol().name().toLowerCase() + "_decoder_" + device.getTransport().name().toLowerCase();
         return (ChannelInboundHandlerAdapter) applicationContext.getBean(beanName);
     }

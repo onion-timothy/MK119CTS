@@ -17,6 +17,7 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Connection;
@@ -69,6 +70,9 @@ public class SimulationJob implements Runnable {
                             } else if (function == Modbus.FC_03) {
                                 modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
                             } else if (function == Modbus.FC_04) {
+                                if(register == 2400){
+                                    LoggerFactory.getLogger("io").info("register 2400 value : {}", value);
+                                }
                                 modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
                             }
                         } catch (NumberFormatException e) {

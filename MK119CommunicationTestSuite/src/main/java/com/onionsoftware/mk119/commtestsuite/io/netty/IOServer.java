@@ -15,8 +15,6 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.Getter;
 import lombok.Setter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 
@@ -75,7 +73,7 @@ public class IOServer extends Thread {
                 ChannelFuture f = bootstrap.bind(new InetSocketAddress(device.getHost(), device.getPort())).sync();
                 f.channel().closeFuture().sync();
             } catch (InterruptedException e) {
-                MkLogger.log("io", LogLevel.WARNING, "Server for device {} interrupted.", device.getName());
+                MkLogger.log("io", LogLevel.WARNING, "Server for device {0} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
             } catch(Exception e) {
                 MkLogger.log("io", e, "General exception to initialize TCP server.");
@@ -99,7 +97,7 @@ public class IOServer extends Thread {
                 ChannelFuture f = bootstrap.bind().sync();
                 f.channel().closeFuture().sync();
             } catch (InterruptedException e) {
-                MkLogger.log("io", LogLevel.WARNING, "Server for device {} interrupted.", device.getName());
+                MkLogger.log("io", LogLevel.WARNING, "Server for device {0} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
             } catch(Exception e) {
                 MkLogger.log("io", e, "General exception to initialize UDP server.");

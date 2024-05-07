@@ -19,7 +19,7 @@ public class SimulationExecutorService extends ThreadPoolExecutor {
     Logger logger = LoggerFactory.getLogger("simulation");
 
     public SimulationExecutorService() {
-        super(10, 10, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(100),
+        super(200, 200, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(2000),
                 new BasicThreadFactory.Builder().namingPattern("simulation-pool-thread-%d").daemon(true).build());
         executingSimulations = new HashMap<>();
         threads = new HashMap<>();
@@ -45,14 +45,13 @@ public class SimulationExecutorService extends ThreadPoolExecutor {
             SimulationJob job = (SimulationJob) r;
             try {
                 Thread.sleep(job.getSimulation().getInterval() * 1000L);
+                super.execute(r);
             } catch (InterruptedException e) {
                 logger.error("Interval interrupted.", e);
                 executingSimulations.remove(job.getSimulation().getId());
-                return;
             } finally {
                 threads.remove(job.getSimulation().getId());
             }
-            super.execute(r);
         }
     }
 

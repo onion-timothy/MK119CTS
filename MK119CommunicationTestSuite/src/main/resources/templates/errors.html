@@ -16,15 +16,31 @@
     <link rel="stylesheet" href="plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
     <link rel="stylesheet" href="plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
     <link rel="stylesheet" href="plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+    <link rel="stylesheet" href="/plugins/bootstrap-slider/css/bootstrap-slider.min.css">
+    <style>
+        .slider {
+            width: 95% !important;
+        }
+    </style>
 
     <script>
         /*<![CDATA[*/
         let devicesTable;
-        let simulationsTable;
-        let tree;
         let device_id;
 
+        let frequency;
+        let timeout;
+        let garbageLength;
+
         function onload() {
+            $('#timeout-from-group').hide();
+            $('#garbage-length-from-group').hide();
+            frequency = $('#frequency').bootstrapSlider();
+            timeout = $('#timeout').bootstrapSlider();
+            garbageLength = $('#garbage-length').bootstrapSlider();
+
+            $('#removeButton').hide()
+
             let tableFirstRowId;
             $.ajax({
                 url: '/api/device/devices',
@@ -36,7 +52,7 @@
                     for (let i = 0; i < data.length; i++) {
                         let markup = "<tr onclick='viewSimulations(this.id)' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + "</td><td>" + data[i].protocol + "</td><td>" + data[i].host + "</td><td>" + data[i].port + "</td><td>" + data[i].name + "</tr>";
                         table.append(markup);
-                        if (i == 0) {
+                        if (i === 0) {
                             tableFirstRowId = data[i].id;
                         }
                     }
@@ -53,120 +69,105 @@
                 }
             });
 
-            simulationsTable = $('#simulationsTable').DataTable({
-                "paging": true,
-                "lengthChange": false,
-                "searching": false,
-                "ordering": true,
-                "info": true,
-                "autoWidth": false,
-                "responsive": true,
-            });
             viewSimulations(tableFirstRowId);
         }
 
+        function displayForms(value) {
+            let formTimeout = $('#timeout-from-group');
+            let formGarbageLength = $('#garbage-length-from-group');
+            let mode = parseInt(value);
+            if (mode === 0) {
+                formTimeout.hide();
+                formGarbageLength.hide();
+            } else if(mode === 1) {
+                formTimeout.show();
+                formGarbageLength.hide();
+            } else {
+                formTimeout.hide();
+                formGarbageLength.show();
+            }
+        }
+
+        let currentError;
+        let currentDeviceId;
+        let currentDeviceName;
+
         function viewSimulations(id) {
-            device_id = id;
-
-            if (simulationsTable)
-                simulationsTable.destroy();
-
+            currentDeviceId = id;
+            for (let i = 0; i < devicesTable.rows().count(); i++) {
+                if (devicesTable.cell(i, 0).data() === id) {
+                    currentDeviceName = devicesTable.cell(i, 5).data();
+                }
+            }
             $.ajax({
-                url: '/api/simulation/simulations/' + id,
+                url: '/api/error/' + id,
                 type: 'GET',
+                async: false,
                 success: function (data) {
-                    let table = $('#simulationsTable');
-                    $('#simulationsTable > tbody').empty();
+                    currentError = data;
+                    displayForms(data.intMode)
+                    if (data !== '') {
+                        $('#removeButton').show();
+                        $('#submitButton').text('Edit')
+                        $('#errorMode').val(data.intMode)
+                        $('#enabled').val(data.enabled)
+                        frequency.bootstrapSlider('setValue', data.frequency)
+                        timeout.bootstrapSlider('setValue', data.timeout)
+                        garbageLength.bootstrapSlider('setValue', data.garbageLength)
+                    } else {
+                        currentError = null;
+                        $('#removeButton').hide();
+                        $('#submitButton').text('Add')
 
-                    for (let i = 0; i < data.length; i++) {
-                        let policy = JSON.parse(data[i].strPolicy);
-                        let policies = [];
-                        for (let j = 0; j < policy.length; j++) {
-                            policies.push(policy[j].policy);
-                        }
-                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + (data[i].enabled === 0 ? "Disabled" : "Enabled") + "</td></tr>";
-                        table.append(markup);
+                        $('#errorMode').val(0)
+                        $('#enabled').val(0)
+                        frequency.bootstrapSlider('setValue', 10)
+                        timeout.bootstrapSlider('setValue', 4)
+                        garbageLength.bootstrapSlider('setValue', 36)
                     }
-
-                    simulationsTable = $('#simulationsTable').DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
-
-                    $(function () {
-                        $('#simulationsTable').contextMenu({
-                            selector: 'td',
-                            callback: function (key, options) {
-                                let id = $(this).parent().attr('id');
-                                if (key === 'add') {
-                                    location.href = '/addSimulation/' + device_id;
-                                } else if (key === 'edit') {
-                                    if (id != undefined) {
-                                        location.href = '/editSimulation/' + id;
-                                    }
-                                } else if (key === 'delete') {
-                                    if (id != undefined) {
-                                        if (confirm("Confirm to delete simulation '" + id + "'")) {
-                                            $.ajax({
-                                                url: '/api/simulation/deleteSimulation/' + id,
-                                                type: 'DELETE',
-                                                contentType: 'application/json',
-                                                success: function () {
-                                                    location.reload();
-                                                },
-                                                error: function (request, status, error) {
-                                                    alert(request.status + request.responseText);
-                                                }
-                                            });
-                                        }
-                                    }
-                                } else if (key === 'toggle') {
-                                    if (id != undefined) {
-                                        let enabled;
-                                        $.ajax({
-                                            url: '/api/simulation/getEnabled/' + id,
-                                            type: 'GET',
-                                            async: false,
-                                            contentType: 'application/json',
-                                            success: function (data) {
-                                                enabled = data;
-                                            },
-                                            error: function (request, status, error) {
-                                                alert(request.status + request.responseText);
-                                            }
-                                        });
-
-                                        if (confirm((enabled ? 'Disable' : 'Enable') + " simulation '" + id + "'?")) {
-                                            $.ajax({
-                                                url: '/api/simulation/setEnabled/' + id + '/' + (enabled ? 0 : 1),
-                                                type: 'POST',
-                                                contentType: 'application/json',
-                                                success: function (data) {
-                                                    location.reload()
-                                                },
-                                                error: function (request, status, error) {
-                                                    alert(request.status + request.responseText);
-                                                }
-                                            });
-                                        }
-                                    }
-                                }
-                            },
-                            items: {
-                                "add": {name: "Add simulation", icon: "fas fa-plus"},
-                                "edit": {name: "Edit simulation", icon: "fas fa-pen"},
-                                "delete": {name: "Delete simulation", icon: "fas fa-trash"},
-                                "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
-                            }
-                        });
-                    });
                 }
             });
+        }
+
+        function submit() {
+            let error = {};
+            error.device_id = currentDeviceId;
+            error.intMode = $('#errorMode').val();
+            error.frequency = frequency.bootstrapSlider('getValue');
+            error.timeout = timeout.bootstrapSlider('getValue');
+            error.enabled = $('#enabled').val();
+            error.garbageLength = garbageLength.bootstrapSlider('getValue')
+
+            let api = currentError === null ? '/api/error/addError' : '/api/error/updateError';
+            let method = currentError === null ? 'PUT' : 'POST';
+
+            $.ajax({
+                url: api,
+                type: method,
+                contentType: 'application/json',
+                data: JSON.stringify(error),
+                success: function () {
+                    location.reload()
+                },
+                error: function (request) {
+                    alert(request.status + request.responseText);
+                }
+            });
+        }
+
+        function remove() {
+            if(confirm("Confirm to delete error simulation for device '" + currentDeviceName + "'.")){
+                $.ajax({
+                    url: '/api/error/deleteError/' + currentDeviceId,
+                    type: 'DELETE',
+                    success: function () {
+                        location.reload()
+                    },
+                    error: function (request) {
+                        alert(request.status + request.responseText);
+                    }
+                });
+            }
         }
 
         /*]]>*/
@@ -309,7 +310,7 @@
             <div class="container-fluid">
                 <!-- Small boxes (Stat box) -->
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-8">
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">Devices</h3>
@@ -334,25 +335,57 @@
                         </div>
                         <!-- /.card -->
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="card card-primary">
                             <div class="card-header">
-                                <h3 class="card-title" id="device-title">Simulations</h3>
+                                <h3 class="card-title" id="device-title">Error simulation</h3>
                             </div>
                             <!-- /.card-header -->
                             <div class="card-body p-2">
-                                <table id="simulationsTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>ID</th>
-                                    <th>Target</th>
-                                    <th>Policy</th>
-                                    <th>Interval</th>
-                                    <th>Enabled</th>
-                                    </thead>
-                                    <tbody>
-
-                                    </tbody>
-                                </table>
+                                <div class="form-group">
+                                    <label for="errorMode">Error mode</label>
+                                    <select class="custom-select form-control-border" id="errorMode"
+                                            onchange="displayForms(this.value)">
+                                        <option value="0">Discard</option>
+                                        <option value="1">Timeout</option>
+                                        <option value="2">Garbage</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="frequency">Frequency(%)</label>
+                                    <div class="slider-green">
+                                        <input id="frequency" data-slider-id='frequency' type="text"
+                                               data-slider-min="0" data-slider-max="100"
+                                               data-slider-step="1" data-slider-value="10"/>
+                                    </div>
+                                </div>
+                                <div class="form-group" id="timeout-from-group">
+                                    <label for="timeout">Timeout(s)</label>
+                                    <div class="slider-red">
+                                        <input id="timeout" data-slider-id='frequency' type="text"
+                                               data-slider-min="0" data-slider-max="10"
+                                               data-slider-step="1" data-slider-value="4"/>
+                                    </div>
+                                </div>
+                                <div class="form-group" id="garbage-length-from-group">
+                                    <label for="garbage-length">Length of garbage packet</label>
+                                    <div class="slider-blue">
+                                        <input id="garbage-length" data-slider-id='garbage-length' type="text"
+                                               data-slider-min="1" data-slider-max="1024"
+                                               data-slider-step="1" data-slider-value="36"/>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="enabled">State</label>
+                                    <select class="custom-select form-control-border" id="enabled">
+                                        <option value="1">Enabled</option>
+                                        <option value="0">Disabled</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <button id="submitButton" onclick="submit()" class="btn btn-success">Add</button>
+                                    <button id="removeButton" onclick="remove()" class="btn btn-danger">Remove</button>
+                                </div>
                             </div>
                             <!-- /.card-body -->
                         </div>
@@ -398,6 +431,8 @@
 <script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
 <script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
 <script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+<!-- Bootstrap slider -->
+<script src="/plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
 
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.css">

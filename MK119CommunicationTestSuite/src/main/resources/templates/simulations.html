@@ -36,7 +36,7 @@
                     for (let i = 0; i < data.length; i++) {
                         let markup = "<tr onclick='viewSimulations(this.id)' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + "</td><td>" + data[i].protocol + "</td><td>" + data[i].host + "</td><td>" + data[i].port + "</td><td>" + data[i].name + "</tr>";
                         table.append(markup);
-                        if (i == 0) {
+                        if (i === 0) {
                             tableFirstRowId = data[i].id;
                         }
                     }
@@ -84,7 +84,8 @@
                         for (let j = 0; j < policy.length; j++) {
                             policies.push(policy[j].policy);
                         }
-                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + (data[i].enabled === 0 ? "Disabled" : "Enabled") + "</td></tr>";
+                        let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleSimulation(" + data[i].id + "," + data[i].enabled + ")'></button>"
+                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
                         table.append(markup);
                     }
 
@@ -167,6 +168,22 @@
                     });
                 }
             });
+        }
+
+        function toggleSimulation(id, enabled) {
+            if (confirm((enabled === 1 ? 'Disable' : 'Enable') + " simulation '" + id + "'?")) {
+                $.ajax({
+                    url: '/api/simulation/setEnabled/' + id + '/' + (enabled === 1 ? 0 : 1),
+                    type: 'POST',
+                    contentType: 'application/json',
+                    success: function (data) {
+                        location.reload()
+                    },
+                    error: function (request, status, error) {
+                        alert(request.status + request.responseText);
+                    }
+                });
+            }
         }
 
         /*]]>*/

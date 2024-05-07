@@ -37,3 +37,5 @@ out/
 .vscode/
 /logs-past/
 /logs/
+../logs
+../logs-past

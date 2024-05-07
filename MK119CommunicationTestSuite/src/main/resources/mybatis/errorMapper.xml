@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.onionsoftware.mk119.commtestsuite.db.mapper.ErrorMapper">
+    <update id="createScheme">
+        IF NOT EXISTS (SELECT *
+                       FROM sysobjects
+                       WHERE name = 'ERRORS'
+                         and xtype = 'U')
+        CREATE TABLE cts.dbo.ERRORS
+        (
+            device_id     int NOT NULL,
+            intMode       int NOT NULL,
+            frequency     int NOT NULL,
+            enabled       int NOT NULL,
+            timeout       int,
+            garbageLength int,
+            CONSTRAINT FK_ERRORS_DEVICES FOREIGN KEY (device_id) REFERENCES cts.dbo.DEVICES (id) ON DELETE CASCADE ON UPDATE CASCADE,
+        );
+    </update>
+
+    <select id="selectErrorByDeviceId" parameterType="java.lang.Integer"
+            resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Error">
+        SELECT *
+        FROM ERRORS
+        WHERE device_id = #{device_id}
+    </select>
+
+    <insert id="insertError" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Error">
+        INSERT INTO ERRORS (device_id, intMode, frequency, timeout, garbageLength, enabled)
+        VALUES (#{device_id}, #{intMode}, #{frequency}, #{timeout}, #{garbageLength}, #{enabled})
+    </insert>
+
+    <update id="updateError" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Error">
+        UPDATE ERRORS
+        SET intMode       = #{intMode},
+            frequency     = #{frequency},
+            enabled       = #{enabled},
+            timeout       = #{timeout},
+            garbageLength = #{garbageLength}
+        WHERE device_id = #{device_id}
+    </update>
+
+    <delete id="deleteError" parameterType="java.lang.Integer">
+        DELETE ERRORS
+        WHERE device_id = #{device_id}
+    </delete>
+</mapper>

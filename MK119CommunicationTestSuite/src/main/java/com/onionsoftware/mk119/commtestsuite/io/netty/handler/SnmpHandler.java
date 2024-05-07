@@ -1,7 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.ireasoning.protocol.snmp.*;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
@@ -19,8 +22,6 @@ import java.util.Optional;
 @Component("snmp")
 @Scope("prototype")
 public class SnmpHandler extends MkHandler {
-    private SnmpData snmpData;
-
     public SnmpHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
         super(applicationContext, ioServerInstances);
     }
@@ -28,9 +29,6 @@ public class SnmpHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-
-        snmpData = (SnmpData) applicationContext.getBean("serverData", target.getDevice());
-        target.setServerData(snmpData);
     }
 
     @Override
@@ -53,6 +51,24 @@ public class SnmpHandler extends MkHandler {
             ByteBuf buffer = Unpooled.buffer();
             try {
                 buffer.writeBytes(SnmpPdu.encodePdu(ret));
+
+                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
+                if (errorSimulation != null) {
+                    ErrorResult _ret = errorSimulation.performErrorSimulation(buffer);
+                    switch (_ret.getResultType()) {
+                        case ErrorResult.RESULT_TYPE_DISCONNECT:
+                            ctx.close();
+                            break;
+                        case ErrorResult.RESULT_TYPE_TIMEOUT:
+                        case ErrorResult.RESULT_TYPE_GARBAGE:
+                            buffer = _ret.getBufToWrite();
+                            break;
+                        case ErrorResult.RESULT_TYPE_DISCARD:
+                            return;
+                    }
+                }
+
                 lastSent = buffer.copy();
                 ctx.writeAndFlush(new DatagramPacket(buffer, packet.getSender()));
                 super.channelRead(ctx, msg);
@@ -63,6 +79,7 @@ public class SnmpHandler extends MkHandler {
     }
 
     private SnmpVarBindList processGetRequest(SnmpPdu packet) {
+        SnmpData snmpData = (SnmpData) target.getServerData();
         SnmpVarBindList ret = new SnmpVarBindList();
         for (SnmpVarBind snmpVarBind : packet.getVarBinds()) {
             SnmpOID oid = snmpVarBind.getName();
@@ -83,6 +100,7 @@ public class SnmpHandler extends MkHandler {
     }
 
     private SnmpVarBindList processSetRequest(SnmpPdu packet) {
+        SnmpData snmpData = (SnmpData) target.getServerData();
         SnmpVarBindList ret = new SnmpVarBindList();
         for (SnmpVarBind snmpVarBind : packet.getVarBinds()) {
             SnmpOID oid = snmpVarBind.getName();

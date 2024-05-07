@@ -52,7 +52,7 @@ public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecode
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        MkLogger.log("io", LogLevel.ERROR, "[{0}}] packet decode error {1}", this.getClass().getSimpleName(), cause.getMessage());
+        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet decode error {1}", this.getClass().getSimpleName(), cause.getMessage());
         ExceptionUtil.printStackTrace(cause);
     }
 }
