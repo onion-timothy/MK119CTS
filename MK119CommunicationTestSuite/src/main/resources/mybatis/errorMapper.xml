@@ -6,7 +6,7 @@
                        FROM sysobjects
                        WHERE name = 'ERRORS'
                          and xtype = 'U')
-        CREATE TABLE cts.dbo.ERRORS
+        CREATE TABLE ERRORS
         (
             device_id     int NOT NULL,
             intMode       int NOT NULL,
@@ -14,7 +14,7 @@
             enabled       int NOT NULL,
             timeout       int,
             garbageLength int,
-            CONSTRAINT FK_ERRORS_DEVICES FOREIGN KEY (device_id) REFERENCES cts.dbo.DEVICES (id) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT FK_ERRORS_DEVICES FOREIGN KEY (device_id) REFERENCES DEVICES (id) ON DELETE CASCADE ON UPDATE CASCADE,
         );
     </update>
 

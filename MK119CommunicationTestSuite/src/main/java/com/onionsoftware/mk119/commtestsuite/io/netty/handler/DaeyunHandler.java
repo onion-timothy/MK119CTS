@@ -41,7 +41,7 @@ public class DaeyunHandler extends MkHandler {
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
 
         Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
-        this.sendFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("tx").toString(), listType);
+        this.sendFrames = new Gson().fromJson(new Gson().toJson(target.getDevice().getCommunicationSettings().get("tx"), listType), listType);
     }
 
     @Override

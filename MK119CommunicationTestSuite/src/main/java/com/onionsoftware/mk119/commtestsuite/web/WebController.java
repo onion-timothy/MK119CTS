@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 
 @Controller
@@ -22,12 +23,22 @@ public class WebController {
     }
 
     @RequestMapping("/")
-    public String devices() {
+    public String devices(@RequestParam(value = "group", required = false) Integer group, Model model) {
+        if(group != null){
+            model.addAttribute("group", group);
+        } else {
+            model.addAttribute("group", 1);
+        }
         return "devices";
     }
 
     @RequestMapping("/devices")
-    public String _devices() {
+    public String _devices(@RequestParam(value = "group", required = false) Integer group, Model model) {
+        if(group != null){
+            model.addAttribute("group", group);
+        } else {
+            model.addAttribute("group", 1);
+        }
         return "devices";
     }
 
@@ -43,7 +54,12 @@ public class WebController {
     }
 
     @RequestMapping("/simulations")
-    public String valueSimulation() {
+    public String valueSimulation(@RequestParam(value = "device", required = false) Integer device, Model model) {
+        if(device != null){
+            model.addAttribute("device", device);
+        } else {
+            model.addAttribute("device", 0);
+        }
         return "simulations";
     }
 

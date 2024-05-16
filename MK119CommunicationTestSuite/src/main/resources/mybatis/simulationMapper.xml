@@ -6,7 +6,7 @@
                        FROM sysobjects
                        WHERE name = 'SIMULATIONS'
                          and xtype = 'U')
-        CREATE TABLE cts.dbo.SIMULATIONS
+        CREATE TABLE SIMULATIONS
         (
             id         int IDENTITY (1,1)                        NOT NULL,
             device_id  int                                       NOT NULL,
@@ -15,7 +15,7 @@
             [interval] int                                       NOT NULL,
             enabled    int                                       NOT NULL
                 CONSTRAINT SIMULATIONS_PK PRIMARY KEY (id),
-            CONSTRAINT FK_SIMULATIONS_DEVICES FOREIGN KEY (device_id) REFERENCES cts.dbo.DEVICES (id) ON DELETE CASCADE ON UPDATE CASCADE
+            CONSTRAINT FK_SIMULATIONS_DEVICES FOREIGN KEY (device_id) REFERENCES DEVICES (id) ON DELETE CASCADE ON UPDATE CASCADE
         );
     </update>
 

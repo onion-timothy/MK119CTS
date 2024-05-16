@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
@@ -40,7 +41,7 @@ public class GenericTCPUDPHandler extends MkHandler {
         super.channelActive(ctx);
         transport = target.getDevice().getCommunicationSettings().get("transport").toString();
         Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
-        this.sendFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("tx").toString(), listType);
+        this.sendFrames = new Gson().fromJson(new Gson().toJson(target.getDevice().getCommunicationSettings().get("tx"), listType), listType);
     }
 
     @Override

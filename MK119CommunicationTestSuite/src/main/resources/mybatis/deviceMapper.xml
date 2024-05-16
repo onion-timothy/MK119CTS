@@ -6,7 +6,7 @@
                        FROM sysobjects
                        WHERE name = 'DEVICES'
                          and xtype = 'U')
-        CREATE TABLE cts.dbo.DEVICES
+        CREATE TABLE DEVICES
         (
             id                       int IDENTITY (1,1) NOT NULL,
             intTransport             int                NOT NULL,

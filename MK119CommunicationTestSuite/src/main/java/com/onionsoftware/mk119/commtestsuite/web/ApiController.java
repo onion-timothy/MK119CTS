@@ -108,8 +108,27 @@ public class ApiController {
 
     @RequestMapping(value = "/group/deleteGroup/{id}", method = RequestMethod.DELETE)
     public Integer deleteGroup(@PathVariable Integer id) {
+        deleteGroupAndDeviceRecursively(id);
+
+        List<Device> devices = deviceService.selectDevicesByGroupId(id);
+        for(Device device : devices){
+            deviceService.deleteDevice(device.getId());
+        }
         groupService.deleteGroup(id);
+
         return id;
+    }
+
+    public void deleteGroupAndDeviceRecursively(int groupId){
+        List<Group> groups = groupService.selectGroupsByParentGroupId(groupId);
+        for(Group group : groups){
+            List<Device> devices = deviceService.selectDevicesByGroupId(group.getId());
+            for(Device device : devices){
+                deviceService.deleteDevice(device.getId());
+            }
+            groupService.deleteGroup(group.getId());
+            deleteGroupAndDeviceRecursively(group.getId());
+        }
     }
 
     @RequestMapping(value = "/group/renameGroup", method = RequestMethod.POST)

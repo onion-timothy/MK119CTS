@@ -8,11 +8,11 @@ public enum DataType {
     SI16AB(5),
     SI16BA(6),
     UI32AD(7),    // A B C D
-    UI32CB(8),    // C D B A
+    UI32CB(8),    // C D A B
     UI32BC(9),    // B A D C
     UI32DA(10),    // D C B A
     SI32AD(11),    // A B C D
-    SI32CB(12),    // C D B A
+    SI32CB(12),    // C D A B
     SI32BC(13),    // B A D C
     SI32DA(14),    // D C B A
     SI64AH(15),    // A B C D E F G H
@@ -20,7 +20,7 @@ public enum DataType {
     SI64BG(17),    // B A D C F E H G
     SI64HA(18),    // H G F E D C B A
     FP32AD(19),    // A B C D
-    FP32CB(20),    // C D B A
+    FP32CB(20),    // C D A B
     FP32BC(21),    // B A D C
     FP32DA(22),    // D C B A
     FP64AH(23),    // A B C D E F G H

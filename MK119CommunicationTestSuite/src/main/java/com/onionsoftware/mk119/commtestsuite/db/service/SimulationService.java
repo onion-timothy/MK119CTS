@@ -83,6 +83,7 @@ public class SimulationService {
     }
 
     public void deleteSimulationByDeviceId(Integer device_id) {
+        stopDeviceSimulations(device_id);
         simulationMapper.deleteSimulationByDeviceId(device_id);
     }
 

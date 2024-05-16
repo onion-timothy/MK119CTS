@@ -21,6 +21,17 @@
         /*<![CDATA[*/
         let devicesTable;
         let tree;
+        let _devices;
+
+        let groupSelected = '[[${group}]]';
+
+        String.format = function () {
+            let args = arguments;
+            return args[0].replace(/{(\d+)}/g, function (match, num) {
+                num = Number(num) + 1;
+                return typeof (args[num]) != 'undefined' ? args[num] : match;
+            });
+        }
 
         function onload() {
             tree = $('#tree-container').jstree({
@@ -36,6 +47,7 @@
                             return {'id': node.id === '#' ? 0 : node.id.split("_")[1]};
                         }
                     },
+                    "multiple" : false,
                 },
                 "types": {
                     "group": {
@@ -73,7 +85,7 @@
                                 table.append(markup);
                             }
 
-                            devicesTable = $('#devicesTable').DataTable({
+                            devicesTable = table.DataTable({
                                 "paging": true,
                                 "lengthChange": false,
                                 "searching": false,
@@ -95,14 +107,15 @@
                                                 location.href = '/editDevice/' + id;
                                             }
                                         } else if (key === 'delete') {
-                                            if (id != undefined) {
+                                            if (typeof (id) != 'undefined') {
                                                 if (confirm("Confirm to delete device '" + id + "'")) {
                                                     $.ajax({
                                                         url: '/api/device/deleteDevice/' + id,
                                                         type: 'DELETE',
                                                         contentType: 'application/json',
                                                         success: function () {
-                                                            location.reload();
+                                                            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                                            location.href = '/devices?group=' + group;
                                                         },
                                                         error: function (request) {
                                                             alert(request.status + request.responseText);
@@ -111,7 +124,7 @@
                                                 }
                                             }
                                         } else if (key === 'toggle') {
-                                            if (id != undefined) {
+                                            if (typeof (id) != 'undefined') {
                                                 let enabled;
                                                 $.ajax({
                                                     url: '/api/device/getEnabled/' + id,
@@ -137,7 +150,8 @@
                                                         type: 'POST',
                                                         contentType: 'application/json',
                                                         success: function () {
-                                                            location.reload()
+                                                            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                                            location.href = '/devices?group=' + group;
                                                         },
                                                         error: function (request) {
                                                             alert(request.status + request.responseText);
@@ -145,10 +159,13 @@
                                                     });
                                                 }
                                             }
+                                        } else if (key === 'addBatch') {
+                                            $('#excel').click();
                                         }
                                     },
                                     items: {
                                         "add": {name: "Add device", icon: "fas fa-plus"},
+                                        "addBatch": {name: "Add device(batch)", icon: "fas fa-file-excel"},
                                         "edit": {name: "Edit device", icon: "fas fa-pen"},
                                         "delete": {name: "Delete device", icon: "fas fa-trash"},
                                         "toggle": {name: "Toggle device", icon: "fas fa-toggle-off"},
@@ -159,11 +176,146 @@
                     });
 
                 }
-            }).on("ready.jstree", function (e, data) {
-                // 시작할 때 루트 노드를 열어준다.
-                $.jstree.reference('#tree-container').open_node('g_1');
-                $.jstree.reference('#tree-container').select_node('g_1');
+            }).on("loaded.jstree", function (e, data) {
+                let tree_container = $('#tree-container');
+                if(groupSelected === '1'){
+                    let root = $('#g_1');
+                    tree_container.jstree('open_node', root);
+                    tree_container.jstree('select_node', root);
+                } else {
+                    tree_container.jstree('open_all');
+                }
+            }).on("open_node.jstree", function (e, data) {
+                if(groupSelected !== '1') {
+                    let node = $("#g_" + groupSelected);
+                    $('#tree-container').jstree("select_node", node);
+                }
             });
+
+            $('#excel').change(function (e) {
+                let file = e.target.files[0];
+                let reader = new FileReader();
+                reader.onload = function () {
+                    let groupId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                    let devices = [];
+                    $.ajax({
+                        url: '/api/device/devices/' + groupId,
+                        type: 'GET',
+                        async: false,
+                        contentType: 'application/json',
+                        success: function (res) {
+                            devices = res;
+                        },
+                        error: function (request, status, error) {
+                            alert('HTTP ' + request.status + ' ' + request.responseText);
+                        }
+                    });
+
+                    let fileData = reader.result;
+                    let wb = XLSX.read(fileData, {type: 'binary'});
+                    $('#excelTableModal').modal('show');
+                    $('#excelObjects > tbody').empty();
+
+                    let inputValid = true;
+                    _devices = [];
+
+                    wb.SheetNames.forEach(function (sheetName) {
+                        let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                        for (let i = 0; i < rowObj.length; i++) {
+                            rowObj[i].error = getErrorMessage(devices, rowObj[i], rowObj);
+                            if (rowObj[i].error !== '') {
+                                inputValid = false;
+                            } else {
+                                _devices.push(convertObject(rowObj[i]));
+                            }
+                            let markup =
+                                String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td><td>{8}</td></tr>",
+                                    '',
+                                    rowObj[i].Name ? rowObj[i].Name : '',
+                                    rowObj[i].Host ? rowObj[i].Host : '',
+                                    rowObj[i].Transport ? rowObj[i].Transport : '',
+                                    rowObj[i].Port ? rowObj[i].Port : '',
+                                    rowObj[i].Protocol ? rowObj[i].Protocol : '',
+                                    rowObj[i].CommSettings ? rowObj[i].CommSettings : '',
+                                    rowObj[i].Enabled ? rowObj[i].Enabled : '',
+                                    rowObj[i].error
+                                );
+                            $('#excelObjects').append(markup);
+                        }
+                        if (inputValid) $('#registerByExcel').prop('disabled', false);
+                    });
+                };
+                reader.readAsBinaryString(file);
+                $('#excel').val('');
+            });
+        }
+
+        function getErrorMessage(devices, obj, objs) {
+            const duplicatedName1 = devices.filter((device) => device.name === obj.Name);
+            if (duplicatedName1.length > 0) {
+                return 'Duplicated device name.'
+            }
+            const duplicatedName2 = objs.filter((_obj) => _obj.Name === obj.Name);
+            if (duplicatedName2.length > 1) {
+                return 'Duplicated device name.'
+            }
+            if (obj.Transport !== 'TCP' && obj.Transport !== 'UDP') {
+                return 'Invalid transport.'
+            }
+            if (!Number.isInteger(obj.Port) || obj.Port > 65535 || obj.Port < 0) {
+                return 'Invalid port.'
+            }
+            if (obj.Protocol !== 'GENERIC' &&
+                obj.Protocol !== 'MODBUS' &&
+                obj.Protocol !== 'XGT_PLC' &&
+                obj.Protocol !== 'DAEYUN_RCU' &&
+                obj.Protocol !== 'SNMP' &&
+                obj.Protocol !== 'BACNET'
+                && obj.Protocol !== 'OPC_AGENT'
+                && obj.Protocol !== 'DB') {
+                return 'Invalid protocol.'
+            }
+            return '';
+        }
+
+
+        function convertObject(obj) {
+            let ret = {};
+            if (obj.Transport === 'TCP') {
+                ret.intTransport = 1;
+            } else if (obj.Transport === 'UDP') {
+                ret.intTransport = 2;
+            }
+
+            if (obj.Protocol === 'GENERIC') {
+                ret.intProtocol = 1;
+            } else if (obj.Protocol === 'MODBUS') {
+                ret.intProtocol = 2;
+            } else if (obj.Protocol === 'XGT_PLC') {
+                ret.intProtocol = 3;
+            } else if (obj.Protocol === 'DAEYUN_RCU') {
+                ret.intProtocol = 4;
+            } else if (obj.Protocol === 'SNMP') {
+                ret.intProtocol = 5;
+            } else if (obj.Protocol === 'BACNET') {
+                ret.intProtocol = 6;
+            } else if (obj.Protocol === 'OPC_AGENT') {
+                ret.intProtocol = 7;
+            } else if (obj.Protocol === 'DB') {
+                ret.intProtocol = 8;
+            }
+
+            ret.host = obj.Host;
+            ret.port = obj.Port;
+            ret.strCommunicationSettings = obj.CommSettings;
+            ret.name = obj.Name;
+            ret.group_id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            if (obj.Enabled === 'Enabled') {
+                ret.enabled = 1;
+            } else {
+                ret.enabled = 0;
+            }
+            return ret;
         }
 
         function customMenu(node) {
@@ -183,7 +335,8 @@
                                 contentType: 'application/json',
                                 data: JSON.stringify(group),
                                 success: function (data) {
-                                    location.reload();
+                                    let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                    location.href = '/devices?group=' + group;
                                 },
                                 error: function (request, status, error) {
                                     if (request.responseText.includes('GROUPS_UNIQUE')) {
@@ -199,6 +352,10 @@
                     'label': 'Delete group',
                     'action': function () {
                         let id = $.jstree.reference('#tree-container').get_selected()[0];
+                        if (id === 'g_1') {
+                            alert('ROOT cannot be deleted.');
+                            return;
+                        }
                         let groupName = $.jstree.reference('#tree-container').get_text(id);
                         if (confirm("Confirm to delete group '" + groupName + "'?")) {
                             $.ajax({
@@ -206,7 +363,8 @@
                                 type: 'DELETE',
                                 contentType: 'application/json',
                                 success: function (data) {
-                                    location.reload();
+                                    let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                    location.href = '/devices?group=' + group;
                                 },
                                 error: function (request, status, error) {
                                     alert(request.status + request.responseText);
@@ -219,6 +377,10 @@
                     'label': 'Rename group',
                     'action': function () {
                         let id = $.jstree.reference('#tree-container').get_selected()[0];
+                        if (id === 'g_1') {
+                            alert('ROOT cannot be renamed.');
+                            return;
+                        }
                         let oldName = $.jstree.reference('#tree-container').get_text(id);
                         let newName = prompt("Enter new name of group '" + oldName + "'");
                         if (newName === null) {
@@ -233,7 +395,8 @@
                                 data: JSON.stringify(group),
                                 contentType: 'application/json',
                                 success: function (data) {
-                                    location.reload();
+                                    let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                    location.href = '/devices?group=' + group;
                                 },
                                 error: function (request, status, error) {
                                     if (request.responseText.includes('GROUPS_UNIQUE')) {
@@ -262,13 +425,38 @@
                     type: 'POST',
                     contentType: 'application/json',
                     success: function (data) {
-                        location.reload()
+                        let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                        location.href = '/devices?group=' + group;
                     },
                     error: function (request, status, error) {
                         alert(request.status + request.responseText);
                     }
                 });
             }
+        }
+
+        function performUpload() {
+            for (let i = 0; i < _devices.length; i++) {
+                let device = _devices[i];
+                $.ajax({
+                    url: '/api/device/addDevice',
+                    type: 'PUT',
+                    async: false,
+                    contentType: 'application/json',
+                    data: JSON.stringify(device),
+                    success: function (data) {
+
+                    },
+                    error: function (request, status, error) {
+                        if (request.responseText.includes('UNIQUE')) {
+                            alert("Cannot create with the same name within a group.");
+                        } else
+                            alert(request.status + request.responseText);
+                    }
+                });
+            }
+            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            location.href = '/devices?group=' + group;
         }
 
         /*]]>*/
@@ -408,6 +596,7 @@
 
         <!-- Main content -->
         <section class="content">
+            <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
             <div class="container-fluid">
                 <!-- Small boxes (Stat box) -->
                 <div class="row">
@@ -453,6 +642,48 @@
         </section>
         <!-- /.content -->
     </div>
+
+    <!-- excel table modal -->
+    <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog" aria-labelledby="excelTableModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog" role="document" style="max-width:fit-content">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="excelTableModalLabel">Register New Devices by Excel</h5>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-bordered" id="excelObjects" style="overflow-y: auto;">
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Host</th>
+                            <th>Transport</th>
+                            <th>Port</th>
+                            <th>Protocol</th>
+                            <th>Communication Settings</th>
+                            <th>Enabled</th>
+                            <th>Error</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" onclick="$('#excelTableModal').modal('hide')">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
+                    <button class="btn btn-success" type="button" onclick="performUpload()" id="registerByExcel"
+                            disabled>Register
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Excel modal end -->
+
     <!-- /.content-wrapper -->
     <footer class="main-footer">
         <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
@@ -488,6 +719,8 @@
 <script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
 <script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
 <script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+
+<script src="/js/xlsx.full.min.js"></script>
 
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.css">

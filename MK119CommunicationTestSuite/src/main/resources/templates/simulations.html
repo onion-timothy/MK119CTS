@@ -23,6 +23,16 @@
         let simulationsTable;
         let tree;
         let device_id;
+        let simulations;
+        let deviceSelected = '[[${device}]]';
+
+        String.format = function () {
+            let args = arguments;
+            return args[0].replace(/{(\d+)}/g, function (match, num) {
+                num = Number(num) + 1;
+                return typeof (args[num]) != 'undefined' ? args[num] : match;
+            });
+        }
 
         function onload() {
             let tableFirstRowId;
@@ -62,7 +72,45 @@
                 "autoWidth": false,
                 "responsive": true,
             });
-            viewSimulations(tableFirstRowId);
+
+            viewSimulations(deviceSelected === '0' ? tableFirstRowId : deviceSelected);
+
+            $('#excel').change(function (e) {
+                let file = e.target.files[0];
+                let reader = new FileReader();
+                reader.onload = function () {
+                    let fileData = reader.result;
+                    let wb = XLSX.read(fileData, {type: 'binary'});
+                    $('#excelTableModal').modal('show');
+                    $('#excelObjects > tbody').empty();
+                    simulations = [];
+                    wb.SheetNames.forEach(function (sheetName) {
+                        let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                        rowObj.forEach(function (obj) {
+                            let markup = String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
+                                '',
+                                obj.Target,
+                                obj.SimulationPolicy,
+                                obj.Interval,
+                                obj.Enabled);
+                            $('#excelObjects').append(markup);
+                            simulations.push(convertObj(obj, device_id))
+                        });
+                    });
+                };
+                reader.readAsBinaryString(file);
+                $('#excel').val('');
+            });
+        }
+
+        function convertObj(obj, devid) {
+            let ret = {};
+            ret.device_id = devid;
+            ret.target = obj.Target;
+            ret.strPolicy = obj.SimulationPolicy;
+            ret.interval = obj.Interval;
+            ret.enabled = obj.Enabled === 'Enabled' ? 1 : 0;
+            return ret;
         }
 
         function viewSimulations(id) {
@@ -89,7 +137,7 @@
                         table.append(markup);
                     }
 
-                    simulationsTable = $('#simulationsTable').DataTable({
+                    simulationsTable = table.DataTable({
                         "paging": true,
                         "lengthChange": false,
                         "searching": false,
@@ -107,18 +155,18 @@
                                 if (key === 'add') {
                                     location.href = '/addSimulation/' + device_id;
                                 } else if (key === 'edit') {
-                                    if (id != undefined) {
+                                    if (typeof (id) != 'undefined') {
                                         location.href = '/editSimulation/' + id;
                                     }
                                 } else if (key === 'delete') {
-                                    if (id != undefined) {
+                                    if (typeof (id) != 'undefined') {
                                         if (confirm("Confirm to delete simulation '" + id + "'")) {
                                             $.ajax({
                                                 url: '/api/simulation/deleteSimulation/' + id,
                                                 type: 'DELETE',
                                                 contentType: 'application/json',
                                                 success: function () {
-                                                    location.reload();
+                                                    location.href = '/simulations?device=' + device_id;
                                                 },
                                                 error: function (request, status, error) {
                                                     alert(request.status + request.responseText);
@@ -127,7 +175,7 @@
                                         }
                                     }
                                 } else if (key === 'toggle') {
-                                    if (id != undefined) {
+                                    if (typeof (id) != 'undefined') {
                                         let enabled;
                                         $.ajax({
                                             url: '/api/simulation/getEnabled/' + id,
@@ -148,7 +196,7 @@
                                                 type: 'POST',
                                                 contentType: 'application/json',
                                                 success: function (data) {
-                                                    location.reload()
+                                                    location.href = '/simulations?device=' + device_id;
                                                 },
                                                 error: function (request, status, error) {
                                                     alert(request.status + request.responseText);
@@ -156,10 +204,13 @@
                                             });
                                         }
                                     }
+                                } else if (key === 'addBatch') {
+                                    $('#excel').click();
                                 }
                             },
                             items: {
                                 "add": {name: "Add simulation", icon: "fas fa-plus"},
+                                "addBatch": {name: "Add simulation(batch)", icon: "fas fa-file-excel"},
                                 "edit": {name: "Edit simulation", icon: "fas fa-pen"},
                                 "delete": {name: "Delete simulation", icon: "fas fa-trash"},
                                 "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
@@ -177,13 +228,29 @@
                     type: 'POST',
                     contentType: 'application/json',
                     success: function (data) {
-                        location.reload()
+                        location.href = '/simulations?device=' + device_id;
                     },
                     error: function (request, status, error) {
                         alert(request.status + request.responseText);
                     }
                 });
             }
+        }
+
+        function performUpload() {
+            simulations.forEach(function (simulation) {
+               $.ajax({
+                   url: '/api/simulation/addSimulation',
+                   type: 'PUT',
+                   contentType: 'application/json',
+                   data: JSON.stringify(simulation),
+                   error: function (request, status, error) {
+                       alert(request.status + request.responseText);
+                   },
+                   async: false,
+               });
+            });
+            location.href = '/simulations?device=' + device_id;
         }
 
         /*]]>*/
@@ -323,6 +390,7 @@
 
         <!-- Main content -->
         <section class="content">
+            <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
             <div class="container-fluid">
                 <!-- Small boxes (Stat box) -->
                 <div class="row">
@@ -379,6 +447,43 @@
             </div><!-- /.container-fluid -->
         </section>
         <!-- /.content -->
+
+        <!-- excel table modal -->
+        <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog" aria-labelledby="excelTableModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog" role="document" style="max-width:fit-content">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="excelTableModalLabel">Register New Simulations by Excel</h5>
+                    </div>
+                    <div class="modal-body">
+                        <table class="table table-bordered" id="excelObjects" style="overflow-y: auto;">
+                            <thead>
+                            <tr>
+                                <th>Target</th>
+                                <th>Simulation Policy</th>
+                                <th>Interval</th>
+                                <th>Enabled</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" onclick="$('#excelTableModal').modal('hide')">
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
+                        <button class="btn btn-success" type="button" onclick="performUpload()" id="registerByExcel">
+                            Register
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Excel modal end -->
     </div>
     <!-- /.content-wrapper -->
     <footer class="main-footer">
@@ -415,6 +520,7 @@
 <script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
 <script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
 <script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+<script src="/js/xlsx.full.min.js"></script>
 
 <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.css">

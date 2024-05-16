@@ -5,7 +5,7 @@
         IF
         NOT EXISTS (SELECT * FROM sysobjects WHERE name='GROUPS' and xtype='U')
         BEGIN
-        CREATE TABLE cts.dbo.GROUPS
+        CREATE TABLE GROUPS
         (
             id        int IDENTITY(1,1) NOT NULL,
             parent_id int NOT NULL,
@@ -20,6 +20,12 @@
     <select id="selectGroups" resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Group">
         SELECT *
         FROM GROUPS
+    </select>
+
+    <select id="selectGroup" parameterType="java.lang.Integer" resultType="com.onionsoftware.mk119.commtestsuite.db.bean.Group">
+        SELECT *
+        FROM GROUPS
+        WHERE id = #{id}
     </select>
 
     <select id="selectGroupsByParentId" parameterType="java.lang.Integer"

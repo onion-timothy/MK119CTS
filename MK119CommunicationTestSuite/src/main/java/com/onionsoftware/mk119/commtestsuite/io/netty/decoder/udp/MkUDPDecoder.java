@@ -4,7 +4,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.channel.ChannelHandlerContext;
@@ -53,7 +52,6 @@ public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacke
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        MkLogger.log("io", LogLevel.ERROR, "[{0}}] packet decode error {1}", this.getClass().getSimpleName(), cause.getMessage());
-        ExceptionUtil.printStackTrace(cause);
+        MkLogger.log("io", LogLevel.ERROR, "[{0}}] packet decode error {1}", this.getClass().getSimpleName(), cause);
     }
 }

@@ -51,8 +51,8 @@ public class IOServer extends Thread {
     public void run() {
         decoders = new ArrayList<>();
         handlers = new ArrayList<>();
-        bossGroup = new NioEventLoopGroup();
-        workerGroup = new NioEventLoopGroup();
+        bossGroup = new NioEventLoopGroup(1);
+        workerGroup = new NioEventLoopGroup(1);
 
         if (device.getTransport() == Transport.TCP) {
             ServerBootstrap bootstrap = new ServerBootstrap().group(bossGroup, workerGroup).localAddress(device.getHost(), device.getPort());

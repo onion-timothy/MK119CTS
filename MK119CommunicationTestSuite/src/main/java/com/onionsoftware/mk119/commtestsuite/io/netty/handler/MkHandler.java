@@ -4,7 +4,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ExceptionUtil;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
@@ -59,8 +58,7 @@ public class MkHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet handle error {1}", this.getClass().getSimpleName(), cause.getMessage());
-        ExceptionUtil.printStackTrace(cause);
+        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet handle error {1}", this.getClass().getSimpleName(), cause);
     }
 
     @Override
