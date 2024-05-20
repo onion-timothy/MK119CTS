@@ -11,12 +11,21 @@ import java.lang.reflect.Method;
 @Getter
 @Setter
 public class XGTData implements ServerData {
-    private final byte[] mblock = new byte[65536];
-    private final byte[] dblock = new byte[65536];
-    private final byte[] pblock = new byte[65536];
-    private final byte[] kblock = new byte[65536];
-    private final byte[] sblock = new byte[65536];
-    private final byte[] ublock = new byte[65536];
+    private byte[] mblock;
+    private byte[] dblock;
+    private byte[] pblock;
+    private byte[] kblock;
+    private byte[] sblock;
+    private byte[] ublock;
+
+    public XGTData(int registerCount){
+        mblock = new byte[registerCount];
+        dblock = new byte[registerCount];
+        pblock = new byte[registerCount];
+        kblock = new byte[registerCount];
+        sblock = new byte[registerCount];
+        ublock = new byte[registerCount];
+    }
 
     public void setBlockData(String blockName, DataType dataType, Double value, int startByte) throws Exception {
         Method method = XGTData.class.getMethod("get" + blockName + "block");

@@ -4,8 +4,6 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,17 +26,28 @@ public class IOServerFactory {
     @Bean
     @Scope("prototype")
     public ServerData serverData(Device device) {
+        Object size = device.getCommunicationSettings().get("registers");
+        int _size = 1000;
+
+        if (size != null) {
+            try {
+                _size = Integer.parseInt(size.toString());
+            } catch (NumberFormatException ignored) {
+
+            }
+        }
+
         switch (device.getProtocol()) {
             case GENERIC:
                 return new GenericData();
             case MODBUS:
-                return new ModbusData();
+                return new ModbusData(_size);
             case XGT_PLC:
-                return new XGTData();
+                return new XGTData(_size);
             case DAEYUN_RCU:
                 return new DaeyunData();
             case OPC_AGENT:
-                return new OPCAgentData(Integer.parseInt(device.getCommunicationSettings().get("size").toString()));
+                return new OPCAgentData(_size);
             case SNMP:
                 return new SnmpData();
             default:

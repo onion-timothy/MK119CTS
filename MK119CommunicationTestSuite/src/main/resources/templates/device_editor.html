@@ -71,7 +71,7 @@
             rsCount = $('#rsCount').bootstrapSlider();
 
             device = [[${device}]];
-            if (device != null) {
+            if (device) {
                 communicationSettings = JSON.parse(device.strCommunicationSettings);
                 loadEditDevice(device);
             }
@@ -85,10 +85,11 @@
             $('#log').val(device.log);
             $.jstree.reference('#tree-container').open_node('g_1');
             $('#transport').val(device.intTransport);
-            $('#protocol').val(device.intProtocol);
             $('#host').val(device.host);
             $('#port').val(device.port);
-            $('#protocol').prop('disabled', true);
+            let protocolSelector = $('#protocol');
+            protocolSelector.val(device.intProtocol);
+            protocolSelector.prop('disabled', true);
             $('#devId').val(device.id);
         }
 
@@ -121,13 +122,13 @@
         function validatePanel3() {
             let host = $('#host').val();
             let port = $('#port').val();
-            let protocol = $('#protocol').val();
+            let protocol = parseInt($('#protocol').val());
             if (host === '' || port === '') {
                 alert('Host and port is cannot be empty.');
             } else {
                 stepper.next();
 
-                if (protocol == 1) {
+                if (protocol === 1) {
                     showForm('formGeneric');
                     if (rxJsonEditor)
                         rxJsonEditor.destroy();
@@ -137,19 +138,21 @@
                     txJsonEditor = new JSONEditor(document.getElementById("txJson"), {});
                     rxJsonEditor.set(device == null ? rxExample : communicationSettings.rx);
                     txJsonEditor.set(device == null ? txExample : communicationSettings.tx);
-                } else if (protocol == 2) {
+                } else if (protocol === 2) {
                     showForm('formModbus');
                     if (device != null) {
                         $('#uid').val(communicationSettings.unitId);
                         $('#packetType').val(communicationSettings.packetType);
+                        $('#registers1').val(communicationSettings.registers);
                     }
-                } else if (protocol == 3) {
+                } else if (protocol === 3) {
                     showForm('formLSISXGT');
                     if (device != null) {
                         $('#cpuid').val(communicationSettings.cpuId);
                         $('#blocksize').val((communicationSettings.maxBlockSize))
+                        $('#registers2').val(communicationSettings.registers);
                     }
-                } else if (protocol == 4) {
+                } else if (protocol === 4) {
                     showForm('formMKRCU');
                     if (rxJsonRCUEditor)
                         rxJsonRCUEditor.destroy();
@@ -169,23 +172,23 @@
                         aiCount.bootstrapSlider('setValue', communicationSettings.aiCount);
                         rsCount.bootstrapSlider('setValue', communicationSettings.rsCount);
                     }
-                } else if (protocol == 5) {
+                } else if (protocol === 5) {
                     showForm('formSNMP');
                     if (device != null) {
                         $('#snmpVersion').val(communicationSettings.snmpVersion);
                         $('#getCommunity').val(communicationSettings.getCommunity);
                         $('#setCommunity').val(communicationSettings.setCommunity);
                     }
-                } else if (protocol == 6) {
+                } else if (protocol === 6) {
                     showForm('formBACnet');
                     if (device != null) {
                         $('#deviceInstanceId').val(communicationSettings.deviceInstanceId);
                         $('#broadcast').val(communicationSettings.broadcast);
                     }
-                } else if (protocol == 7) {
+                } else if (protocol === 7) {
                     showForm('formMKOPCAgent');
-                    $('#agentTagsCount').val(communicationSettings.agentTagsCount);
-                } else if (protocol == 8) {
+                    $('#agentTagsCount').val(communicationSettings.registers);
+                } else if (protocol === 8) {
                     showForm('formDB');
                     if (device != null) {
                         $('#dbDriver').val(communicationSettings.dbdriver);
@@ -210,7 +213,7 @@
         function addDevice() {
             let dev = {};
             dev.intTransport = $('#transport').val();
-            dev.intProtocol = $('#protocol').val();
+            dev.intProtocol = parseInt($('#protocol').val());
             dev.host = $('#host').val();
             dev.port = $('#port').val();
             dev.name = $('#name').val();
@@ -223,12 +226,13 @@
             }
 
             let communicationSettings = {};
-            if (dev.intProtocol == 1) {
+            if (dev.intProtocol === 1) {
                 communicationSettings.rx = rxJsonEditor.get();
                 communicationSettings.tx = txJsonEditor.get();
-            } else if (dev.intProtocol == 2) {
+            } else if (dev.intProtocol === 2) {
                 communicationSettings.unitId = $('#uid').val();
                 communicationSettings.packetType = $('#packetType').val();
+                communicationSettings.registers = $('#registers1').val();
 
                 if(communicationSettings.unitId === '' || isNaN(communicationSettings.unitId)){
                     alert('Unit ID must assigned to number.');
@@ -238,9 +242,14 @@
                     alert('Invalid Unit ID. Modbus Unit ID must in 0~255.');
                     return;
                 }
-            } else if (dev.intProtocol == 3) {
+                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)){
+                    alert('Registers count must assigned to number.');
+                    return;
+                }
+            } else if (dev.intProtocol === 3) {
                 communicationSettings.cpuId = $('#cpuid').val();
                 communicationSettings.maxBlockSize = $('#blocksize').val();
+                communicationSettings.registers = $('#registers2').val();
 
                 if(communicationSettings.cpuId === '' || isNaN(communicationSettings.cpuId)) {
                     alert('CPU ID must assigned to number.')
@@ -259,7 +268,12 @@
                     alert('Invalid Block size. Block size must in 1~1400.')
                     return
                 }
-            } else if (dev.intProtocol == 4) {
+
+                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)){
+                    alert('Registers count must assigned to number.');
+                    return;
+                }
+            } else if (dev.intProtocol === 4) {
                 communicationSettings.rx = rxJsonRCUEditor.get();
                 communicationSettings.tx = txJsonRCUEditor.get();
                 communicationSettings.cpuAddr = $('#cpuAddr').val();
@@ -276,7 +290,7 @@
                     alert('Invalid CPU Address. MK RCU CPU Address must in 0~255.')
                     return
                 }
-            } else if (dev.intProtocol == 5) {
+            } else if (dev.intProtocol === 5) {
                 communicationSettings.snmpVersion = $('#snmpVersion').val();
                 communicationSettings.getCommunity = $('#getCommunity').val();
                 communicationSettings.setCommunity = $('#setCommunity').val();
@@ -288,7 +302,7 @@
                     alert('Invalid SNMP Version. SNMP Version must in 1 or 2.')
                     return
                 }
-            } else if (dev.intProtocol == 6) {
+            } else if (dev.intProtocol === 6) {
                 communicationSettings.deviceInstanceId = $('#deviceInstanceId').val();
                 communicationSettings.broadcast = $('#broadcast').val();
 
@@ -303,13 +317,13 @@
                 if(communicationSettings.broadcast === ''){
                     alert('BACnet broadcast address cannot be empty.')
                 }
-            } else if (dev.intProtocol == 7) {
-                communicationSettings.agentTagsCount = $('#agentTagsCount').val();
-                if(communicationSettings.agentTagsCount === '' || isNaN(communicationSettings.agentTagsCount)) {
+            } else if (dev.intProtocol === 7) {
+                communicationSettings.registers = $('#agentTagsCount').val();
+                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)) {
                     alert('OPC Agent tags count must assigned to number.')
                     return
                 }
-            } else if (dev.intProtocol == 8) {
+            } else if (dev.intProtocol === 8) {
                 communicationSettings.dbdriver = $('#dbDriver').val();
                 communicationSettings.dbUrl = $('#dbUrl').val();
                 communicationSettings.dbUsername = $('#dbUsername').val();
@@ -622,6 +636,11 @@
                                                             <option value="1">Modbus-TCP</option>
                                                         </select>
                                                     </div>
+                                                    <div class="form-group">
+                                                        <label for="registers1">Registers</label>
+                                                        <input type="number" class="form-control form-control-border"
+                                                               id="registers1" placeholder="Registers count for Modbus device" oninput="this.value|=0">
+                                                    </div>
                                                 </div>
                                                 <div id="formLSISXGT" style="display: none">
                                                     <div class="form-group">
@@ -634,6 +653,11 @@
                                                         <input type="number" class="form-control form-control-border"
                                                                id="blocksize"
                                                                placeholder="Max size per block read request" oninput="this.value|=0">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="registers2">Registers</label>
+                                                        <input type="number" class="form-control form-control-border"
+                                                               id="registers2" placeholder="Registers count for XGT device" oninput="this.value|=0">
                                                     </div>
                                                 </div>
                                                 <div id="formMKRCU" style="display: none">
@@ -717,7 +741,7 @@
                                                         <label for="agentTagsCount">Count of agent's tags</label>
                                                         <input type="number" class="form-control form-control-border"
                                                                id="agentTagsCount"
-                                                               placeholder="Instance number of BACnet local device" oninput="this.value|=0">
+                                                               placeholder="Tags count of OPC agent device" oninput="this.value|=0">
                                                     </div>
                                                 </div>
                                                 <div id="formDB" style="display: none">

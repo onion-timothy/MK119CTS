@@ -15,10 +15,17 @@ import java.util.BitSet;
 @Getter
 @Setter
 public class ModbusData implements ServerData {
-    private final BitSet coil_status = new BitSet(65536);
-    private final BitSet input_status = new BitSet(65536);
-    private final short[] holding_registers = new short[1000];
-    private final short[] input_registers = new short[1000];
+    private BitSet coil_status;
+    private BitSet input_status;
+    private short[] holding_registers;
+    private short[] input_registers;
+
+    public ModbusData(int registerCount){
+        coil_status = new BitSet(registerCount);
+        input_status = new BitSet(registerCount);
+        holding_registers = new short[registerCount];
+        input_registers = new short[registerCount];
+    }
 
     public void setInput_registers(Double value, DataType type, int startRegister) {
         if(type == null){
