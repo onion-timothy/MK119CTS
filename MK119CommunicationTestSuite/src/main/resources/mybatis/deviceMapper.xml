@@ -16,9 +16,10 @@
             name                     nvarchar(50)       NOT NULL,
             enabled                  int                NOT NULL,
             group_id                 int                NOT NULL,
-            strCommunicationSettings text               NOT NULL
-                CONSTRAINT DEVICES_PK PRIMARY KEY (id),
-            CONSTRAINT DEVICES_UNIQUE UNIQUE (name, group_id)
+            strCommunicationSettings text               NOT NULL,
+            log                      int                NOT NULL,
+            CONSTRAINT DEVICES_PK PRIMARY KEY (id),
+            CONSTRAINT DEVICES_UNIQUE UNIQUE (name)
         );
     </update>
 
@@ -42,9 +43,8 @@
     </select>
 
     <insert id="insertDevice" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Device">
-        INSERT INTO DEVICES(intTransport, intProtocol, host, port, name, enabled, group_id, strCommunicationSettings)
-        VALUES (#{intTransport}, #{intProtocol}, #{host}, #{port}, #{name}, #{enabled}, #{group_id},
-                #{strCommunicationSettings})
+        INSERT INTO DEVICES(intTransport, intProtocol, host, port, name, enabled, group_id, strCommunicationSettings, log)
+        VALUES (#{intTransport}, #{intProtocol}, #{host}, #{port}, #{name}, #{enabled}, #{group_id}, #{strCommunicationSettings}, #{log})
     </insert>
 
     <delete id="deleteDevice" parameterType="java.lang.Integer">
@@ -62,7 +62,8 @@
             name                     = #{name},
             enabled                  = #{enabled},
             group_id                 = #{group_id},
-            strCommunicationSettings = #{strCommunicationSettings}
+            strCommunicationSettings = #{strCommunicationSettings},
+            log                      = #{log}
         WHERE id = #{id}
     </update>
 

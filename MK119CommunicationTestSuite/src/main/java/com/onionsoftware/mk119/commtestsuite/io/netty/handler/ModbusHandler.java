@@ -6,27 +6,21 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
-import com.onionsoftware.mk119.commtestsuite.enums.ErrorMode;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
-import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.CRC16;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 
 @Component("modbus")
 @Scope("prototype")
@@ -64,6 +58,10 @@ public class ModbusHandler extends MkHandler {
         SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
         Optional<Simulation> simulationOptional;
 
+        if(target == null) {
+            ctx.close();
+            return;
+        }
         ModbusData modbusData = (ModbusData) target.getServerData();
         // Common Payload Data
         switch (modbus.getFc()) {
@@ -122,6 +120,7 @@ public class ModbusHandler extends MkHandler {
             out.writeShort(crc);
         }
 
+        /*
         ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
         Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
         if (errorSimulation != null) {
@@ -140,6 +139,7 @@ public class ModbusHandler extends MkHandler {
                 }
             }
         }
+         */
 
         lastSent = out.copy();
         if (transport.equals("UDP")) {

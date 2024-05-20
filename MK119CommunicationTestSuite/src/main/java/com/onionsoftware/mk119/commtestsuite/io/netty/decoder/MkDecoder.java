@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
@@ -15,6 +16,9 @@ import lombok.Setter;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -46,11 +50,15 @@ public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecode
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         rxCounter++;
-        ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName());
+        if(target.getDevice().getLog() == Device.DEVICE_ENABLED)
+            ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName(), target.getPacketLogger());
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet decode error {1}", this.getClass().getSimpleName(), cause);
+        Writer buffer = new StringWriter();
+        PrintWriter pw = new PrintWriter(buffer);
+        cause.printStackTrace(pw);
+        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet decode error {1}\n{2}", this.getClass().getSimpleName(), cause, buffer.toString());
     }
 }

@@ -10,7 +10,6 @@ import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
-import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoder;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
@@ -29,7 +28,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -111,7 +109,7 @@ public class ApiController {
         deleteGroupAndDeviceRecursively(id);
 
         List<Device> devices = deviceService.selectDevicesByGroupId(id);
-        for(Device device : devices){
+        for (Device device : devices) {
             deviceService.deleteDevice(device.getId());
         }
         groupService.deleteGroup(id);
@@ -119,11 +117,11 @@ public class ApiController {
         return id;
     }
 
-    public void deleteGroupAndDeviceRecursively(int groupId){
+    public void deleteGroupAndDeviceRecursively(int groupId) {
         List<Group> groups = groupService.selectGroupsByParentGroupId(groupId);
-        for(Group group : groups){
+        for (Group group : groups) {
             List<Device> devices = deviceService.selectDevicesByGroupId(group.getId());
-            for(Device device : devices){
+            for (Device device : devices) {
                 deviceService.deleteDevice(device.getId());
             }
             groupService.deleteGroup(group.getId());
@@ -212,10 +210,10 @@ public class ApiController {
         String[] tokens = host_transport.split("_");
         String host = tokens[0];
         String transport = tokens[1];
-        if (host.equals("0.0.0.0") || transport.equalsIgnoreCase("udp")) host = "\\*";
 
         try {
             if (SystemUtils.IS_OS_MAC) {
+                if (host.equals("0.0.0.0") || transport.equalsIgnoreCase("udp")) host = "\\*";
                 String regex = transport.toLowerCase() + ".+" + host + "\\." + port + ".+";
                 Process netstat = Runtime.getRuntime().exec(new String[]{
                         "/bin/sh",
@@ -231,6 +229,18 @@ public class ApiController {
                 return false;
             } else if (SystemUtils.IS_OS_WINDOWS) {
                 // TODO IF RUN ON WINDOWS
+                String regex = ".+" + transport + ".+" + host + ":" + port + (transport.equals("TCP") ? ".+LISTENING" : "") + ".+";
+                logger.info(regex);
+                String[] cmd = {"cmd.exe", "/c", "netstat -nao | findstr " + port};
+                Process netstat = Runtime.getRuntime().exec(cmd);
+                BufferedReader inStream = new BufferedReader(new InputStreamReader(netstat.getInputStream()));
+                List<String> lines = inStream.lines().collect(Collectors.toList());
+                for (String line : lines) {
+                    logger.info(line);
+                    if (Pattern.matches(regex, line)) {
+                        return true;
+                    }
+                }
                 return false;
             } else return false;
         } catch (IOException e) {

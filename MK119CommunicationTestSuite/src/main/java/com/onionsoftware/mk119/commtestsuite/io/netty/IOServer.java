@@ -1,5 +1,11 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty;
 
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.core.rolling.FixedWindowRollingPolicy;
+import ch.qos.logback.core.rolling.RollingFileAppender;
+import ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy;
+import ch.qos.logback.core.util.FileSize;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
@@ -15,9 +21,13 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,9 +52,54 @@ public class IOServer extends Thread {
     ApplicationContext applicationContext;
     Map<InetSocketAddress, Long> sessions = new HashMap<>();
 
+    private Logger packetLogger;
+
     public IOServer(Device device) {
         this.device = device;
         this.setName(device.getName() + "[" + device.getHost() + ":" + device.getPort() + "(" + device.getTransport() + ")]");
+
+        if (getDevice().getLog() == Device.DEVICE_ENABLED) {
+            try {
+                String logFileName = new File(".").getCanonicalPath() + "/logs/packet/" + device.getName() + ".log";
+                String loggerName = "cts.packet-" + device.getId();
+                LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+                RollingFileAppender rfAppender = new RollingFileAppender();
+                rfAppender.setContext(loggerContext);
+                rfAppender.setFile(logFileName);
+
+                FixedWindowRollingPolicy rollingPolicy = new FixedWindowRollingPolicy();
+                rollingPolicy.setContext(loggerContext);
+                rollingPolicy.setParent(rfAppender);
+                rollingPolicy.setFileNamePattern(logFileName + ".%i");
+                rollingPolicy.setMinIndex(1);
+                rollingPolicy.setMaxIndex(10);
+                rollingPolicy.start();
+
+                SizeBasedTriggeringPolicy triggeringPolicy = new SizeBasedTriggeringPolicy();
+                triggeringPolicy.setMaxFileSize(FileSize.valueOf("10MB"));
+                triggeringPolicy.start();
+
+                PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+                encoder.setContext(loggerContext);
+                encoder.setPattern("%d{yy-MM-dd HH:mm:ss} %-5p : %m%n");
+                encoder.start();
+
+                rfAppender.setEncoder(encoder);
+                rfAppender.setRollingPolicy(rollingPolicy);
+                rfAppender.setTriggeringPolicy(triggeringPolicy);
+
+                rfAppender.start();
+
+                ch.qos.logback.classic.Logger logbackLogger = loggerContext.getLogger(loggerName);
+                logbackLogger.setAdditive(true);
+                logbackLogger.detachAndStopAllAppenders();
+                logbackLogger.addAppender(rfAppender);
+
+                packetLogger = LoggerFactory.getLogger(loggerName);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     @Override
@@ -75,7 +130,7 @@ public class IOServer extends Thread {
             } catch (InterruptedException e) {
                 MkLogger.log("io", LogLevel.WARNING, "Server for device {0} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
-            } catch(Exception e) {
+            } catch (Exception e) {
                 MkLogger.log("io", e, "General exception to initialize TCP server.");
             } finally {
                 bossGroup.shutdownGracefully();
@@ -99,7 +154,7 @@ public class IOServer extends Thread {
             } catch (InterruptedException e) {
                 MkLogger.log("io", LogLevel.WARNING, "Server for device {0} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
-            } catch(Exception e) {
+            } catch (Exception e) {
                 MkLogger.log("io", e, "General exception to initialize UDP server.");
             } finally {
                 bossGroup.shutdownGracefully();

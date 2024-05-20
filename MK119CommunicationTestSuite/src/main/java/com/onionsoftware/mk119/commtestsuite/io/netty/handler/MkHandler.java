@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
@@ -16,6 +17,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,15 +54,18 @@ public class MkHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         txCounter++;
-        if (lastSent != null) {
-            ByteBufUtils.writeTXPacketLog(lastSent, this.getClass().getSimpleName());
+        if (lastSent != null && target.getDevice().getLog() == Device.DEVICE_ENABLED) {
+            ByteBufUtils.writeTXPacketLog(lastSent, this.getClass().getSimpleName(), target.getPacketLogger());
             lastSent = null;
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet handle error {1}", this.getClass().getSimpleName(), cause);
+        Writer buffer = new StringWriter();
+        PrintWriter pw = new PrintWriter(buffer);
+        cause.printStackTrace(pw);
+        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet handle error {1}\n{2}", this.getClass().getSimpleName(), cause, buffer.toString());
     }
 
     @Override

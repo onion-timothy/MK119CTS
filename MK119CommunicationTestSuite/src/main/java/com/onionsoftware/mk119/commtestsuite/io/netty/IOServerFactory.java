@@ -14,7 +14,6 @@ import org.springframework.context.annotation.Scope;
 @Configuration("ioServerFactory")
 @RequiredArgsConstructor
 public class IOServerFactory {
-    final Logger logger = LoggerFactory.getLogger("io");
     final ApplicationContext applicationContext;
 
     @Bean

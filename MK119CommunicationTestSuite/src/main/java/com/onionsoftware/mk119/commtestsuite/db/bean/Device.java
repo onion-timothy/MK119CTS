@@ -24,6 +24,7 @@ public class Device {
     private String name;
     private int enabled;
     private int group_id;
+    private int log;
 
     private String strCommunicationSettings;
     private Map<Object, Object> communicationSettings;

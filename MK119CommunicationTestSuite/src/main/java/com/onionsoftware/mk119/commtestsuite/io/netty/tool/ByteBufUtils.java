@@ -29,26 +29,26 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ByteBufUtils {
-    static Logger packetLogger = LoggerFactory.getLogger("io");
-
     public static void clear(ByteBuf in) {
         while (in.isReadable()) {
             in.readByte();
         }
     }
 
-    public static void writeRXPacketLog(ByteBuf in, String className) {
+    public static void writeRXPacketLog(ByteBuf in, String className, Logger logger) {
         byte[] orig = new byte[in.readableBytes()];
 
         for (int i = 0; i < orig.length; i++)
             orig[i] = in.getByte(i);
-        packetLogger.info("[{}] RX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
+
+        if(logger != null)
+            logger.info("[{}] RX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
     }
 
-    public static void writeTXPacketLog(ByteBuf in, String className) {
+    public static void writeTXPacketLog(ByteBuf in, String className, Logger logger) {
         byte[] orig = new byte[in.readableBytes()];
         in.getBytes(0, orig);
-        packetLogger.info("[{}] TX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
+        logger.info("[{}] TX : [{}] {}", className, orig.length, DatatypeConverter.printHexBinary(orig));
     }
 
     public static double readSI8(ByteBuf in) {

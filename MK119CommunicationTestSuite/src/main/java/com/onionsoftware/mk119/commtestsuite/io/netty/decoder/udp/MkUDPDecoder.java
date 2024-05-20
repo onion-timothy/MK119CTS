@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
@@ -47,7 +48,8 @@ public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacke
     @Override
     protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
         rxCounter++;
-        ByteBufUtils.writeRXPacketLog(msg.content(), this.getClass().getSimpleName());
+        if(target.getDevice().getLog() == Device.DEVICE_ENABLED)
+            ByteBufUtils.writeRXPacketLog(msg.content(), this.getClass().getSimpleName(), target.getPacketLogger());
     }
 
     @Override

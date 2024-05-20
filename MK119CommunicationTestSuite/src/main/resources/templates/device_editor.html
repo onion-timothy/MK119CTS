@@ -82,6 +82,7 @@
             $('#menuText').text('Edit device');
             $('#name').val(device.name);
             $('#enabled').val(device.enabled);
+            $('#log').val(device.log);
             $.jstree.reference('#tree-container').open_node('g_1');
             $('#transport').val(device.intTransport);
             $('#protocol').val(device.intProtocol);
@@ -214,6 +215,7 @@
             dev.port = $('#port').val();
             dev.name = $('#name').val();
             dev.enabled = $('#enabled').val();
+            dev.log = $('#log').val();
             dev.group_id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
 
             if (device != null) {
@@ -539,6 +541,13 @@
                                                     <select class="custom-select form-control-border" id="enabled">
                                                         <option value="1">Enabled</option>
                                                         <option value="0">Disabled</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="log">Packet log</label>
+                                                    <select class="custom-select form-control-border" id="log">
+                                                        <option value="1">Enabled</option>
+                                                        <option value="0" selected="selected">Disabled</option>
                                                     </select>
                                                 </div>
                                                 <button class="btn btn-primary" onclick="validatePanel1()">Next</button>
