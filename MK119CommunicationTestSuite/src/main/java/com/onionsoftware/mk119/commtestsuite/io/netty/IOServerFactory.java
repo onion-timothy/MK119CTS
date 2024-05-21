@@ -26,28 +26,24 @@ public class IOServerFactory {
     @Bean
     @Scope("prototype")
     public ServerData serverData(Device device) {
-        Object size = device.getCommunicationSettings().get("registers");
-        int _size = 1000;
-
-        if (size != null) {
-            try {
-                _size = Integer.parseInt(size.toString());
-            } catch (NumberFormatException ignored) {
-
-            }
+        int size;
+        try {
+            size = Integer.parseInt(device.getCommunicationSettings().get("registers").toString());
+        } catch (NumberFormatException | NullPointerException e) {
+            size = 65536;
         }
 
         switch (device.getProtocol()) {
             case GENERIC:
                 return new GenericData();
             case MODBUS:
-                return new ModbusData(_size);
+                return new ModbusData(size);
             case XGT_PLC:
-                return new XGTData(_size);
+                return new XGTData(size);
             case DAEYUN_RCU:
                 return new DaeyunData();
             case OPC_AGENT:
-                return new OPCAgentData(_size);
+                return new OPCAgentData(size);
             case SNMP:
                 return new SnmpData();
             default:
