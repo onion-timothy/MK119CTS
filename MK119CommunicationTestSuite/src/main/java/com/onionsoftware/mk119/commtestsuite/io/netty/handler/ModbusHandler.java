@@ -1,11 +1,9 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
-import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
-import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
@@ -27,8 +25,8 @@ import java.util.Optional;
 public class ModbusHandler extends MkHandler {
     private String transport;
 
-    public ModbusHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
-        super(applicationContext, ioServerInstances);
+    public ModbusHandler(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override
@@ -58,7 +56,7 @@ public class ModbusHandler extends MkHandler {
         SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
         Optional<Simulation> simulationOptional;
 
-        if(target == null) {
+        if (target == null) {
             ctx.close();
             return;
         }

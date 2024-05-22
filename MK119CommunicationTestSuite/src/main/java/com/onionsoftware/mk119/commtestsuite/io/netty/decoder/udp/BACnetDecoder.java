@@ -1,9 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetReal;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
@@ -11,7 +12,7 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -25,15 +26,10 @@ import java.util.Map;
 @Component("bacnet_decoder_udp")
 @Scope("prototype")
 public class BACnetDecoder extends MkUDPDecoder {
-    private final ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory;
-    private final ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory;
-    private final ObjectProvider<BACnetWriteProperty> bacnetWritePropertyFactory;
-
-    public BACnetDecoder(IOServerInstances ioServerInstances, ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory, ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory, ObjectProvider<BACnetWriteProperty> bacnetWritePropertyFactory) {
-        super(ioServerInstances);
-        this.bacnetReadPropertyFactory = bacnetReadPropertyFactory;
-        this.bacnetReadPropertyMultipleFactory = bacnetReadPropertyMultipleFactory;
-        this.bacnetWritePropertyFactory = bacnetWritePropertyFactory;
+    private final BACnetService bacnetService;
+    public BACnetDecoder(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
+        bacnetService = (BACnetService) applicationContext.getBean("bacnetService");
     }
 
     @Override
@@ -120,14 +116,14 @@ public class BACnetDecoder extends MkUDPDecoder {
 
                 if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY) {
                     // 단일 프로퍼티 읽기 readPropertyRequest APDU는 OID 1개와 Property ID 1개로 구성된다.
-                    BACnetReadProperty readProperty = bacnetReadPropertyFactory.getObject(bacnet);
+                    BACnetReadProperty readProperty = bacnetService.getBacnetReadPropertyFactory().getObject(bacnet);
                     readProperty.setOid((BACnetObjectIdentifier) readBACnetTag(in, serviceChoice));
                     readProperty.setPropertyIdentifier((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice));
 
                     bacnet = readProperty;
                 } else if (serviceChoice == BACNET_APDU_SERVICE_READ_PROPERTY_MULTIPLE) {
                     // 다중 프로퍼티 읽기 readPropertyMultipleRequest APDU는 {OID, Property List}의 반복으로 구성된다.
-                    BACnetReadPropertyMultiple readPropertyMultiple = bacnetReadPropertyMultipleFactory.getObject(bacnet);
+                    BACnetReadPropertyMultiple readPropertyMultiple = bacnetService.getBacnetReadPropertyMultipleFactory().getObject(bacnet);
 
                     while (in.readableBytes() != 0) {
                         BACnetObjectIdentifier oid = (BACnetObjectIdentifier) readBACnetTag(in, serviceChoice);
@@ -150,7 +146,7 @@ public class BACnetDecoder extends MkUDPDecoder {
                     }
                     bacnet = readPropertyMultiple;
                 } else if (serviceChoice == BACNET_APDU_SERVICE_WRITE_PROPERTY) {
-                    BACnetWriteProperty writeProperty = bacnetWritePropertyFactory.getObject(bacnet);
+                    BACnetWriteProperty writeProperty = bacnetService.getBacnetWritePropertyFactory().getObject(bacnet);
                     writeProperty.setOid((BACnetObjectIdentifier) readBACnetTag(in, serviceChoice));
                     writeProperty.setPropertyIdentifier((BACnetUnsignedInteger) readBACnetTag(in, serviceChoice));
 

@@ -6,6 +6,7 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.SnmpData;
@@ -22,8 +23,8 @@ import java.util.Optional;
 @Component("snmp")
 @Scope("prototype")
 public class SnmpHandler extends MkHandler {
-    public SnmpHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
-        super(applicationContext, ioServerInstances);
+    public SnmpHandler(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override

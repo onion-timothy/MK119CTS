@@ -1,13 +1,14 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
 import com.ireasoning.protocol.snmp.SnmpConst;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
 
@@ -20,8 +21,8 @@ public class SnmpDecoder extends MkUDPDecoder {
     private String getCommunity;
     private String setCommunity;
 
-    public SnmpDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public SnmpDecoder(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override

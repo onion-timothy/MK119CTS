@@ -2,7 +2,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.GenericTCPUDPPacket;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
@@ -11,6 +11,7 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -23,8 +24,8 @@ import java.util.List;
 public class GenericUDPDecoder extends MkUDPDecoder {
     private List<RXFrame> acceptFrames;
 
-    public GenericUDPDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public GenericUDPDecoder(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
@@ -18,8 +19,8 @@ import org.springframework.stereotype.Component;
 public class OPCAgentHandler extends MkHandler {
     private String transport;
 
-    public OPCAgentHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
-        super(applicationContext, ioServerInstances);
+    public OPCAgentHandler(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override

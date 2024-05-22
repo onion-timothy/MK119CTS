@@ -10,6 +10,7 @@ import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
@@ -32,8 +33,8 @@ public class GenericTCPUDPHandler extends MkHandler {
     private List<TXFrame> sendFrames;
     private String transport;
 
-    public GenericTCPUDPHandler(ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
-        super(applicationContext, ioServerInstances);
+    public GenericTCPUDPHandler(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override

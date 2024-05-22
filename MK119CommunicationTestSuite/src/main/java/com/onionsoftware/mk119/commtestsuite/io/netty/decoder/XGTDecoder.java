@@ -2,7 +2,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
 import java.util.List;
 
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 
@@ -18,8 +18,8 @@ import org.springframework.stereotype.Component;
 @Scope("prototype")
 public class XGTDecoder extends MkDecoder {
 
-    public XGTDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public XGTDecoder(IOServer server) {
+        super(server);
     }
 
     @Override

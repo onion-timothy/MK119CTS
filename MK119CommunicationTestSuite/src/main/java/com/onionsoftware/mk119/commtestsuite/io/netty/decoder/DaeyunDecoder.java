@@ -6,7 +6,7 @@ import java.util.List;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
 public class DaeyunDecoder extends MkDecoder {
     private List<RXFrame> acceptFrames;
 
-    public DaeyunDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public DaeyunDecoder(IOServer ioServer) {
+        super(ioServer);
     }
 
     @Override

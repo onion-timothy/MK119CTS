@@ -9,6 +9,7 @@ import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
@@ -32,9 +33,9 @@ import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 public class BACnetHandler extends MkHandler {
     private final BACnetService bacnetService;
 
-    public BACnetHandler(BACnetService bacnetService, ApplicationContext applicationContext, IOServerInstances ioServerInstances) {
-        super(applicationContext, ioServerInstances);
-        this.bacnetService = bacnetService;
+    public BACnetHandler(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
+        this.bacnetService = (BACnetService) applicationContext.getBean("bacnetService");
     }
 
     @Override

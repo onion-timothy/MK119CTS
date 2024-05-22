@@ -1,6 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
@@ -8,7 +8,7 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -18,8 +18,8 @@ import java.util.List;
 @Scope("prototype")
 public class XGTUDPDecoder extends MkUDPDecoder {
 
-    public XGTUDPDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public XGTUDPDecoder(ApplicationContext applicationContext, IOServer server) {
+        super(applicationContext, server);
     }
 
     @Override

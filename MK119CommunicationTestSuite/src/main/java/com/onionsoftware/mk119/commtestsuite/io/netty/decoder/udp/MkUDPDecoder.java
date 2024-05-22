@@ -14,6 +14,7 @@ import io.netty.handler.codec.MessageToMessageDecoder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -24,25 +25,17 @@ import java.util.Optional;
 @Getter
 @Setter
 @Component
-@Scope("prototype")
 @RequiredArgsConstructor
+@Scope("prototype")
 public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacket> implements MkDecoderInterface {
     private long rxCounter;
     private ChannelHandlerContext context;
-    protected IOServer target;
-    final IOServerInstances ioServerInstances;
+    final ApplicationContext applicationContext;
+    protected final IOServer target;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         this.context = ctx;
-        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
-        for (IOServer server : ioServers) {
-            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getDecoders().stream().filter(this::equals).findFirst();
-            if (optionalDecoder.isPresent()) {
-                target = server;
-                break;
-            }
-        }
     }
 
     @Override

@@ -6,6 +6,9 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.BACnetReadProperty;
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.BACnetReadPropertyMultiple;
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.BACnetWriteProperty;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -42,6 +45,9 @@ public class BACnetService {
      */
     private Map<Integer, Float> simulationValues = new HashMap<>();
     private final IOServerInstances ioServerInstances;
+    private final ObjectProvider<BACnetReadProperty> bacnetReadPropertyFactory;
+    private final ObjectProvider<BACnetReadPropertyMultiple> bacnetReadPropertyMultipleFactory;
+    private final ObjectProvider<BACnetWriteProperty> bacnetWritePropertyFactory;
 
     /**
      * DeviceService에서 장비 활성화 시 실행된다.
@@ -57,6 +63,8 @@ public class BACnetService {
             localDeviceVirtual.setProtocol(Protocol.BACNET);
             localDeviceVirtual.setTransport(Transport.UDP);
             localDeviceVirtual.setStrCommunicationSettings("{}");
+            localDeviceVirtual.setLog(device.getLog());
+            localDeviceVirtual.setName("BACnet-local-endpoint");
             ioServerInstances.addServerInstance(localDeviceVirtual);
         }
         bacnetDevices.add(device);

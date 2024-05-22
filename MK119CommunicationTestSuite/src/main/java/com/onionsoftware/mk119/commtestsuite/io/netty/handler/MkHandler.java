@@ -2,7 +2,6 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
@@ -21,9 +20,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 
 @Getter
 @Setter
@@ -34,20 +30,11 @@ public class MkHandler extends ChannelInboundHandlerAdapter {
     private long txCounter;
     private ChannelHandlerContext context;
     protected ByteBuf lastSent;
-    protected IOServer target;
     protected final ApplicationContext applicationContext;
-    protected final IOServerInstances ioServerInstances;
+    protected final IOServer target;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
-        for (IOServer server : ioServers) {
-            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getHandlers().stream().filter(this::equals).findFirst();
-            if (optionalDecoder.isPresent()) {
-                target = server;
-                break;
-            }
-        }
         context = ctx;
     }
 
@@ -70,9 +57,8 @@ public class MkHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        IOServer server = ioServerInstances.getServerInstance(target.getDevice().getId());
-        server.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
-        server.getHandlers().removeIf(this::equals);
-        server.getDecoders().removeIf(e -> e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().equals(ctx));
+        target.getSessions().remove((InetSocketAddress) ctx.channel().remoteAddress());
+        target.getHandlers().removeIf(this::equals);
+        target.getDecoders().removeIf(e -> e instanceof MkDecoderInterface && ((MkDecoderInterface) e).getContext().equals(ctx));
     }
 }

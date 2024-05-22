@@ -2,13 +2,11 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +17,7 @@ import org.springframework.stereotype.Component;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Getter
 @Setter
@@ -31,20 +27,11 @@ import java.util.Optional;
 public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecoderInterface {
     private long rxCounter;
     private ChannelHandlerContext context;
-    protected IOServer target;
-    final IOServerInstances ioServerInstances;
+    protected final IOServer target;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         this.context = ctx;
-        List<IOServer> ioServers = new ArrayList<>(ioServerInstances.getServers().values());
-        for (IOServer server : ioServers) {
-            Optional<ChannelInboundHandlerAdapter> optionalDecoder = server.getDecoders().stream().filter(this::equals).findFirst();
-            if (optionalDecoder.isPresent()) {
-                target = server;
-                break;
-            }
-        }
     }
 
     @Override

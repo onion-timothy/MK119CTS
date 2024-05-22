@@ -7,7 +7,9 @@ import ch.qos.logback.core.rolling.RollingFileAppender;
 import ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy;
 import ch.qos.logback.core.util.FileSize;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
+import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
@@ -45,6 +47,8 @@ public class IOServer extends Thread {
     private List<ChannelInboundHandlerAdapter> decoders;
     private List<ChannelInboundHandlerAdapter> handlers;
 
+    private final Error errorSimulation;
+
     @Autowired
     IOServerFactory ioServerFactory;
 
@@ -54,7 +58,7 @@ public class IOServer extends Thread {
 
     private Logger packetLogger;
 
-    public IOServer(Device device) {
+    public IOServer(Device device, Error errorSimulation) {
         this.device = device;
         this.setName(device.getName() + "[" + device.getHost() + ":" + device.getPort() + "(" + device.getTransport() + ")]");
 
@@ -100,6 +104,8 @@ public class IOServer extends Thread {
                 throw new RuntimeException(e);
             }
         }
+
+        this.errorSimulation = errorSimulation;
     }
 
     @Override
@@ -165,8 +171,8 @@ public class IOServer extends Thread {
     private void constructPipeline(Channel channel) {
         ChannelPipeline pipeline = channel.pipeline();
         device.getCommunicationSettings().put("transport", device.getTransport().name());
-        ChannelInboundHandlerAdapter decoder = (ChannelInboundHandlerAdapter) applicationContext.getBean("decoder", device);
-        ChannelInboundHandlerAdapter handler = (ChannelInboundHandlerAdapter) applicationContext.getBean("handler", device);
+        ChannelInboundHandlerAdapter decoder = (ChannelInboundHandlerAdapter) applicationContext.getBean("decoder", device, this);
+        MkHandler handler = (MkHandler) applicationContext.getBean("handler", device, this);
         getDecoders().add(decoder);
         getHandlers().add(handler);
 

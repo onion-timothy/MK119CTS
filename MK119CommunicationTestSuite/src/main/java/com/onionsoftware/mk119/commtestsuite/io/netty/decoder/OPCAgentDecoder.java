@@ -1,6 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
@@ -16,8 +16,8 @@ import java.util.List;
 @Scope("prototype")
 public class OPCAgentDecoder extends MkDecoder {
 
-    public OPCAgentDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public OPCAgentDecoder(IOServer server) {
+        super(server);
     }
 
     @Override

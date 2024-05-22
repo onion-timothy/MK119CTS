@@ -2,7 +2,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
 import java.util.List;
 
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
@@ -21,8 +21,8 @@ public class ModbusDecoder extends MkDecoder {
     int uid;
     int type;
 
-    public ModbusDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public ModbusDecoder(IOServer server) {
+        super(server);
     }
 
     @Override

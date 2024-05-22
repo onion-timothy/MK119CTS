@@ -1,6 +1,9 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
+import com.onionsoftware.mk119.commtestsuite.enums.Transport;
+import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +21,8 @@ public class IOServerFactory {
     @Scope("prototype")
     public IOServer ioServer(Device device) {
         device.getCommunicationSettings().put("transport", device.getTransport().name());
-        IOServer ioServer = new IOServer(device);
+        ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
+        IOServer ioServer = new IOServer(device, errorService.selectErrorByDeviceId(device.getId()));
         ioServer.setServerData(serverData(device));
         return ioServer;
     }
@@ -53,14 +57,17 @@ public class IOServerFactory {
 
     @Bean
     @Scope("prototype")
-    public ChannelInboundHandlerAdapter decoder(Device device) {
+    public ChannelInboundHandlerAdapter decoder(Device device, IOServer server) {
         String beanName = device.getProtocol().name().toLowerCase() + "_decoder_" + device.getTransport().name().toLowerCase();
-        return (ChannelInboundHandlerAdapter) applicationContext.getBean(beanName);
+        if(device.getTransport() == Transport.UDP)
+            return (ChannelInboundHandlerAdapter) applicationContext.getBean(beanName, applicationContext, server);
+        else
+            return (ChannelInboundHandlerAdapter) applicationContext.getBean(beanName, server);
     }
 
     @Bean
     @Scope("prototype")
-    public ChannelInboundHandlerAdapter handler(Device device) {
-        return (ChannelInboundHandlerAdapter) applicationContext.getBean(device.getProtocol().name().toLowerCase());
+    public MkHandler handler(Device device, IOServer server) {
+        return (MkHandler) applicationContext.getBean(device.getProtocol().name().toLowerCase(), applicationContext, server);
     }
 }

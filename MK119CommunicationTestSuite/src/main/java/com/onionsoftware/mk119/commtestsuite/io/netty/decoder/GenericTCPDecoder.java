@@ -6,7 +6,7 @@ import java.util.List;
 
 import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import com.google.gson.Gson;
@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
 public class GenericTCPDecoder extends MkDecoder {
     private List<RXFrame> acceptFrames;
 
-    public GenericTCPDecoder(IOServerInstances ioServerInstances) {
-        super(ioServerInstances);
+    public GenericTCPDecoder(IOServer server) {
+        super(server);
     }
 
     @Override
