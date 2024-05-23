@@ -22,17 +22,17 @@ import org.springframework.stereotype.Component;
 @Component("daeyun_rcu_decoder_tcp")
 @Scope("prototype")
 public class DaeyunDecoder extends MkDecoder {
-    private List<RXFrame> acceptFrames;
+    private final List<RXFrame> acceptFrames;
 
     public DaeyunDecoder(IOServer ioServer) {
         super(ioServer);
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
+        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
-        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
         ctx.fireChannelActive();
     }
 

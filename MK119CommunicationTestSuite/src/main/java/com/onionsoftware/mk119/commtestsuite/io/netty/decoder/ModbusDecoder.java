@@ -23,13 +23,14 @@ public class ModbusDecoder extends MkDecoder {
 
     public ModbusDecoder(IOServer server) {
         super(server);
+        this.uid = Integer.parseInt(target.getDevice().getCommunicationSettings().get("unitId").toString());
+        this.type = Integer.parseInt(target.getDevice().getCommunicationSettings().get("packetType").toString());
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        this.uid = Integer.parseInt(target.getDevice().getCommunicationSettings().get("unitId").toString());
-        this.type = Integer.parseInt(target.getDevice().getCommunicationSettings().get("packetType").toString());
+
         ctx.fireChannelActive();
     }
 

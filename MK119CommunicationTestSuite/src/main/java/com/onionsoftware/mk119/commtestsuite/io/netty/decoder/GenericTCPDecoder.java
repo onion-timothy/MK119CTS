@@ -22,21 +22,18 @@ import org.springframework.stereotype.Component;
 @Component("generic_decoder_tcp")
 @Scope("prototype")
 public class GenericTCPDecoder extends MkDecoder {
-    private List<RXFrame> acceptFrames;
+    private final List<RXFrame> acceptFrames;
 
     public GenericTCPDecoder(IOServer server) {
         super(server);
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
+        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-
-        Device device = target.getDevice();
-        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
-        this.acceptFrames = new Gson().fromJson(device.getCommunicationSettings().get("rx").toString(), listType);
         ctx.fireChannelActive();
-
     }
 
     @Override
