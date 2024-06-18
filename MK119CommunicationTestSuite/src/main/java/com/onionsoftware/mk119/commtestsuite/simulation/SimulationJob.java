@@ -1,7 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.simulation;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
-import com.onionsoftware.mk119.commtestsuite.db.bean.Protocol;
+import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;

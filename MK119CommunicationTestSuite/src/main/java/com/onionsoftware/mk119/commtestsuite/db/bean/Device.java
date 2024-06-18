@@ -2,6 +2,7 @@ package com.onionsoftware.mk119.commtestsuite.db.bean;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import lombok.Getter;
 import lombok.Setter;

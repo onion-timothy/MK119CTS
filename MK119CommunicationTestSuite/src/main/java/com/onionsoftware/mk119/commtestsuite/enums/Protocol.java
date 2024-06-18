@@ -1,4 +1,4 @@
-package com.onionsoftware.mk119.commtestsuite.db.bean;
+package com.onionsoftware.mk119.commtestsuite.enums;
 
 import java.util.Arrays;
 import java.util.List;
