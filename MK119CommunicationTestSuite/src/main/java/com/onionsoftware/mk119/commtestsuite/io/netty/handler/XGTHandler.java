@@ -7,38 +7,25 @@ import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGTVariable;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.XGTData;
-import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Component("xgt_plc")
 @Scope("prototype")
 public class XGTHandler extends MkHandler {
-    private String transport;
 
     public XGTHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
-        transport = target.getDevice().getCommunicationSettings().get("transport").toString();
     }
 
     @Override
@@ -148,11 +135,7 @@ public class XGTHandler extends MkHandler {
                 }
             }
 
-            lastSent = out.copy();
-            if (transport.equals("UDP")) {
-                ctx.writeAndFlush(new DatagramPacket(out, xgt.getSender()));
-            } else ctx.writeAndFlush(out);
-
+            sendBuffer = out.copy();
             super.channelRead(ctx, msg);
         }
     }

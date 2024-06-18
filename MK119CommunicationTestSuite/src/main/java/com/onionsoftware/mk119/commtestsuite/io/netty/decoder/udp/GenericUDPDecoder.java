@@ -22,17 +22,17 @@ import java.util.List;
 @Component("generic_decoder_udp")
 @Scope("prototype")
 public class GenericUDPDecoder extends MkUDPDecoder {
-    private List<RXFrame> acceptFrames;
+    private final List<RXFrame> acceptFrames;
 
     public GenericUDPDecoder(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
+        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
-        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
         ctx.fireChannelActive();
     }
 
@@ -53,7 +53,6 @@ public class GenericUDPDecoder extends MkUDPDecoder {
             ByteBufUtils.clear(in);
             MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
         } else {
-            packet.setSender(msg.sender());
             out.add(packet);
         }
     }

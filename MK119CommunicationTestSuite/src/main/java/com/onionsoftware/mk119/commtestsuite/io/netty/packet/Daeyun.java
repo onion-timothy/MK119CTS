@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class Daeyun extends Packet {
+public class Daeyun {
     private byte address;
     private short function;
     private int length;

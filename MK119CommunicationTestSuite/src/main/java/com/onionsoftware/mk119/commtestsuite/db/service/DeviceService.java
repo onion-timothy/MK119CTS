@@ -74,6 +74,11 @@ public class DeviceService {
         startDevice(device);
     }
 
+    public void restartDevice(Device device) {
+        stopDevice(device.getId());
+        startDevice(device);
+    }
+
     public boolean selectDeviceEnabled(Integer id) {
         return deviceMapper.selectDeviceEnabled(id) == 1;
     }

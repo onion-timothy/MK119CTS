@@ -102,4 +102,8 @@ public class SimulationService {
             stopSimulation(device, simulation);
         }
     }
+
+    public void copySimulations(Integer copyTo, Integer device_id) {
+        simulationMapper.copySimulations(copyTo, device_id);
+    }
 }

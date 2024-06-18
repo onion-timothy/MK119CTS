@@ -30,4 +30,5 @@ public interface SimulationMapper {
     List<Simulation> selectSimulations();
 
     void deleteSimulationByDeviceId(Integer id);
+    void copySimulations(@Param("copyTo") Integer copyTo, @Param("device_id") Integer device_id);
 }

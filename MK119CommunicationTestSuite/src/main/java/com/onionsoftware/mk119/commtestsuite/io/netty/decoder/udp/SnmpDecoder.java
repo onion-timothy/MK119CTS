@@ -17,20 +17,20 @@ import java.util.List;
 @Configuration("snmp_decoder_udp")
 @Scope("prototype")
 public class SnmpDecoder extends MkUDPDecoder {
-    private int version;
-    private String getCommunity;
-    private String setCommunity;
+    private final int version;
+    private final String getCommunity;
+    private final String setCommunity;
 
     public SnmpDecoder(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
+        this.version = Integer.parseInt(target.getDevice().getCommunicationSettings().get("snmpVersion").toString());
+        this.getCommunity = target.getDevice().getCommunicationSettings().get("getCommunity").toString();
+        this.setCommunity = target.getDevice().getCommunicationSettings().get("setCommunity").toString();
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        this.version = Integer.parseInt(target.getDevice().getCommunicationSettings().get("snmpVersion").toString());
-        this.getCommunity = target.getDevice().getCommunicationSettings().get("getCommunity").toString();
-        this.setCommunity = target.getDevice().getCommunicationSettings().get("setCommunity").toString();
         ctx.fireChannelActive();
     }
 
@@ -41,7 +41,6 @@ public class SnmpDecoder extends MkUDPDecoder {
         byte[] cpy = new byte[buffer.readableBytes()];
         buffer.readBytes(cpy);
         SnmpPdu pdu = new SnmpPdu(SnmpPdu.decodePdu(cpy, cpy.length));
-        pdu.setSender(msg.sender());
         if (pdu.getVersion() == this.version) {
             if (pdu.getCommunity().equals(this.getCommunity) && pdu.getCommand() == SnmpConst.GET) {
                 out.add(pdu);

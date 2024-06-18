@@ -4,6 +4,7 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
+import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
@@ -32,6 +33,7 @@ public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacke
     private ChannelHandlerContext context;
     final ApplicationContext applicationContext;
     protected final IOServer target;
+    private MkHandler handler;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
@@ -41,6 +43,7 @@ public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacke
     @Override
     protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
         rxCounter++;
+        handler.setSender(msg.sender());
         if(target.getDevice().getLog() == Device.DEVICE_ENABLED)
             ByteBufUtils.writeRXPacketLog(msg.content(), this.getClass().getSimpleName(), target.getPacketLogger());
     }

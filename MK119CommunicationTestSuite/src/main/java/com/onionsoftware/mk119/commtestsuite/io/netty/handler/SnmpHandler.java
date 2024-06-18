@@ -7,13 +7,11 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.SnmpData;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -25,11 +23,6 @@ import java.util.Optional;
 public class SnmpHandler extends MkHandler {
     public SnmpHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
     }
 
     @Override
@@ -70,8 +63,7 @@ public class SnmpHandler extends MkHandler {
                     }
                 }
 
-                lastSent = buffer.copy();
-                ctx.writeAndFlush(new DatagramPacket(buffer, packet.getSender()));
+                sendBuffer = buffer.copy();
                 super.channelRead(ctx, msg);
             } catch (SnmpEncodingException e) {
                 throw new RuntimeException(e);

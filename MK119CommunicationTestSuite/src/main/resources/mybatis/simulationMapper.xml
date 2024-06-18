@@ -76,4 +76,11 @@
         WHERE device_id = #{device_id}
     </delete>
 
+    <insert id="copySimulations" parameterType="java.lang.Integer">
+        INSERT
+        INTO SIMULATIONS
+        SELECT #{copyTo} AS device_id, target, strPolicy, interval, enabled
+        FROM SIMULATIONS
+        WHERE device_id = #{device_id}
+    </insert>
 </mapper>

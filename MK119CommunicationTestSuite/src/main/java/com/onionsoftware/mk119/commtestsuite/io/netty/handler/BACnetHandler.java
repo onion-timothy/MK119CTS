@@ -1,27 +1,21 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
-import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
-import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -39,20 +33,13 @@ public class BACnetHandler extends MkHandler {
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
-        ctx.fireChannelActive();
-    }
-
-    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof BACnetPacket) {
             if (msg instanceof BACnetWhois) {
                 for (Device device : bacnetService.getBacnetDevices()) {
                     ByteBuf buf = ((BACnetWhois) msg).encodeBACnetIAmDeviceResponse(device);
                     if (buf != null) {
-                        lastSent = buf.copy();
-                        ctx.writeAndFlush(new DatagramPacket(buf, new InetSocketAddress(device.getCommunicationSettings().get("broadcast").toString(), 0xbac0)));
+                        sendBuffer = buf.copy();
                     }
                 }
             } else if (msg instanceof BACnetReadProperty) {
@@ -64,33 +51,14 @@ public class BACnetHandler extends MkHandler {
                 if (deviceOptional.isPresent()) {
                     ByteBuf buf = readProperty.encodeBACnetReadPropertyResponse(deviceOptional.get());
                     if (buf != null) {
-                        ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                        Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                        if (errorSimulation != null) {
-                            ErrorResult _ret = errorSimulation.performErrorSimulation(buf);
-                            switch (_ret.getResultType()) {
-                                case ErrorResult.RESULT_TYPE_DISCONNECT:
-                                    ctx.close();
-                                    break;
-                                case ErrorResult.RESULT_TYPE_TIMEOUT:
-                                case ErrorResult.RESULT_TYPE_GARBAGE:
-                                    buf = _ret.getBufToWrite();
-                                    break;
-                                case ErrorResult.RESULT_TYPE_DISCARD:
-                                    return;
-                            }
-                        }
-
-                        lastSent = buf.copy();
-                        ctx.writeAndFlush(new DatagramPacket(buf, readProperty.getSender()));
+                        sendBuffer = buf.copy();
                     } else {
-                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readProperty {0}", readProperty.getSender());
+                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readProperty {0}", getSender());
                         BACnetError error = getBACnetError();
-                        lastSent = error.encodeBACnetError(
+                        sendBuffer = error.encodeBACnetError(
                                 deviceOptional.get(),
                                 readProperty.getBacnetAPDU().getInvoke_id(),
                                 readProperty.getBacnetAPDU().getService_choice());
-                        ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), readProperty.getSender()));
                     }
                 }
             } else if (msg instanceof BACnetReadPropertyMultiple) {
@@ -101,33 +69,14 @@ public class BACnetHandler extends MkHandler {
                 if (deviceOptional.isPresent()) {
                     ByteBuf buf = readPropertyMultiple.encodeBACnetReadPropertyMultipleResponse(deviceOptional.get());
                     if (buf != null) {
-                        ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                        Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                        if (errorSimulation != null) {
-                            ErrorResult _ret = errorSimulation.performErrorSimulation(buf);
-                            switch (_ret.getResultType()) {
-                                case ErrorResult.RESULT_TYPE_DISCONNECT:
-                                    ctx.close();
-                                    break;
-                                case ErrorResult.RESULT_TYPE_TIMEOUT:
-                                case ErrorResult.RESULT_TYPE_GARBAGE:
-                                    buf = _ret.getBufToWrite();
-                                    break;
-                                case ErrorResult.RESULT_TYPE_DISCARD:
-                                    return;
-                            }
-                        }
-
-                        lastSent = buf.copy();
-                        ctx.writeAndFlush(new DatagramPacket(buf, readPropertyMultiple.getSender()));
+                        sendBuffer = buf.copy();
                     } else {
-                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readPropertyMultiple {0}", readPropertyMultiple.getSender());
+                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readPropertyMultiple {0}", getSender());
                         BACnetError error = getBACnetError();
-                        lastSent = error.encodeBACnetError(
+                        sendBuffer = error.encodeBACnetError(
                                 deviceOptional.get(),
                                 readPropertyMultiple.getBacnetAPDU().getInvoke_id(),
                                 readPropertyMultiple.getBacnetAPDU().getService_choice());
-                        ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), readPropertyMultiple.getSender()));
                     }
                 }
             } else if (msg instanceof BACnetWriteProperty) {
@@ -141,24 +90,6 @@ public class BACnetHandler extends MkHandler {
                     Optional<Simulation> optionalSimulation = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(writeProperty.getOid())).findAny();
                     if (optionalSimulation.isPresent()) {
                         ByteBuf buf = writeProperty.encodeBACnetWritePropertyResponse(device);
-
-                        ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                        Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                        if (errorSimulation != null) {
-                            ErrorResult _ret = errorSimulation.performErrorSimulation(buf);
-                            switch (_ret.getResultType()) {
-                                case ErrorResult.RESULT_TYPE_DISCONNECT:
-                                    ctx.close();
-                                    break;
-                                case ErrorResult.RESULT_TYPE_TIMEOUT:
-                                case ErrorResult.RESULT_TYPE_GARBAGE:
-                                    buf = _ret.getBufToWrite();
-                                    break;
-                                case ErrorResult.RESULT_TYPE_DISCARD:
-                                    return;
-                            }
-                        }
-
                         Simulation simulation = optionalSimulation.get();
                         if (simulation.getPolicies().get(0).isStopOnControl()) {
                             SimulationService service = (SimulationService) applicationContext.getBean("simulationService");
@@ -167,16 +98,14 @@ public class BACnetHandler extends MkHandler {
                         }
                         bacnetService.getSimulationValues().put(simulation.getId(), writeProperty.getValue().getValue());
                         if (buf != null) {
-                            lastSent = buf.copy();
-                            ctx.writeAndFlush(new DatagramPacket(buf, writeProperty.getSender()));
+                            sendBuffer = buf.copy();
                         } else {
-                            MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process writePropertyMultiple {0}", writeProperty.getSender());
+                            MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process writePropertyMultiple {0}", getSender());
                             BACnetError bacnetError = getBACnetError();
-                            lastSent = bacnetError.encodeBACnetError(
+                            sendBuffer = bacnetError.encodeBACnetError(
                                     device,
                                     writeProperty.getBacnetAPDU().getInvoke_id(),
                                     writeProperty.getBacnetAPDU().getService_choice());
-                            ctx.writeAndFlush(new DatagramPacket(lastSent.copy(), writeProperty.getSender()));
                         }
                     }
                 }

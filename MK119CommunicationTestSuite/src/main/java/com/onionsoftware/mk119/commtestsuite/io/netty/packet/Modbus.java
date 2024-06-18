@@ -8,7 +8,7 @@ import java.util.List;
 
 @Getter
 @Setter
-public class Modbus extends Packet {
+public class Modbus {
     protected byte uid;
     protected byte fc;
     protected int register;

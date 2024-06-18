@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class OPCAgent extends Packet {
+public class OPCAgent {
     private int protocolHeader;
     private int start;
 }

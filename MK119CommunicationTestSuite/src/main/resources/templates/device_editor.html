@@ -7,17 +7,17 @@
 
     <!-- Google Font: Source Sans Pro -->
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
     <!-- Theme style -->
-    <link rel="stylesheet" href="/css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
     <!-- jTree -->
-    <link rel="stylesheet" href="/css/style.min.css"/>
+    <link rel="stylesheet" href="../../css/style.min.css"/>
     <!-- BS Stepper -->
-    <link rel="stylesheet" href="/plugins/bs-stepper/css/bs-stepper.min.css">
+    <link rel="stylesheet" href="../../plugins/bs-stepper/css/bs-stepper.min.css">
     <!-- JSON Editor -->
-    <link href="/plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
+    <link href="../../plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
     <!-- bootstrap slider -->
-    <link rel="stylesheet" href="/plugins/bootstrap-slider/css/bootstrap-slider.min.css">
+    <link rel="stylesheet" href="../../plugins/bootstrap-slider/css/bootstrap-slider.min.css">
 
     <script th:inline="javascript">
         /*<![CDATA[*/
@@ -58,7 +58,7 @@
                 if (data.node.type === 'group') {
                     $.jstree.reference('#tree-container').open_node(data.node.id);
                 }
-            }).on("ready.jstree", function (e, data) {
+            }).on("ready.jstree", function () {
                 // 시작할 때 루트 노드를 열어준다.
                 if (device != null) {
                     $.jstree.reference('#tree-container').open_node('g_' + device.group_id);
@@ -353,10 +353,10 @@
                 type: device == null ? 'PUT' : 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(dev),
-                success: function (data) {
+                success: function () {
                     location.href = '/';
                 },
-                error: function (request, status, error) {
+                error: function (request) {
                     if (request.responseText.includes('UNIQUE')) {
                         alert("Cannot create with the same name within a group.");
                     } else
@@ -378,7 +378,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="index3.html" class="nav-link">Home</a>
+                <a href="../../index3.html" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -421,7 +421,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="index3.html" class="brand-link">
+        <a href="../../index3.html" class="brand-link">
             <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -811,23 +811,23 @@
 <!-- ./wrapper -->
 
 <!-- jQuery -->
-<script src="/plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/jquery/jquery.min.js"></script>
 <!-- jQuery UI 1.11.4 -->
-<script src="/plugins/jquery-ui/jquery-ui.min.js"></script>
+<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
 <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
 <script>
     $.widget.bridge('uibutton', $.ui.button)
 </script>
 <!-- Bootstrap 4 -->
-<script src="/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
-<script src="/js/adminlte.js"></script>
-<script src="/js/jstree.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../js/jstree.min.js"></script>
 <!-- BS-Stepper -->
-<script src="/plugins/bs-stepper/js/bs-stepper.min.js"></script>
+<script src="../../plugins/bs-stepper/js/bs-stepper.min.js"></script>
 <!-- JSON Editor -->
-<script src="/plugins/jsoneditor/js/jsoneditor.min.js"></script>
+<script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
 <!-- Bootstrap slider -->
-<script src="/plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
+<script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
 </body>
 </html>

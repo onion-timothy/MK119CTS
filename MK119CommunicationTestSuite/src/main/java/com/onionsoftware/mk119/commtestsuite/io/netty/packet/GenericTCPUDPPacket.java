@@ -10,7 +10,7 @@ import java.util.List;
 
 @Getter
 @Setter
-public class GenericTCPUDPPacket extends Packet {
+public class GenericTCPUDPPacket {
     private String rx_id;
     private List<RXField> fields;
     private GenericData genericData;

@@ -1,15 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
-import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
-import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -17,16 +12,9 @@ import org.springframework.stereotype.Component;
 @Component("opc_agent")
 @Scope("prototype")
 public class OPCAgentHandler extends MkHandler {
-    private String transport;
 
     public OPCAgentHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
-        transport = target.getDevice().getCommunicationSettings().get("transport").toString();
     }
 
     private static final int DEFAULT_TAGS_LENGTH = 1023;
@@ -58,28 +46,7 @@ public class OPCAgentHandler extends MkHandler {
             }
             out.writeByte(sum & 0xff);
 
-            ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-            Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-            if (errorSimulation != null) {
-                ErrorResult _ret = errorSimulation.performErrorSimulation(out);
-                switch (_ret.getResultType()) {
-                    case ErrorResult.RESULT_TYPE_DISCONNECT:
-                        ctx.close();
-                        break;
-                    case ErrorResult.RESULT_TYPE_TIMEOUT:
-                    case ErrorResult.RESULT_TYPE_GARBAGE:
-                        out = _ret.getBufToWrite();
-                        break;
-                    case ErrorResult.RESULT_TYPE_DISCARD:
-                        return;
-                }
-            }
-
-            lastSent = out.copy();
-            if (transport.equals("UDP")) {
-                ctx.writeAndFlush(new DatagramPacket(out, opc.getSender()));
-            } else ctx.writeAndFlush(out);
-
+            sendBuffer = out.copy();
             super.channelRead(ctx, msg);
         }
     }

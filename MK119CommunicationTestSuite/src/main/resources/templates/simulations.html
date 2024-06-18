@@ -7,15 +7,17 @@
 
     <!-- Google Font: Source Sans Pro -->
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
     <!-- Theme style -->
-    <link rel="stylesheet" href="css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
     <!-- jTree -->
-    <link rel="stylesheet" href="css/style.min.css"/>
+    <link rel="stylesheet" href="../../css/style.min.css"/>
     <!-- DataTables -->
-    <link rel="stylesheet" href="plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-    <link rel="stylesheet" href="plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-    <link rel="stylesheet" href="plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+    <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
+    <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+    <link rel="stylesheet" href="../../plugins/bootstrap4-duallistbox/bootstrap-duallistbox.min.css">
+    <link rel="stylesheet" href="../../plugins/jquery-contextmenu/css/jquery.contextMenu.min.css">
 
     <script>
         /*<![CDATA[*/
@@ -25,6 +27,9 @@
         let device_id;
         let simulations;
         let deviceSelected = '[[${device}]]';
+        let devices = [];
+        let copyDevicesBox;
+        let excelTable;
 
         String.format = function () {
             let args = arguments;
@@ -34,7 +39,15 @@
             });
         }
 
+        function getDevice(device_id) {
+            let device = devices.filter((device) => device.id === parseInt(device_id))
+            if(device.length > 0) return device[0];
+            else return null;
+        }
+
         function onload() {
+            $('[data-toggle="tooltip"]').tooltip()
+
             let tableFirstRowId;
             $.ajax({
                 url: '/api/device/devices',
@@ -49,9 +62,10 @@
                         if (i === 0) {
                             tableFirstRowId = data[i].id;
                         }
+                        devices.push(data[i]);
                     }
 
-                    devicesTable = $('#devicesTable').DataTable({
+                    devicesTable = table.DataTable({
                         "paging": true,
                         "lengthChange": false,
                         "searching": false,
@@ -79,6 +93,9 @@
                 let file = e.target.files[0];
                 let reader = new FileReader();
                 reader.onload = function () {
+                    if(excelTable) {
+                        excelTable.destroy()
+                    }
                     let fileData = reader.result;
                     let wb = XLSX.read(fileData, {type: 'binary'});
                     $('#excelTableModal').modal('show');
@@ -96,6 +113,15 @@
                             $('#excelObjects').append(markup);
                             simulations.push(convertObj(obj, device_id))
                         });
+                    });
+                    excelTable = $('#excelObjects').DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
                     });
                 };
                 reader.readAsBinaryString(file);
@@ -119,6 +145,10 @@
             if (simulationsTable)
                 simulationsTable.destroy();
 
+            let device = getDevice(id);
+            if(device != null)
+                $('#device-title').text('Simulations of ' + device.name)
+
             $.ajax({
                 url: '/api/simulation/simulations/' + id,
                 type: 'GET',
@@ -127,34 +157,22 @@
                     $('#simulationsTable > tbody').empty();
 
                     for (let i = 0; i < data.length; i++) {
+                        $.contextMenu('destroy', '.tr_selector-' + data[i].id);
+
                         let policy = JSON.parse(data[i].strPolicy);
                         let policies = [];
                         for (let j = 0; j < policy.length; j++) {
                             policies.push(policy[j].policy);
                         }
                         let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleSimulation(" + data[i].id + "," + data[i].enabled + ")'></button>"
-                        let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
+                        let markup = "<tr class='tr_selector-" + data[i].id + "' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
                         table.append(markup);
-                    }
 
-                    simulationsTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
-
-                    $(function () {
-                        $('#simulationsTable').contextMenu({
-                            selector: 'td',
+                        $.contextMenu({
+                            selector: '.tr_selector-' + data[i].id,
                             callback: function (key, options) {
-                                let id = $(this).parent().attr('id');
-                                if (key === 'add') {
-                                    location.href = '/addSimulation/' + device_id;
-                                } else if (key === 'edit') {
+                                let id = parseInt(options.selector.split('-')[1])
+                                if (key === 'edit') {
                                     if (typeof (id) != 'undefined') {
                                         location.href = '/editSimulation/' + id;
                                     }
@@ -168,7 +186,7 @@
                                                 success: function () {
                                                     location.href = '/simulations?device=' + device_id;
                                                 },
-                                                error: function (request, status, error) {
+                                                error: function (request) {
                                                     alert(request.status + request.responseText);
                                                 }
                                             });
@@ -185,7 +203,7 @@
                                             success: function (data) {
                                                 enabled = data;
                                             },
-                                            error: function (request, status, error) {
+                                            error: function (request) {
                                                 alert(request.status + request.responseText);
                                             }
                                         });
@@ -195,27 +213,51 @@
                                                 url: '/api/simulation/setEnabled/' + id + '/' + (enabled ? 0 : 1),
                                                 type: 'POST',
                                                 contentType: 'application/json',
-                                                success: function (data) {
+                                                success: function () {
                                                     location.href = '/simulations?device=' + device_id;
                                                 },
-                                                error: function (request, status, error) {
+                                                error: function (request) {
                                                     alert(request.status + request.responseText);
                                                 }
                                             });
                                         }
                                     }
-                                } else if (key === 'addBatch') {
-                                    $('#excel').click();
+                                } else if (key === 'copy') {
+                                    copyDevicesBox = $('#duallistbox').bootstrapDualListbox({
+                                        nonSelectedListLabel: 'List of devices(with same protocol)',
+                                        selectedListLabel: 'Devices to copy',
+                                        preserveSelectionOnMove: 'moved',
+                                        moveOnSelect: false,
+                                    })
+
+                                    copyDevicesBox.empty()
+
+                                    devices.forEach((d) => {
+                                        if (parseInt(d.id) !== parseInt(device_id) && d.protocol === device.protocol) {
+                                            copyDevicesBox.append('<option value="' + d.id + '">' + d.name + '</option>')
+                                        }
+                                    })
+                                    copyDevicesBox.bootstrapDualListbox('refresh');
+                                    $('#simulationCopyModal').modal('show');
                                 }
                             },
                             items: {
-                                "add": {name: "Add simulation", icon: "fas fa-plus"},
-                                "addBatch": {name: "Add simulation(batch)", icon: "fas fa-file-excel"},
+                                "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
                                 "edit": {name: "Edit simulation", icon: "fas fa-pen"},
                                 "delete": {name: "Delete simulation", icon: "fas fa-trash"},
-                                "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
+                                "copy": {name: "Copy simulations", icon: "fas fa-copy"}
                             }
                         });
+                    }
+
+                    simulationsTable = table.DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
                     });
                 }
             });
@@ -227,10 +269,10 @@
                     url: '/api/simulation/setEnabled/' + id + '/' + (enabled === 1 ? 0 : 1),
                     type: 'POST',
                     contentType: 'application/json',
-                    success: function (data) {
+                    success: function () {
                         location.href = '/simulations?device=' + device_id;
                     },
-                    error: function (request, status, error) {
+                    error: function (request) {
                         alert(request.status + request.responseText);
                     }
                 });
@@ -239,18 +281,39 @@
 
         function performUpload() {
             simulations.forEach(function (simulation) {
-               $.ajax({
-                   url: '/api/simulation/addSimulation',
-                   type: 'PUT',
-                   contentType: 'application/json',
-                   data: JSON.stringify(simulation),
-                   error: function (request, status, error) {
-                       alert(request.status + request.responseText);
-                   },
-                   async: false,
-               });
+                $.ajax({
+                    url: '/api/simulation/addSimulation',
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(simulation),
+                    error: function (request) {
+                        alert(request.status + request.responseText);
+                    },
+                    async: false,
+                });
             });
             location.href = '/simulations?device=' + device_id;
+        }
+
+        function copySimulations() {
+            console.log(copyDevicesBox.val())
+            if (copyDevicesBox.val().length > 0) {
+                $.ajax({
+                    url: '/api/simulation/copySimulation/' + device_id,
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(copyDevicesBox.val()),
+                    success: function () {
+                        location.href = '/simulations?device=' + device_id;
+                    },
+                    error: function (request) {
+                        alert(request.status + request.responseText);
+                    },
+                    async: false,
+                });
+            } else {
+                alert('Device not selected.')
+            }
         }
 
         /*]]>*/
@@ -261,7 +324,7 @@
 
     <!-- Preloader -->
     <div class="preloader flex-column justify-content-center align-items-center">
-        <img class="animation__shake" src="img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
+        <img class="animation__shake" src="../../img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
     </div>
 
     <!-- Navbar -->
@@ -272,7 +335,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="index3.html" class="nav-link">Home</a>
+                <a href="../../index3.html" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -315,8 +378,8 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="index3.html" class="brand-link">
-            <img src="img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
+        <a href="../../index3.html" class="brand-link">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
         </a>
@@ -426,6 +489,13 @@
                             </div>
                             <!-- /.card-header -->
                             <div class="card-body p-2">
+                                <button  class="btn btn-primary" data-toggle="tooltip" data-placement="right" title="Add simulation" onclick="location.href = '/addSimulation/' + device_id;">
+                                    <span class="fas fa-plus"></span>
+                                </button>
+                                <button  class="btn btn-success" data-toggle="tooltip" data-placement="right" title="Add simulation(batch)" onclick="$('#excel').click();">
+                                    <span class="fas fa-file-excel"></span>
+                                </button>
+
                                 <table id="simulationsTable" class="table table-bordered table-hover">
                                     <thead>
                                     <th>ID</th>
@@ -434,7 +504,7 @@
                                     <th>Interval</th>
                                     <th>Enabled</th>
                                     </thead>
-                                    <tbody>
+                                    <tbody class="simulation-table-selector">
 
                                     </tbody>
                                 </table>
@@ -484,6 +554,34 @@
             </div>
         </div>
         <!-- Excel modal end -->
+
+
+        <!-- excel table modal -->
+        <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog" aria-labelledby="simulationCopyModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog" role="document" style="max-width:fit-content">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="simulationCopyModalLabel">Select devices to copy simulations</h5>
+                    </div>
+                    <div class="modal-body">
+                        <label>
+                            <select class="duallistbox" id="duallistbox" multiple="multiple">
+                            </select>
+                        </label>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" onclick="$('#simulationCopyModal').modal('hide')">
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary" type="button" onclick="copySimulations()">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Excel modal end -->
+
+
     </div>
     <!-- /.content-wrapper -->
     <footer class="main-footer">
@@ -497,35 +595,32 @@
 <!-- ./wrapper -->
 
 <!-- jQuery -->
-<script src="plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/jquery/jquery.min.js"></script>
 <!-- jQuery UI 1.11.4 -->
-<script src="plugins/jquery-ui/jquery-ui.min.js"></script>
+<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
 <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
 <script>
     $.widget.bridge('uibutton', $.ui.button)
 </script>
 <!-- Bootstrap 4 -->
-<script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
-<script src="js/adminlte.js"></script>
-<script src="js/jstree.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../js/jstree.min.js"></script>
 <!-- DataTables  & Plugins -->
-<script src="plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-<script src="plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
-<script src="plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
-<script src="plugins/pdfmake/vfs_fonts.js"></script>
-<script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
-<script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
-<script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
-<script src="/js/xlsx.full.min.js"></script>
-
-<link rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.ui.position.js"></script>
-
+<script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
+<script src="../../plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
+<script src="../../plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
+<script src="../../plugins/pdfmake/vfs_fonts.js"></script>
+<script src="../../plugins/datatables-buttons/js/buttons.html5.min.js"></script>
+<script src="../../plugins/datatables-buttons/js/buttons.print.min.js"></script>
+<script src="../../plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+<script src="../../js/xlsx.full.min.js"></script>
+<script src="../../plugins/jquery-contextmenu/js/jquery.contextMenu.min.js"></script>
+<script src="../../plugins/jquery-contextmenu/js/jquery.ui.position.js"></script>
+<script src="../../plugins/bootstrap4-duallistbox/jquery.bootstrap-duallistbox.min.js"></script>
 </body>
 </html>

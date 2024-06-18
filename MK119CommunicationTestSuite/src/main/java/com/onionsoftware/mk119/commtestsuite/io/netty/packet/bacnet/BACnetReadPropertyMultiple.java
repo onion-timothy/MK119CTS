@@ -36,7 +36,6 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
         this.setBvlc_len(packet.getBvlc_len());
         this.setBacnetNPDU(packet.getBacnetNPDU());
         this.setBacnetAPDU(packet.getBacnetAPDU());
-        this.setSender(packet.getSender());
         this.oids = new ArrayList<>();
         this.propertyIdentifiers = new LinkedHashMap<>();
     }

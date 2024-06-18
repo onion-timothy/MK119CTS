@@ -18,18 +18,18 @@ import java.util.List;
 @Component("modbus_decoder_udp")
 @Scope("prototype")
 public class ModbusUDPDecoder extends MkUDPDecoder {
-    int uid;
-    int type;
+    final int uid;
+    final int type;
 
     public ModbusUDPDecoder(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
+        this.uid = Integer.parseInt(target.getDevice().getCommunicationSettings().get("unitId").toString());
+        this.type = Integer.parseInt(target.getDevice().getCommunicationSettings().get("packetType").toString());
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        this.uid = Integer.parseInt(target.getDevice().getCommunicationSettings().get("unitId").toString());
-        this.type = Integer.parseInt(target.getDevice().getCommunicationSettings().get("packetType").toString());
         ctx.fireChannelActive();
     }
 
@@ -40,12 +40,7 @@ public class ModbusUDPDecoder extends MkUDPDecoder {
         Modbus modbus = ByteBufUtils.parseModbusPacket(in, uid, type);
 
         if (modbus != null) {
-            modbus.setSender(msg.sender());
-            if (modbus instanceof ModbusTCP && type == Modbus.MODBUS_TCP) {
-                out.add(modbus);
-            } else if (modbus instanceof ModbusRTU && type == Modbus.MODBUS_RTU) {
-                out.add(modbus);
-            }
+            out.add(modbus);
         } else {
             MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
         }

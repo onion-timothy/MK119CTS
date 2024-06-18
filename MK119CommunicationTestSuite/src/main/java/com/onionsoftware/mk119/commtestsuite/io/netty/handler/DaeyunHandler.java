@@ -2,11 +2,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
-import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DaeyunData;
@@ -17,8 +13,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -30,7 +24,6 @@ import java.util.*;
 @Scope("prototype")
 public class DaeyunHandler extends MkHandler {
     private List<TXFrame> sendFrames;
-    private String transport;
 
     public DaeyunHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
@@ -39,8 +32,6 @@ public class DaeyunHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        transport = target.getDevice().getCommunicationSettings().get("transport").toString();
-
         Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
         this.sendFrames = new Gson().fromJson(new Gson().toJson(target.getDevice().getCommunicationSettings().get("tx"), listType), listType);
     }
@@ -88,54 +79,12 @@ public class DaeyunHandler extends MkHandler {
                 out.writeByte(0);
                 out.writeByte(4);
                 out.writeByte(0);
-
-                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                if (errorSimulation != null) {
-                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
-                    switch (_ret.getResultType()) {
-                        case ErrorResult.RESULT_TYPE_DISCONNECT:
-                            ctx.close();
-                            break;
-                        case ErrorResult.RESULT_TYPE_TIMEOUT:
-                        case ErrorResult.RESULT_TYPE_GARBAGE:
-                            out = _ret.getBufToWrite();
-                            break;
-                        case ErrorResult.RESULT_TYPE_DISCARD:
-                            return;
-                    }
-                }
-
-                lastSent = out.copy();
-                if (transport.equals("UDP")) {
-                    ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
-                } else ctx.writeAndFlush(out);
+                sendBuffer = out.copy();
                 super.channelRead(ctx, msg);
                 return;
             } else if (daeyun.getFunction() == Daeyun.HB_FUNCTION) {
                 out.writeByte(0);
-
-                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                if (errorSimulation != null) {
-                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
-                    switch (_ret.getResultType()) {
-                        case ErrorResult.RESULT_TYPE_DISCONNECT:
-                            ctx.close();
-                            break;
-                        case ErrorResult.RESULT_TYPE_TIMEOUT:
-                        case ErrorResult.RESULT_TYPE_GARBAGE:
-                            out = _ret.getBufToWrite();
-                            break;
-                        case ErrorResult.RESULT_TYPE_DISCARD:
-                            return;
-                    }
-                }
-
-                lastSent = out.copy();
-                if (transport.equals("UDP")) {
-                    ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
-                } else ctx.writeAndFlush(out);
+                sendBuffer = out.copy();
                 super.channelRead(ctx, msg);
                 return;
             } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
@@ -162,30 +111,8 @@ public class DaeyunHandler extends MkHandler {
                 short crc = CRC16.getCRC16(toCRC);
                 out.writeShort(crc);
 
-                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                if (errorSimulation != null) {
-                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
-                    switch (_ret.getResultType()) {
-                        case ErrorResult.RESULT_TYPE_DISCONNECT:
-                            ctx.close();
-                            break;
-                        case ErrorResult.RESULT_TYPE_TIMEOUT:
-                        case ErrorResult.RESULT_TYPE_GARBAGE:
-                            out = _ret.getBufToWrite();
-                            break;
-                        case ErrorResult.RESULT_TYPE_DISCARD:
-                            return;
-                    }
-                }
-
-                lastSent = out.copy();
-                if (transport.equals("UDP")) {
-                    ctx.writeAndFlush(new DatagramPacket(out, daeyun.getSender()));
-                } else ctx.writeAndFlush(out);
-
+                sendBuffer = out.copy();
                 super.channelRead(ctx, msg);
-
             }
         }
     }

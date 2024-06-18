@@ -236,7 +236,6 @@ public class ApiController {
                 BufferedReader inStream = new BufferedReader(new InputStreamReader(netstat.getInputStream()));
                 List<String> lines = inStream.lines().collect(Collectors.toList());
                 for (String line : lines) {
-                    logger.info(line);
                     if (Pattern.matches(regex, line)) {
                         return true;
                     }
@@ -323,12 +322,26 @@ public class ApiController {
     @RequestMapping(value = "/error/updateError", method = RequestMethod.POST)
     public String updateError(@RequestBody Error error) {
         errorService.updateError(error);
+        deviceService.restartDevice(deviceService.selectDevice(error.getDevice_id()));
         return "success";
     }
 
     @RequestMapping(value = "/error/deleteError/{device_id}", method = RequestMethod.DELETE)
     public String deleteError(@PathVariable Integer device_id) {
         errorService.deleteError(device_id);
+        return "success";
+    }
+
+    @RequestMapping(value = "/simulation/copySimulation/{device_id}", method = RequestMethod.PUT)
+    public String copySimulations(@PathVariable Integer device_id, @RequestBody List<Integer> copyTo) {
+        for(Integer index : copyTo) {
+            Device device = deviceService.selectDevice(index);
+            simulationService.copySimulations(index, device_id);
+            List<Simulation> simulations = simulationService.selectSimulationsByDeviceId(index);
+            for(Simulation simulation : simulations) {
+                simulationService.startSimulation(device, simulation);
+            }
+        }
         return "success";
     }
 

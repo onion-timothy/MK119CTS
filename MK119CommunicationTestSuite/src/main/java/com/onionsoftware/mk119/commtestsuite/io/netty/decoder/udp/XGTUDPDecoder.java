@@ -35,7 +35,6 @@ public class XGTUDPDecoder extends MkUDPDecoder {
 
         XGT xgt = ByteBufUtils.parseXGTPacket(in);
         if (xgt != null) {
-            xgt.setSender(msg.sender());
             out.add(xgt);
         } else MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
         ByteBufUtils.clear(in);

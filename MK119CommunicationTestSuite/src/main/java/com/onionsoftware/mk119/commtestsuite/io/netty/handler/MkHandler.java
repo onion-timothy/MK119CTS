@@ -1,6 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
@@ -9,12 +10,14 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.socket.DatagramPacket;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -29,21 +32,47 @@ import java.net.InetSocketAddress;
 public class MkHandler extends ChannelInboundHandlerAdapter {
     private long txCounter;
     private ChannelHandlerContext context;
-    protected ByteBuf lastSent;
+    protected ByteBuf sendBuffer;
     protected final ApplicationContext applicationContext;
     protected final IOServer target;
+    private String transport;
+    private InetSocketAddress sender;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         context = ctx;
+        transport = target.getDevice().getCommunicationSettings().get("transport").toString();
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        txCounter++;
-        if (lastSent != null && target.getDevice().getLog() == Device.DEVICE_ENABLED) {
-            ByteBufUtils.writeTXPacketLog(lastSent, this.getClass().getSimpleName(), target.getPacketLogger());
-            lastSent = null;
+        if (sendBuffer != null) {
+            Error errorSimulation = target.getErrorSimulation();
+            if(errorSimulation != null) {
+                ErrorResult _ret = errorSimulation.performErrorSimulation(sendBuffer);
+                if(_ret != null) {
+                    switch (_ret.getResultType()) {
+                        case ErrorResult.RESULT_TYPE_DISCONNECT:
+                            ctx.close();
+                            break;
+                        case ErrorResult.RESULT_TYPE_TIMEOUT:
+                        case ErrorResult.RESULT_TYPE_GARBAGE:
+                            sendBuffer = _ret.getBufToWrite();
+                            break;
+                        case ErrorResult.RESULT_TYPE_DISCARD:
+                            return;
+                    }
+                }
+            }
+
+            if (transport.equals("UDP")) {
+                ctx.writeAndFlush(new DatagramPacket(sendBuffer.retain(), sender));
+            } else ctx.writeAndFlush(sendBuffer.retain());
+            if (target.getDevice().getLog() == Device.DEVICE_ENABLED) {
+                ByteBufUtils.writeTXPacketLog(sendBuffer, this.getClass().getSimpleName(), target.getPacketLogger());
+            }
+            sendBuffer.release();
+            txCounter++;
         }
     }
 

@@ -35,7 +35,6 @@ public class OPCAgentUDPDecoder extends MkUDPDecoder {
         if (in.readableBytes() == 3) {
             OPCAgent agent = ByteBufUtils.parseOPCAgentPacket(in);
             if (agent != null) {
-                agent.setSender(msg.sender());
                 out.add(agent);
             } else {
                 MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());

@@ -7,7 +7,7 @@ import java.util.List;
 
 @Getter
 @Setter
-public class XGT extends Packet {
+public class XGT {
     private int source;
     private int invokeId;
     private int length;

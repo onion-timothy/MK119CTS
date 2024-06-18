@@ -5,17 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
-import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.socket.DatagramPacket;
 
 import com.google.gson.Gson;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.GenericTCPUDPPacket;
@@ -31,7 +25,6 @@ import org.springframework.stereotype.Component;
 @Scope("prototype")
 public class GenericTCPUDPHandler extends MkHandler {
     private List<TXFrame> sendFrames;
-    private String transport;
 
     public GenericTCPUDPHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
@@ -40,7 +33,6 @@ public class GenericTCPUDPHandler extends MkHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        transport = target.getDevice().getCommunicationSettings().get("transport").toString();
         Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
         this.sendFrames = new Gson().fromJson(new Gson().toJson(target.getDevice().getCommunicationSettings().get("tx"), listType), listType);
     }
@@ -60,27 +52,7 @@ public class GenericTCPUDPHandler extends MkHandler {
             }
 
             if (out != null) {
-                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                if (errorSimulation != null) {
-                    ErrorResult _ret = errorSimulation.performErrorSimulation(out);
-                    switch (_ret.getResultType()) {
-                        case ErrorResult.RESULT_TYPE_DISCONNECT:
-                            ctx.close();
-                            break;
-                        case ErrorResult.RESULT_TYPE_TIMEOUT:
-                        case ErrorResult.RESULT_TYPE_GARBAGE:
-                            out = _ret.getBufToWrite();
-                            break;
-                        case ErrorResult.RESULT_TYPE_DISCARD:
-                            return;
-                    }
-                }
-
-                lastSent = out.copy();
-                if (transport.equals("UDP")) {
-                    ctx.writeAndFlush(new DatagramPacket(out, packet.getSender()));
-                } else ctx.writeAndFlush(out);
+                sendBuffer = out.copy();
                 super.channelRead(ctx, msg);
             }
         }

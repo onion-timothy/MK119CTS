@@ -22,19 +22,18 @@ import java.util.List;
 @Component("daeyun_decoder_udp")
 @Scope("prototype")
 public class DaeyunUDPDecoder extends MkUDPDecoder {
-    private List<RXFrame> acceptFrames;
+    private final List<RXFrame> acceptFrames;
 
     public DaeyunUDPDecoder(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
+        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
+        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         super.channelActive(ctx);
-        Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
-        this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
         ctx.fireChannelActive();
-
     }
 
     @Override
@@ -43,7 +42,6 @@ public class DaeyunUDPDecoder extends MkUDPDecoder {
         ByteBuf in = msg.content();
         Daeyun daeyun = ByteBufUtils.parseDaeyunPacket(in, acceptFrames);
         if (daeyun != null) {
-            daeyun.setSender(msg.sender());
             out.add(daeyun);
         } else {
             MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());

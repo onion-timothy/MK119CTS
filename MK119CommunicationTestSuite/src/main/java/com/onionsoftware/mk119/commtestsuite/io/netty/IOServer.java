@@ -9,6 +9,7 @@ import ch.qos.logback.core.util.FileSize;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
+import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.MkUDPDecoder;
 import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
@@ -173,6 +174,9 @@ public class IOServer extends Thread {
         device.getCommunicationSettings().put("transport", device.getTransport().name());
         ChannelInboundHandlerAdapter decoder = (ChannelInboundHandlerAdapter) applicationContext.getBean("decoder", device, this);
         MkHandler handler = (MkHandler) applicationContext.getBean("handler", device, this);
+        if (device.getTransport() == Transport.UDP) {
+            ((MkUDPDecoder) decoder).setHandler(handler);
+        }
         getDecoders().add(decoder);
         getHandlers().add(handler);
 

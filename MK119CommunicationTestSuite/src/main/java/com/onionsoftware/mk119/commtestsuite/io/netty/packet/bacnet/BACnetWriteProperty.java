@@ -29,7 +29,6 @@ public class BACnetWriteProperty extends BACnetPacket {
         this.setBvlc_len(packet.getBvlc_len());
         this.setBacnetNPDU(packet.getBacnetNPDU());
         this.setBacnetAPDU(packet.getBacnetAPDU());
-        this.setSender(packet.getSender());
     }
 
     public ByteBuf encodeBACnetWritePropertyResponse(Device device) {

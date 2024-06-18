@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 import static com.onionsoftware.mk119.commtestsuite.io.netty.tool.BACnetByteBufUtils.*;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,6 @@ public class BACnetDecoder extends MkUDPDecoder {
         ByteBuf in = msg.content();
 
         BACnetPacket bacnet = new BACnetPacket();
-        bacnet.setSender(msg.sender());
 
         // BACnet Virtual Link Control 디코딩
         bacnet.setBvlc_type(in.readByte());
@@ -105,6 +105,7 @@ public class BACnetDecoder extends MkUDPDecoder {
                         whois.setDeviceInstanceRangeLowLimit(deviceInstanceRangeHighLimit);
                     }
                     bacnet = whois;
+                    super.getHandler().setSender(new InetSocketAddress(super.getHandler().getTarget().getDevice().getCommunicationSettings().get("broadcast").toString(), 0xbac0));
                 }
             } else if (bacnetAPDU.getType() == BACNET_APDU_TYPE_CONFIRMED_REQ) {
                 bacnetAPDU.setFlags((byte) (apduType_pduFlags & 0xf));

@@ -7,11 +7,11 @@
 
     <!-- Google Font: Source Sans Pro -->
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
     <!-- Theme style -->
-    <link rel="stylesheet" href="/css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
     <!-- JSON Editor -->
-    <link href="/plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
+    <link href="../../plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
 
     <script th:inline="javascript">
         /*<![CDATA[*/
@@ -30,10 +30,10 @@
 
         function onload() {
             device = [[${device}]];
-            simulation = [[${simulation}]];
+            simulation = [[${simulation}]] == null ? undefined : [[${simulation}]];
 
             policyEditor = new JSONEditor(document.getElementById("policyEditor"), {});
-            if(simulation == null) {
+            if(!simulation) {
                 policyEditor.set(policyExample);
                 $('#title').text("Add simulation to '" + device.name + "'");
                 $('#menuText').text('Add simulation');
@@ -70,11 +70,11 @@
                 type: simulation == null ? 'PUT' : 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(sim),
-                success: function (data) {
+                success: function () {
                     location.href = '/simulations';
                 },
-                error: function (request, status, error) {
-
+                error: function (request) {
+                    alert(request.status + request.responseText);
                 }
             });
         }
@@ -91,7 +91,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="index3.html" class="nav-link">Home</a>
+                <a href="../../index3.html" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -134,7 +134,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="index3.html" class="brand-link">
+        <a href="../../index3.html" class="brand-link">
             <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -263,18 +263,18 @@
 <!-- ./wrapper -->
 
 <!-- jQuery -->
-<script src="/plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/jquery/jquery.min.js"></script>
 <!-- jQuery UI 1.11.4 -->
-<script src="/plugins/jquery-ui/jquery-ui.min.js"></script>
+<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
 <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
 <script>
     $.widget.bridge('uibutton', $.ui.button)
 </script>
 <!-- Bootstrap 4 -->
-<script src="/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
-<script src="/js/adminlte.js"></script>
+<script src="../../js/adminlte.js"></script>
 <!-- JSON Editor -->
-<script src="/plugins/jsoneditor/js/jsoneditor.min.js"></script>
+<script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
 </body>
 </html>
