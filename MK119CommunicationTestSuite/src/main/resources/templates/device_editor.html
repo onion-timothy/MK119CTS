@@ -197,11 +197,13 @@
                         document.getElementById("dbPassword").value = communicationSettings.dbPassword;
                         $('#dbDatabase').val(communicationSettings.dbDatabase);
                     }
+                } else if (protocol === 9) {
+                    showForm('formEthernetIP');
                 }
             }
         }
 
-        let formIds = ['formGeneric', 'formModbus', 'formLSISXGT', 'formMKRCU', 'formSNMP', 'formBACnet', 'formMKOPCAgent', 'formDB'];
+        let formIds = ['formGeneric', 'formModbus', 'formLSISXGT', 'formMKRCU', 'formSNMP', 'formBACnet', 'formMKOPCAgent', 'formDB', 'formEthernetIP'];
 
         function showForm(formId) {
             for (let i = 0; i < formIds.length; i++) {
@@ -316,6 +318,7 @@
                 }
                 if(communicationSettings.broadcast === ''){
                     alert('BACnet broadcast address cannot be empty.')
+                    return
                 }
             } else if (dev.intProtocol === 7) {
                 communicationSettings.registers = $('#agentTagsCount').val();
@@ -332,18 +335,30 @@
 
                 if(communicationSettings.dbdriver === ''){
                     alert('DB Driver cannot be empty.')
+                    return
                 }
                 if(communicationSettings.dbUrl === ''){
                     alert('DB URL cannot be empty.')
+                    return
                 }
                 if(communicationSettings.dbUsername === ''){
                     alert('DB Username cannot be empty.')
+                    return
                 }
                 if(communicationSettings.dbPassword === ''){
                     alert('DB Password cannot be empty.')
+                    return
                 }
                 if(communicationSettings.dbDatabase === ''){
                     alert('DB name cannot be empty.')
+                    return
+                }
+            } else if (dev.intProtocol === 9) {
+                communicationSettings.cpuSlot = $('#cpuSlot').val();
+
+                if(communicationSettings.cpuSlot === ''){
+                    alert('CPU slot number cannot be empty.')
+                    return
                 }
             }
 
@@ -593,6 +608,7 @@
                                                         <option value="6">BACnet</option>
                                                         <option value="7">MK OPC Agent</option>
                                                         <option value="8">DB</option>
+                                                        <option value="9">Ethernet/IP</option>
                                                     </select>
                                                     <div class="form-group">
                                                         <label for="host">Host</label>
@@ -777,6 +793,12 @@
                                                         <input type="text" class="form-control form-control-border"
                                                                id="dbDatabase"
                                                                placeholder="Database name to access">
+                                                    </div>
+                                                </div>
+                                                <div id="formEthernetIP" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="cpuSlot">CPU slot number</label>
+                                                        <input type="number" class="form-control form-control-border" id="cpuSlot" placeholder="CPU slot number in backplane" oninput="this.value|=0">
                                                     </div>
                                                 </div>
                                                 <button class="btn btn-primary mt-5" onclick="stepper.previous()">

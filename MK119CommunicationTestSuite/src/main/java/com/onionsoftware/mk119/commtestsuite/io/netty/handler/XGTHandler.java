@@ -118,23 +118,6 @@ public class XGTHandler extends MkHandler {
                     }
                 }
             }
-            ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-            Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-            if (errorSimulation != null) {
-                ErrorResult _ret = errorSimulation.performErrorSimulation(out);
-                switch (_ret.getResultType()) {
-                    case ErrorResult.RESULT_TYPE_DISCONNECT:
-                        ctx.close();
-                        break;
-                    case ErrorResult.RESULT_TYPE_TIMEOUT:
-                    case ErrorResult.RESULT_TYPE_GARBAGE:
-                        out = _ret.getBufToWrite();
-                        break;
-                    case ErrorResult.RESULT_TYPE_DISCARD:
-                        return;
-                }
-            }
-
             sendBuffer = out.copy();
             super.channelRead(ctx, msg);
         }

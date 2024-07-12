@@ -106,10 +106,10 @@ public class BACnetHandler extends MkHandler {
                                     device,
                                     writeProperty.getBacnetAPDU().getInvoke_id(),
                                     writeProperty.getBacnetAPDU().getService_choice());
+                            }
                         }
                     }
-                }
-            } else return;
+                } else return;
             super.channelRead(ctx, msg);
         }
     }

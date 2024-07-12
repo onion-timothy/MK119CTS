@@ -80,5 +80,4 @@ public class ModbusData implements ServerData {
     public void setInput_status(boolean value, int input) {
         input_status.set(input, value);
     }
-
 }

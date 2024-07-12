@@ -11,7 +11,8 @@ public enum Protocol {
     SNMP(5),
     BACNET(6),
     OPC_AGENT(7),
-    DB(8);
+    DB(8),
+    ETHERNET_IP(9);
     final private int value;
 
     Protocol(int value) {
@@ -22,5 +23,5 @@ public enum Protocol {
         return this.value;
     }
 
-    public static final List<Protocol> NETTY_PROTOCOLS = Arrays.asList(GENERIC, MODBUS, XGT_PLC, DAEYUN_RCU, SNMP, OPC_AGENT);
+    public static final List<Protocol> NETTY_PROTOCOLS = Arrays.asList(GENERIC, MODBUS, XGT_PLC, DAEYUN_RCU, SNMP, OPC_AGENT, ETHERNET_IP);
 }

@@ -21,11 +21,6 @@ public class OPCAgentDecoder extends MkDecoder {
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
-        ctx.fireChannelActive();
-    }
-    @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         super.decode(ctx, in, out);
         if (in.readableBytes() == 3) {

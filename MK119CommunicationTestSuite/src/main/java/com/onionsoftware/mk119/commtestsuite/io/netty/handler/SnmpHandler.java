@@ -45,24 +45,6 @@ public class SnmpHandler extends MkHandler {
             ByteBuf buffer = Unpooled.buffer();
             try {
                 buffer.writeBytes(SnmpPdu.encodePdu(ret));
-
-                ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-                Error errorSimulation = errorService.selectErrorByDeviceId(target.getDevice().getId());
-                if (errorSimulation != null) {
-                    ErrorResult _ret = errorSimulation.performErrorSimulation(buffer);
-                    switch (_ret.getResultType()) {
-                        case ErrorResult.RESULT_TYPE_DISCONNECT:
-                            ctx.close();
-                            break;
-                        case ErrorResult.RESULT_TYPE_TIMEOUT:
-                        case ErrorResult.RESULT_TYPE_GARBAGE:
-                            buffer = _ret.getBufToWrite();
-                            break;
-                        case ErrorResult.RESULT_TYPE_DISCARD:
-                            return;
-                    }
-                }
-
                 sendBuffer = buffer.copy();
                 super.channelRead(ctx, msg);
             } catch (SnmpEncodingException e) {

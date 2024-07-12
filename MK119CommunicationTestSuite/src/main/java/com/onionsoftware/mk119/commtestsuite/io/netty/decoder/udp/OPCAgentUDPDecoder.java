@@ -23,12 +23,6 @@ public class OPCAgentUDPDecoder extends MkUDPDecoder {
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
-        ctx.fireChannelActive();
-    }
-
-    @Override
     protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
         super.decode(ctx, msg, out);
         ByteBuf in = msg.content();

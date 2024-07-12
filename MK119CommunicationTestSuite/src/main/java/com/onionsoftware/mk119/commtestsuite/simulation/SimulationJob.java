@@ -15,6 +15,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
+import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
@@ -70,9 +71,6 @@ public class SimulationJob implements Runnable {
                             } else if (function == Modbus.FC_03) {
                                 modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
                             } else if (function == Modbus.FC_04) {
-                                if(register == 2400){
-                                    LoggerFactory.getLogger("io").info("register 2400 value : {}", value);
-                                }
                                 modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
                             }
                         } catch (NumberFormatException e) {
@@ -111,20 +109,6 @@ public class SimulationJob implements Runnable {
                             } catch (Exception e) {
                                 MkLogger.log("simulation", e, "XGTPLC data set error.");
                             }
-
-
-                            /*
-                            String[] targetTokens = simulation.getTarget().split("B");
-                            String block = targetTokens[0];
-                            int address = Integer.parseInt(targetTokens[1]);
-
-                            try {
-                                xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, address);
-                            } catch (Exception e) {
-                                MkLogger.log("simulation", e, "XGTPLC data set error.");
-                            }
-
-                             */
                         } catch (NumberFormatException e) {
                             MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for XGTPLC simulation device {1}({2}). Format target to {Block}B{Address}.", getSimulation().getTarget(), device.getName(), device.getId());
                         }
@@ -150,6 +134,9 @@ public class SimulationJob implements Runnable {
                     } else if (serverData instanceof SnmpData) {
                         SnmpData snmpData = (SnmpData) serverData;
                         snmpData.getOidValueMap().put(simulation.getTarget(), value);
+                    } else if (serverData instanceof EthernetIPData) {
+                        EthernetIPData ethernetIPData = (EthernetIPData) serverData;
+                        ethernetIPData.putTagValue(simulation.getTarget(), value);
                     }
                 }
             }

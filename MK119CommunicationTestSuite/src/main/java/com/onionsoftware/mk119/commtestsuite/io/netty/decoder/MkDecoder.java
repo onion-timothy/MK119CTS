@@ -32,6 +32,7 @@ public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecode
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         this.context = ctx;
+        ctx.fireChannelActive();
     }
 
     @Override

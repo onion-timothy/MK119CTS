@@ -34,6 +34,7 @@ dependencies {
 
 	annotationProcessor 'org.projectlombok:lombok'
 	implementation files('lib/ireasoningsnmp.jar')
+	implementation files('lib/etherip-1.0.0.jar')
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 }
 

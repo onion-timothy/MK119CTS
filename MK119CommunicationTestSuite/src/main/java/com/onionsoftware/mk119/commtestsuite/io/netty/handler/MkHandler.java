@@ -74,6 +74,7 @@ public class MkHandler extends ChannelInboundHandlerAdapter {
             sendBuffer.release();
             txCounter++;
         }
+        sendBuffer = null;
     }
 
     @Override

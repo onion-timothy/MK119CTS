@@ -38,6 +38,7 @@ public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacke
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         this.context = ctx;
+        ctx.fireChannelActive();
     }
 
     @Override

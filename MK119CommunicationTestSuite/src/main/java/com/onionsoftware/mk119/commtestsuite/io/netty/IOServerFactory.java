@@ -50,6 +50,8 @@ public class IOServerFactory {
                 return new OPCAgentData(size);
             case SNMP:
                 return new SnmpData();
+            case ETHERNET_IP:
+                return new EthernetIPData();
             default:
                 return null;
         }
