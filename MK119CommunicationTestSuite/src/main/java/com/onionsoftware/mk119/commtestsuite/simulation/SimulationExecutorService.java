@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class SimulationExecutorService extends ThreadPoolExecutor {
     Map<Integer, Simulation> executingSimulations;
-    Map<Integer, Thread> threads;
+    final Map<Integer, Thread> threads;
     Logger logger = LoggerFactory.getLogger("simulation");
 
     public SimulationExecutorService() {
@@ -29,7 +29,9 @@ public class SimulationExecutorService extends ThreadPoolExecutor {
     protected void beforeExecute(Thread t, Runnable r) {
         if (r instanceof SimulationJob) {
             SimulationJob job = (SimulationJob) r;
-            threads.put(job.getSimulation().getId(), t);
+            synchronized (threads) {
+                threads.put(job.getSimulation().getId(), t);
+            }
         }
     }
 
@@ -50,16 +52,20 @@ public class SimulationExecutorService extends ThreadPoolExecutor {
                 logger.error("Interval interrupted.", e);
                 executingSimulations.remove(job.getSimulation().getId());
             } finally {
-                threads.remove(job.getSimulation().getId());
+                synchronized (threads) {
+                    threads.remove(job.getSimulation().getId());
+                }
             }
         }
     }
 
     public void terminateJob(int id) {
-        Thread thread = threads.get(id);
-        if (thread != null) {
-            threads.get(id).interrupt();
-            threads.remove(id);
+        synchronized (threads) {
+            Thread thread = threads.get(id);
+            if (thread != null) {
+                thread.interrupt();
+                threads.remove(id);
+            }
         }
     }
 }

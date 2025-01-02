@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.persistence.EntityNotFoundException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -93,10 +94,7 @@ public class BACnetReadProperty extends BACnetPacket {
             if (oid.getObject_type() == BACNET_OBJECT_TYPE_device) {
                 write = device.getName();
             } else if (BACNET_OBJECT_TYPE_SUPPORTED.contains((byte) oid.getObject_type())) {
-                Optional<Simulation> simulationOpt = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(oid)).findAny();
-                if (simulationOpt.isPresent()) {
-                    write = simulationOpt.get().getTarget();
-                }
+                write = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(oid)).findAny().orElseThrow(EntityNotFoundException::new).getTarget();
             }
             if (!write.isEmpty()) {
                 BACnetCharacterString name = new BACnetCharacterString(write, BACNET_CHARACTER_STRING_ENCODING_UTF8);
@@ -139,5 +137,9 @@ public class BACnetReadProperty extends BACnetPacket {
         writeBACnetTag(buf_apdu, closingTag);
         mergeBACnetBuffers(buf, buf_bvlc, buf_npdu, buf_apdu);
         return buf;
+    }
+
+    private static String getEmptyString(){
+        return "";
     }
 }

@@ -1,53 +1,53 @@
 package com.onionsoftware.mk119.commtestsuite.db.bean;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.onionsoftware.mk119.commtestsuite.db.bean.converter.JsonStringConfigMapConverter;
+import com.onionsoftware.mk119.commtestsuite.db.bean.converter.ProtocolIntegerConverter;
+import com.onionsoftware.mk119.commtestsuite.db.bean.converter.TransportIntegerConverter;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.Type;
+import javax.persistence.*;
+import java.util.List;
 import java.util.Map;
 
 @Component
 @Getter
 @Setter
+@Entity
+@Table(name = "devices", uniqueConstraints = {@UniqueConstraint(columnNames = {"name", "group_id"})})
 public class Device {
-    private int id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+    @Convert(converter = TransportIntegerConverter.class)
     private Transport transport;
-    private int intTransport;
+    @Convert(converter = ProtocolIntegerConverter.class)
     private Protocol protocol;
-    private int intProtocol;
     private String host;
-    private int port;
+    private Integer port;
     private String name;
-    private int enabled;
-    private int group_id;
-    private int log;
+    private Integer enabled;
+    @ManyToOne
+    @JoinColumn(name = "group_id")
+    private Group group;
+    private Integer log;
 
-    private String strCommunicationSettings;
+    @Convert(converter = JsonStringConfigMapConverter.class)
+    @Column(columnDefinition = "TEXT")
     private Map<Object, Object> communicationSettings;
-
-    static Gson parser = new Gson();
-
-    public void setIntTransport(int transport) {
-        this.transport = Transport.values()[transport - 1];
-        this.intTransport = transport;
-    }
-
-    public void setIntProtocol(int protocol) {
-        this.protocol = Protocol.values()[protocol - 1];
-        this.intProtocol = protocol;
-    }
-
-    public void setStrCommunicationSettings(String strCommunicationSettings) {
-        this.strCommunicationSettings = strCommunicationSettings;
-        Type map = new TypeToken<Map<Object, Object>>() {}.getType();
-        this.communicationSettings = parser.fromJson(this.strCommunicationSettings, map);
-    }
 
     public static final int DEVICE_ENABLED = 1;
     public static final int DEVICE_DISABLED = 0;
+
+    @OneToMany(mappedBy = "device", cascade = CascadeType.REMOVE)
+    @JsonIgnore
+    private List<Simulation> simulations;
+
+    @OneToMany(mappedBy = "device", cascade = CascadeType.REMOVE)
+    @JsonIgnore
+    private List<Error> errors;
 }

@@ -20,7 +20,7 @@ public class OPCAgentHandler extends MkHandler {
     private static final int DEFAULT_TAGS_LENGTH = 1023;
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof OPCAgent) {
             OPCAgentData opcAgentData = (OPCAgentData) target.getServerData();
             OPCAgent opc = (OPCAgent) msg;
@@ -47,7 +47,6 @@ public class OPCAgentHandler extends MkHandler {
             out.writeByte(sum & 0xff);
 
             sendBuffer = out.copy();
-            super.channelRead(ctx, msg);
         }
     }
 }

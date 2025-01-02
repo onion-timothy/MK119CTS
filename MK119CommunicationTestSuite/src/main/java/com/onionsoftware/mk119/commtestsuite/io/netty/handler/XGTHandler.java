@@ -1,9 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
-import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
-import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
@@ -29,7 +26,7 @@ public class XGTHandler extends MkHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         ByteBuf out;
 
         if (msg instanceof XGT) {
@@ -119,7 +116,6 @@ public class XGTHandler extends MkHandler {
                 }
             }
             sendBuffer = out.copy();
-            super.channelRead(ctx, msg);
         }
     }
 

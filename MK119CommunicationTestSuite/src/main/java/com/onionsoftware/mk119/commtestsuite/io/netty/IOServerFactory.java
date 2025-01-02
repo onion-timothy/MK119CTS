@@ -22,7 +22,7 @@ public class IOServerFactory {
     public IOServer ioServer(Device device) {
         device.getCommunicationSettings().put("transport", device.getTransport().name());
         ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
-        IOServer ioServer = new IOServer(device, errorService.selectErrorByDeviceId(device.getId()));
+        IOServer ioServer = new IOServer(device, errorService.selectEnabledErrorsByDeviceId(device.getId()));
         ioServer.setServerData(serverData(device));
         return ioServer;
     }

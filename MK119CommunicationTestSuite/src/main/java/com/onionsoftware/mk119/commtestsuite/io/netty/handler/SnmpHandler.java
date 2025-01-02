@@ -26,7 +26,7 @@ public class SnmpHandler extends MkHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof SnmpPdu) {
             SnmpPdu packet = (SnmpPdu) msg;
 
@@ -46,7 +46,6 @@ public class SnmpHandler extends MkHandler {
             try {
                 buffer.writeBytes(SnmpPdu.encodePdu(ret));
                 sendBuffer = buffer.copy();
-                super.channelRead(ctx, msg);
             } catch (SnmpEncodingException e) {
                 throw new RuntimeException(e);
             }
@@ -86,7 +85,7 @@ public class SnmpHandler extends MkHandler {
                 ret.add(snmpVarBind);
                 double valueToWrite = Double.parseDouble(snmpVarBind.getValue().toString());
                 snmpData.getOidValueMap().put(oid.toString(), valueToWrite);
-                if(simulation.getPolicies().get(0).isStopOnControl()){
+                if (simulation.getPolicies().get(0).isStopOnControl()) {
                     simulation.setEnabled(Simulation.DISABLED);
                     simulationService.updateSimulation(simulation);
                 }

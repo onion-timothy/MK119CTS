@@ -48,7 +48,7 @@ public class IOServer extends Thread {
     private List<ChannelInboundHandlerAdapter> decoders;
     private List<ChannelInboundHandlerAdapter> handlers;
 
-    private final Error errorSimulation;
+    private List<Error> errors;
 
     @Autowired
     IOServerFactory ioServerFactory;
@@ -59,7 +59,7 @@ public class IOServer extends Thread {
 
     private Logger packetLogger;
 
-    public IOServer(Device device, Error errorSimulation) {
+    public IOServer(Device device, List<Error> errors) {
         this.device = device;
         this.setName(device.getName() + "[" + device.getHost() + ":" + device.getPort() + "(" + device.getTransport() + ")]");
 
@@ -106,7 +106,7 @@ public class IOServer extends Thread {
             }
         }
 
-        this.errorSimulation = errorSimulation;
+        this.errors = errors;
     }
 
     @Override

@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.db.bean;
 
+import com.google.common.primitives.UnsignedBytes;
+import com.onionsoftware.mk119.commtestsuite.db.bean.converter.ErrorModeIntegerConverter;
 import com.onionsoftware.mk119.commtestsuite.enums.ErrorMode;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -7,27 +9,60 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
 
+import javax.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 @Component
 @Getter
 @Setter
+@Entity
+@Table(name = "errors")
 public class Error {
-    private int device_id;
-    private int intMode;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+
+    @ManyToOne
+    @JoinColumn(name = "device_id")
+    private Device device;
+
+    @Convert(converter = ErrorModeIntegerConverter.class)
     private ErrorMode mode;
+
     private int frequency;
     private int enabled;
     private int timeout;
     private int garbageLength;
 
+    @OneToOne
+    @JoinColumn(name = "simulation_id")
+    private Simulation simulation;
+    private Double errorValue;
+    private Integer simulation_stop;
+
     public static final int ERROR_DISABLED = 0;
     public static final int ERROR_ENABLED = 1;
+
     static Random random = new Random();
 
-    public void setIntMode(int intMode) {
-        this.intMode = intMode;
-        this.mode = ErrorMode.values()[intMode];
+    public static Error getOccuredError(List<Error> errors) {
+        int[] cumulativeFrequencies = new int[errors.size()];
+        int freqTotal = 0;
+        for (int i = 0; i < errors.size(); i++) {
+            freqTotal += errors.get(i).getFrequency();
+            cumulativeFrequencies[i] = freqTotal;
+        }
+
+        int flag = random.nextInt(100);
+        for (int i = 0; i < cumulativeFrequencies.length; i++) {
+            if(flag < cumulativeFrequencies[i] && errors.get(i).getEnabled() == ERROR_ENABLED) {
+                return errors.get(i);
+            }
+        }
+
+        return null;
     }
 
     /**

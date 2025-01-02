@@ -19,17 +19,24 @@
     <link rel="stylesheet" href="../../plugins/bootstrap4-duallistbox/bootstrap-duallistbox.min.css">
     <link rel="stylesheet" href="../../plugins/jquery-contextmenu/css/jquery.contextMenu.min.css">
 
+    <!-- JSON Editor -->
+    <link href="../../plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
+
     <script>
         /*<![CDATA[*/
         let devicesTable;
         let simulationsTable;
         let tree;
         let device_id;
-        let simulations;
+        let simulationsToUpload = [];
         let deviceSelected = '[[${device}]]';
         let devices = [];
         let copyDevicesBox;
         let excelTable;
+
+        let editors = {};
+
+        let currentSimulations;
 
         String.format = function () {
             let args = arguments;
@@ -41,7 +48,7 @@
 
         function getDevice(device_id) {
             let device = devices.filter((device) => device.id === parseInt(device_id))
-            if(device.length > 0) return device[0];
+            if (device.length > 0) return device[0];
             else return null;
         }
 
@@ -93,7 +100,7 @@
                 let file = e.target.files[0];
                 let reader = new FileReader();
                 reader.onload = function () {
-                    if(excelTable) {
+                    if (excelTable) {
                         excelTable.destroy()
                     }
                     let fileData = reader.result;
@@ -101,17 +108,37 @@
                     $('#excelTableModal').modal('show');
                     $('#excelObjects > tbody').empty();
                     simulations = [];
+
                     wb.SheetNames.forEach(function (sheetName) {
                         let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
                         rowObj.forEach(function (obj) {
-                            let markup = String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
+                            let policies = [];
+                            let simulationPolicy = {};
+                            const keysToCopy = ['id', 'policy', 'data_type', 'value', 'stopOnControl'];
+                            keysToCopy.forEach(key => {
+                                if (key in obj) {
+                                    simulationPolicy[key] = obj[key];
+                                }
+                            })
+                            obj.id = null;
+                            if (obj.range !== null) {
+                                simulationPolicy.range = [];
+                                let range = obj.range.split(',');
+                                range.forEach(boundary => {
+                                    simulationPolicy.range.push(parseInt(boundary))
+                                });
+                            }
+                            policies.push(simulationPolicy);
+                            let markup = String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td><div id='{1}_editor'></div></td><td>{4}</td><td>{5}</td></tr>",
                                 '',
-                                obj.Target,
-                                obj.SimulationPolicy,
-                                obj.Interval,
-                                obj.Enabled);
+                                obj.name,
+                                obj.target,
+                                '',
+                                obj.interval,
+                                obj.enabled);
                             $('#excelObjects').append(markup);
-                            simulations.push(convertObj(obj, device_id))
+                            obj.policies = policies;
+                            simulationsToUpload.push(obj)
                         });
                     });
                     excelTable = $('#excelObjects').DataTable({
@@ -123,20 +150,15 @@
                         "autoWidth": false,
                         "responsive": true,
                     });
+
+                    simulationsToUpload.forEach(simlation => {
+                        editors[simlation.name] = new JSONEditor(document.getElementById(simlation.name + "_editor"), {});
+                        editors[simlation.name].set(simlation.policies);
+                    })
                 };
                 reader.readAsBinaryString(file);
                 $('#excel').val('');
             });
-        }
-
-        function convertObj(obj, devid) {
-            let ret = {};
-            ret.device_id = devid;
-            ret.target = obj.Target;
-            ret.strPolicy = obj.SimulationPolicy;
-            ret.interval = obj.Interval;
-            ret.enabled = obj.Enabled === 'Enabled' ? 1 : 0;
-            return ret;
         }
 
         function viewSimulations(id) {
@@ -146,32 +168,51 @@
                 simulationsTable.destroy();
 
             let device = getDevice(id);
-            if(device != null)
+            if (device != null)
                 $('#device-title').text('Simulations of ' + device.name)
+
+            currentSimulations = []
 
             $.ajax({
                 url: '/api/simulation/simulations/' + id,
                 type: 'GET',
                 success: function (data) {
+                    currentSimulations = data;
                     let table = $('#simulationsTable');
                     $('#simulationsTable > tbody').empty();
 
-                    for (let i = 0; i < data.length; i++) {
-                        $.contextMenu('destroy', '.tr_selector-' + data[i].id);
+                    $.contextMenu('destroy', '#simulationsTable');
 
-                        let policy = JSON.parse(data[i].strPolicy);
+                    for (let i = 0; i < data.length; i++) {
+                        let policy = data[i].policies;
                         let policies = [];
                         for (let j = 0; j < policy.length; j++) {
                             policies.push(policy[j].policy);
                         }
                         let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleSimulation(" + data[i].id + "," + data[i].enabled + ")'></button>"
-                        let markup = "<tr class='tr_selector-" + data[i].id + "' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
+                        let markup = "<tr id='sim_" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].name + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
                         table.append(markup);
+                    }
 
-                        $.contextMenu({
-                            selector: '.tr_selector-' + data[i].id,
-                            callback: function (key, options) {
-                                let id = parseInt(options.selector.split('-')[1])
+                    simulationsTable = table.DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+
+                    $(function () {
+                        $('#simulationsTable').contextMenu({
+                            selector: 'td',
+                            callback: function (key) {
+                                let row = $(this).parent().attr('id');
+                                let id
+                                if (typeof (row) != 'undefined') {
+                                    id = parseInt($(this).parent().attr('id').split('_')[1])
+                                }
                                 if (key === 'edit') {
                                     if (typeof (id) != 'undefined') {
                                         location.href = '/editSimulation/' + id;
@@ -223,42 +264,40 @@
                                         }
                                     }
                                 } else if (key === 'copy') {
-                                    copyDevicesBox = $('#duallistbox').bootstrapDualListbox({
-                                        nonSelectedListLabel: 'List of devices(with same protocol)',
-                                        selectedListLabel: 'Devices to copy',
-                                        preserveSelectionOnMove: 'moved',
-                                        moveOnSelect: false,
-                                    })
+                                    if (typeof (id) != 'undefined') {
+                                        copyDevicesBox = $('#duallistbox').bootstrapDualListbox({
+                                            nonSelectedListLabel: 'List of devices(with same protocol)',
+                                            selectedListLabel: 'Devices to copy',
+                                            preserveSelectionOnMove: 'moved',
+                                            moveOnSelect: false,
+                                        })
 
-                                    copyDevicesBox.empty()
+                                        copyDevicesBox.empty()
 
-                                    devices.forEach((d) => {
-                                        if (parseInt(d.id) !== parseInt(device_id) && d.protocol === device.protocol) {
-                                            copyDevicesBox.append('<option value="' + d.id + '">' + d.name + '</option>')
-                                        }
-                                    })
-                                    copyDevicesBox.bootstrapDualListbox('refresh');
-                                    $('#simulationCopyModal').modal('show');
+                                        devices.forEach((d) => {
+                                            if (parseInt(d.id) !== parseInt(device_id) && d.protocol === device.protocol) {
+                                                copyDevicesBox.append('<option value="' + d.id + '">' + d.name + '</option>')
+                                            }
+                                        })
+                                        copyDevicesBox.bootstrapDualListbox('refresh');
+                                        $('#simulationCopyModal').modal('show');
+                                    }
+                                } else if (key === 'add') {
+                                    location.href = '/addSimulation/' + device_id;
+                                } else if (key === 'addBatch') {
+                                    $('#excel').click();
                                 }
                             },
                             items: {
+                                "add": {name: "Add simulation", icon: "fas fa-plus"},
+                                "addBatch": {name: "Add simulation(batch)", icon: "fas fa-file-excel"},
                                 "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
                                 "edit": {name: "Edit simulation", icon: "fas fa-pen"},
                                 "delete": {name: "Delete simulation", icon: "fas fa-trash"},
                                 "copy": {name: "Copy simulations", icon: "fas fa-copy"}
                             }
                         });
-                    }
-
-                    simulationsTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
+                    })
                 }
             });
         }
@@ -280,7 +319,8 @@
         }
 
         function performUpload() {
-            simulations.forEach(function (simulation) {
+            simulationsToUpload.forEach(function (simulation) {
+                simulation.device = {"id": device_id};
                 $.ajax({
                     url: '/api/simulation/addSimulation',
                     type: 'PUT',
@@ -296,7 +336,6 @@
         }
 
         function copySimulations() {
-            console.log(copyDevicesBox.val())
             if (copyDevicesBox.val().length > 0) {
                 $.ajax({
                     url: '/api/simulation/copySimulation/' + device_id,
@@ -314,6 +353,32 @@
             } else {
                 alert('Device not selected.')
             }
+        }
+
+        function generateTemplate() {
+            let output = [];
+            currentSimulations.forEach(simulation => {
+                let out = {};
+                out.name = simulation.name;
+                out.target = simulation.target;
+                out.id = simulation.policies[0].id
+                out.policy = simulation.policies[0].policy;
+                out.data_type = simulation.policies[0].data_type;
+                out.range = null;
+                if (simulation.policies[0].range !== null) {
+                    out.range = simulation.policies[0].range.join(',')
+                }
+                out.value = simulation.policies[0].value === null ? 'null' : simulation.policies[0].value;
+                out.stopOnControl = simulation.policies[0].stopOnControl;
+                out.interval = simulation.interval;
+                out.enabled = simulation.enabled;
+                output.push(out);
+            })
+            const headers = ['name','target','id','policy','data_type','range','value','stopOnControl','interval','enabled'];
+            const worksheet = XLSX.utils.json_to_sheet(output, {header: headers});
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+            XLSX.writeFile(workbook, "simulations_template.xlsx");
         }
 
         /*]]>*/
@@ -335,7 +400,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="../../index3.html" class="nav-link">Home</a>
+                <a href="/" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -346,25 +411,10 @@
         <ul class="navbar-nav ml-auto">
             <!-- Navbar Search -->
             <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
+                <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip"
+                   data-placement="bottom" title="Export to template">
+                    <i class="fas fa-download"></i>
                 </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
             </li>
             <li class="nav-item">
                 <a class="nav-link" data-widget="fullscreen" href="#" role="button">
@@ -378,7 +428,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="../../index3.html" class="brand-link">
+        <a href="#" class="brand-link">
             <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -489,16 +539,10 @@
                             </div>
                             <!-- /.card-header -->
                             <div class="card-body p-2">
-                                <button  class="btn btn-primary" data-toggle="tooltip" data-placement="right" title="Add simulation" onclick="location.href = '/addSimulation/' + device_id;">
-                                    <span class="fas fa-plus"></span>
-                                </button>
-                                <button  class="btn btn-success" data-toggle="tooltip" data-placement="right" title="Add simulation(batch)" onclick="$('#excel').click();">
-                                    <span class="fas fa-file-excel"></span>
-                                </button>
-
                                 <table id="simulationsTable" class="table table-bordered table-hover">
                                     <thead>
                                     <th>ID</th>
+                                    <th>Name</th>
                                     <th>Target</th>
                                     <th>Policy</th>
                                     <th>Interval</th>
@@ -530,6 +574,7 @@
                         <table class="table table-bordered" id="excelObjects" style="overflow-y: auto;">
                             <thead>
                             <tr>
+                                <th>Name</th>
                                 <th>Target</th>
                                 <th>Simulation Policy</th>
                                 <th>Interval</th>
@@ -557,7 +602,8 @@
 
 
         <!-- excel table modal -->
-        <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog" aria-labelledby="simulationCopyModalLabel"
+        <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog"
+             aria-labelledby="simulationCopyModalLabel"
              aria-hidden="true">
             <div class="modal-dialog" role="document" style="max-width:fit-content">
                 <div class="modal-content">
@@ -571,7 +617,8 @@
                         </label>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button" onclick="$('#simulationCopyModal').modal('hide')">
+                        <button class="btn btn-secondary" type="button"
+                                onclick="$('#simulationCopyModal').modal('hide')">
                             Cancel
                         </button>
                         <button class="btn btn-primary" type="button" onclick="copySimulations()">Copy</button>
@@ -622,5 +669,7 @@
 <script src="../../plugins/jquery-contextmenu/js/jquery.contextMenu.min.js"></script>
 <script src="../../plugins/jquery-contextmenu/js/jquery.ui.position.js"></script>
 <script src="../../plugins/bootstrap4-duallistbox/jquery.bootstrap-duallistbox.min.js"></script>
+<!-- JSON Editor -->
+<script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
 </body>
 </html>

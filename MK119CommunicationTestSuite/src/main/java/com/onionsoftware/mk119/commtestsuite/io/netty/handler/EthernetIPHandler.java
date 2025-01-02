@@ -43,7 +43,7 @@ public class EthernetIPHandler extends MkHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         out.clear();
         if (msg instanceof Encapsulation) {
             Encapsulation encapsulation = (Encapsulation) msg;
@@ -96,7 +96,7 @@ public class EthernetIPHandler extends MkHandler {
                     } else {
                         MessageRouterProtocol mr_res = new MessageRouterProtocol(service, null, new ProtocolAdapter());
                         mr_res.setStatus(4);
-                        mr_res.setExt_status(new int [] {0});
+                        mr_res.setExt_status(new int[]{0});
                         unconnectedSendProtocol.setBody(mr_res);
                     }
                 }
@@ -109,7 +109,6 @@ public class EthernetIPHandler extends MkHandler {
 
             out.flip();
             sendBuffer = Unpooled.wrappedBuffer(out);
-            super.channelRead(ctx, msg);
         }
     }
 
@@ -118,7 +117,7 @@ public class EthernetIPHandler extends MkHandler {
         data.putTagValue(s.getTarget(), value);
 
         if (s.getPolicies().get(0).isStopOnControl()) {
-            simulationService.stopSimulation(getTarget().getDevice(), s);
+            simulationService.stopSimulation(s);
         }
     }
 }

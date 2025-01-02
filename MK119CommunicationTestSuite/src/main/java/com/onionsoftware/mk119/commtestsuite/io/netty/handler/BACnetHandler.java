@@ -33,7 +33,7 @@ public class BACnetHandler extends MkHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof BACnetPacket) {
             if (msg instanceof BACnetWhois) {
                 for (Device device : bacnetService.getBacnetDevices()) {
@@ -106,11 +106,10 @@ public class BACnetHandler extends MkHandler {
                                     device,
                                     writeProperty.getBacnetAPDU().getInvoke_id(),
                                     writeProperty.getBacnetAPDU().getService_choice());
-                            }
                         }
                     }
-                } else return;
-            super.channelRead(ctx, msg);
+                }
+            }
         }
     }
 

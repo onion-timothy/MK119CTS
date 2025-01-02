@@ -16,31 +16,39 @@
     <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
     <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
     <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/bootstrap-slider/css/bootstrap-slider.min.css">
+    <link rel="stylesheet" href="../../plugins/bootstrap4-duallistbox/bootstrap-duallistbox.min.css">
     <link rel="stylesheet" href="../../plugins/jquery-contextmenu/css/jquery.contextMenu.min.css">
-    <style>
-        .slider {
-            width: 95% !important;
-        }
-    </style>
 
     <script>
         /*<![CDATA[*/
         let devicesTable;
+        let simulationsTable;
+        let tree;
         let device_id;
+        let simulationsToUpload = [];
+        let deviceSelected = '[[${device}]]';
+        let devices = [];
+        let copyDevicesBox;
+        let excelTable;
 
-        let frequency;
-        let timeout;
-        let garbageLength;
+        let currentSimulations = [];
+
+        String.format = function () {
+            let args = arguments;
+            return args[0].replace(/{(\d+)}/g, function (match, num) {
+                num = Number(num) + 1;
+                return typeof (args[num]) != 'undefined' ? args[num] : match;
+            });
+        }
+
+        function getDevice(device_id) {
+            let device = devices.filter((device) => device.id === parseInt(device_id))
+            if (device.length > 0) return device[0];
+            else return null;
+        }
 
         function onload() {
-            $('#timeout-from-group').hide();
-            $('#garbage-length-from-group').hide();
-            frequency = $('#frequency').bootstrapSlider();
-            timeout = $('#timeout').bootstrapSlider();
-            garbageLength = $('#garbage-length').bootstrapSlider();
-
-            $('#removeButton').hide()
+            $('[data-toggle="tooltip"]').tooltip()
 
             let tableFirstRowId;
             $.ajax({
@@ -56,6 +64,7 @@
                         if (i === 0) {
                             tableFirstRowId = data[i].id;
                         }
+                        devices.push(data[i]);
                     }
 
                     devicesTable = table.DataTable({
@@ -70,105 +79,253 @@
                 }
             });
 
-            viewSimulations(tableFirstRowId);
+            simulationsTable = $('#simulationsTable').DataTable({
+                "paging": true,
+                "lengthChange": false,
+                "searching": false,
+                "ordering": true,
+                "info": true,
+                "autoWidth": false,
+                "responsive": true,
+            });
+
+            viewSimulations(deviceSelected === '0' ? tableFirstRowId : deviceSelected);
+
+            $('#excel').change(function (e) {
+                let file = e.target.files[0];
+                let reader = new FileReader();
+                reader.onload = function () {
+                    if (excelTable) {
+                        excelTable.destroy()
+                    }
+                    let fileData = reader.result;
+                    let wb = XLSX.read(fileData, {type: 'binary'});
+                    $('#excelTableModal').modal('show');
+                    $('#excelObjects > tbody').empty();
+                    wb.SheetNames.forEach(function (sheetName) {
+                        let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                        rowObj.forEach(function (obj) {
+                            let markup = String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
+                                '',
+                                obj.Target,
+                                obj.SimulationPolicy,
+                                obj.Interval,
+                                obj.Enabled);
+                            $('#excelObjects').append(markup);
+                            simulationsToUpload.push(convertObj(obj, device_id))
+                        });
+                    });
+                    excelTable = $('#excelObjects').DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+                };
+                reader.readAsBinaryString(file);
+                $('#excel').val('');
+            });
         }
 
-        function displayForms(value) {
-            let formTimeout = $('#timeout-from-group');
-            let formGarbageLength = $('#garbage-length-from-group');
-            let mode = parseInt(value);
-            if (mode === 0) {
-                formTimeout.hide();
-                formGarbageLength.hide();
-            } else if(mode === 1) {
-                formTimeout.show();
-                formGarbageLength.hide();
-            } else {
-                formTimeout.hide();
-                formGarbageLength.show();
-            }
+        function convertObj(obj, devid) {
+            let ret = {};
+            ret.device_id = devid;
+            ret.target = obj.Target;
+            ret.policies = obj.SimulationPolicy;
+            ret.interval = obj.Interval;
+            ret.enabled = obj.Enabled === 'Enabled' ? 1 : 0;
+            return ret;
         }
-
-        let currentError;
-        let currentDeviceId;
-        let currentDeviceName;
 
         function viewSimulations(id) {
-            currentDeviceId = id;
-            for (let i = 0; i < devicesTable.rows().count(); i++) {
-                if (devicesTable.cell(i, 0).data() === id) {
-                    currentDeviceName = devicesTable.cell(i, 5).data();
-                }
-            }
+            device_id = id;
+
+            if (simulationsTable)
+                simulationsTable.destroy();
+
+            let device = getDevice(id);
+            if (device != null)
+                $('#device-title').text('Simulations of ' + device.name)
+
             $.ajax({
-                url: '/api/error/' + id,
+                url: '/api/error/errors/' + id,
                 type: 'GET',
-                async: false,
                 success: function (data) {
-                    currentError = data;
-                    displayForms(data.intMode)
-                    if (data !== '') {
-                        $('#removeButton').show();
-                        $('#submitButton').text('Edit')
-                        $('#errorMode').val(data.intMode)
-                        $('#enabled').val(data.enabled)
-                        frequency.bootstrapSlider('setValue', data.frequency)
-                        timeout.bootstrapSlider('setValue', data.timeout)
-                        garbageLength.bootstrapSlider('setValue', data.garbageLength)
-                    } else {
-                        currentError = null;
-                        $('#removeButton').hide();
-                        $('#submitButton').text('Add')
+                    currentSimulations = data;
+                    let table = $('#simulationsTable');
+                    $('#simulationsTable > tbody').empty();
 
-                        $('#errorMode').val(0)
-                        $('#enabled').val(0)
-                        frequency.bootstrapSlider('setValue', 10)
-                        timeout.bootstrapSlider('setValue', 4)
-                        garbageLength.bootstrapSlider('setValue', 36)
+                    $.contextMenu('destroy', '#simulationsTable');
+
+                    for (let i = 0; i < data.length; i++) {
+                        let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleSimulation(" + data[i].id + "," + data[i].enabled + ")'></button>"
+                        let markup = "<tr id='sim_" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].mode + "</td><td>" + data[i].frequency + "</td><td>" + button + "</td></tr>";
+                        table.append(markup);
                     }
+
+                    simulationsTable = table.DataTable({
+                        "paging": true,
+                        "lengthChange": false,
+                        "searching": false,
+                        "ordering": true,
+                        "info": true,
+                        "autoWidth": false,
+                        "responsive": true,
+                    });
+
+                    $(function () {
+                        $('#simulationsTable').contextMenu({
+                            selector: 'td',
+                            callback: function (key) {
+                                let row = $(this).parent().attr('id');
+                                let id
+                                if (typeof (row) != 'undefined') {
+                                    id = parseInt($(this).parent().attr('id').split('_')[1])
+                                }
+                                if (key === 'edit') {
+                                    if (typeof (id) != 'undefined') {
+                                        location.href = '/editError/' + id;
+                                    }
+                                } else if (key === 'delete') {
+                                    if (typeof (id) != 'undefined') {
+                                        if (confirm("Confirm to delete simulation '" + id + "'")) {
+                                            $.ajax({
+                                                url: '/api/error/deleteError/' + id,
+                                                type: 'DELETE',
+                                                contentType: 'application/json',
+                                                success: function () {
+                                                    location.href = '/errors?device=' + device_id;
+                                                },
+                                                error: function (request) {
+                                                    alert(request.status + request.responseText);
+                                                }
+                                            });
+                                        }
+                                    }
+                                } else if (key === 'toggle') {
+                                    if (typeof (id) != 'undefined') {
+                                        let enabled;
+                                        $.ajax({
+                                            url: '/api/error/getEnabled/' + id,
+                                            type: 'GET',
+                                            async: false,
+                                            contentType: 'application/json',
+                                            success: function (data) {
+                                                enabled = data;
+                                            },
+                                            error: function (request) {
+                                                alert(request.status + request.responseText);
+                                            }
+                                        });
+
+                                        if (confirm((enabled ? 'Disable' : 'Enable') + " simulation '" + id + "'?")) {
+                                            $.ajax({
+                                                url: '/api/error/setEnabled/' + id + '/' + (enabled ? 0 : 1),
+                                                type: 'POST',
+                                                contentType: 'application/json',
+                                                success: function () {
+                                                    location.href = '/errors?device=' + device_id;
+                                                },
+                                                error: function (request) {
+                                                    alert(request.status + request.responseText);
+                                                }
+                                            });
+                                        }
+                                    }
+                                } else if (key === 'copy') {
+                                    if (typeof (id) != 'undefined') {
+                                        copyDevicesBox = $('#duallistbox').bootstrapDualListbox({
+                                            nonSelectedListLabel: 'List of devices(with same protocol)',
+                                            selectedListLabel: 'Devices to copy',
+                                            preserveSelectionOnMove: 'moved',
+                                            moveOnSelect: false,
+                                        })
+
+                                        copyDevicesBox.empty()
+
+                                        devices.forEach((d) => {
+                                            if (parseInt(d.id) !== parseInt(device_id) && d.protocol === device.protocol) {
+                                                copyDevicesBox.append('<option value="' + d.id + '">' + d.name + '</option>')
+                                            }
+                                        })
+                                        copyDevicesBox.bootstrapDualListbox('refresh');
+                                        $('#simulationCopyModal').modal('show');
+                                    }
+                                } else if (key === 'add') {
+                                    location.href = '/addError/' + device_id;
+                                }
+                            },
+                            items: {
+                                "add": {name:"Add simulation", icon:"fas fa-plus"},
+                                "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
+                                "edit": {name: "Edit simulation", icon: "fas fa-pen"},
+                                "delete": {name: "Delete simulation", icon: "fas fa-trash"},
+                                "copy": {name: "Copy simulations", icon: "fas fa-copy"}
+                            }
+                        });
+                    })
                 }
             });
         }
 
-        function submit() {
-            let error = {};
-            error.device_id = currentDeviceId;
-            error.intMode = $('#errorMode').val();
-            error.frequency = frequency.bootstrapSlider('getValue');
-            error.timeout = timeout.bootstrapSlider('getValue');
-            error.enabled = $('#enabled').val();
-            error.garbageLength = garbageLength.bootstrapSlider('getValue')
-
-            let api = currentError === null ? '/api/error/addError' : '/api/error/updateError';
-            let method = currentError === null ? 'PUT' : 'POST';
-
-            $.ajax({
-                url: api,
-                type: method,
-                contentType: 'application/json',
-                data: JSON.stringify(error),
-                success: function () {
-                    location.reload()
-                },
-                error: function (request) {
-                    alert(request.status + request.responseText);
-                }
-            });
-        }
-
-        function remove() {
-            if(confirm("Confirm to delete error simulation for device '" + currentDeviceName + "'.")){
+        function toggleSimulation(id, enabled) {
+            if (confirm((enabled === 1 ? 'Disable' : 'Enable') + " simulation '" + id + "'?")) {
                 $.ajax({
-                    url: '/api/error/deleteError/' + currentDeviceId,
-                    type: 'DELETE',
+                    url: '/api/error/setEnabled/' + id + '/' + (enabled === 1 ? 0 : 1),
+                    type: 'POST',
+                    contentType: 'application/json',
                     success: function () {
-                        location.reload()
+                        location.href = '/errors?device=' + device_id;
                     },
                     error: function (request) {
                         alert(request.status + request.responseText);
                     }
                 });
             }
+        }
+
+        function performUpload() {
+            simulationsToUpload.forEach(function (simulation) {
+                $.ajax({
+                    url: '/api/error/addError',
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(simulation),
+                    error: function (request) {
+                        alert(request.status + request.responseText);
+                    },
+                    async: false,
+                });
+            });
+            location.href = '/errors?device=' + device_id;
+        }
+
+        function copySimulations() {
+            console.log(copyDevicesBox.val())
+            if (copyDevicesBox.val().length > 0) {
+                $.ajax({
+                    url: '/api/error/copyError/' + device_id,
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(copyDevicesBox.val()),
+                    success: function () {
+                        location.href = '/errors?device=' + device_id;
+                    },
+                    error: function (request) {
+                        alert(request.status + request.responseText);
+                    },
+                    async: false,
+                });
+            } else {
+                alert('Device not selected.')
+            }
+        }
+
+        function generateTemplate() {
+            console.log(currentSimulations)
         }
 
         /*]]>*/
@@ -190,7 +347,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="../../index3.html" class="nav-link">Home</a>
+                <a href="/" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -200,27 +357,6 @@
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
             <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
-                </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </li>
             <li class="nav-item">
                 <a class="nav-link" data-widget="fullscreen" href="#" role="button">
                     <i class="fas fa-expand-arrows-alt"></i>
@@ -233,7 +369,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="../../index3.html" class="brand-link">
+        <a href="#" class="brand-link">
             <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -308,10 +444,11 @@
 
         <!-- Main content -->
         <section class="content">
+            <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
             <div class="container-fluid">
                 <!-- Small boxes (Stat box) -->
                 <div class="row">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">Devices</h3>
@@ -336,57 +473,24 @@
                         </div>
                         <!-- /.card -->
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <div class="card card-primary">
                             <div class="card-header">
-                                <h3 class="card-title" id="device-title">Error simulation</h3>
+                                <h3 class="card-title" id="device-title">Simulations</h3>
                             </div>
                             <!-- /.card-header -->
                             <div class="card-body p-2">
-                                <div class="form-group">
-                                    <label for="errorMode">Error mode</label>
-                                    <select class="custom-select form-control-border" id="errorMode"
-                                            onchange="displayForms(this.value)">
-                                        <option value="0">Discard</option>
-                                        <option value="1">Timeout</option>
-                                        <option value="2">Garbage</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="frequency">Frequency(%)</label>
-                                    <div class="slider-green">
-                                        <input id="frequency" data-slider-id='frequency' type="text"
-                                               data-slider-min="0" data-slider-max="100"
-                                               data-slider-step="1" data-slider-value="10"/>
-                                    </div>
-                                </div>
-                                <div class="form-group" id="timeout-from-group">
-                                    <label for="timeout">Timeout(s)</label>
-                                    <div class="slider-red">
-                                        <input id="timeout" data-slider-id='frequency' type="text"
-                                               data-slider-min="0" data-slider-max="10"
-                                               data-slider-step="1" data-slider-value="4"/>
-                                    </div>
-                                </div>
-                                <div class="form-group" id="garbage-length-from-group">
-                                    <label for="garbage-length">Length of garbage packet</label>
-                                    <div class="slider-blue">
-                                        <input id="garbage-length" data-slider-id='garbage-length' type="text"
-                                               data-slider-min="1" data-slider-max="1024"
-                                               data-slider-step="1" data-slider-value="36"/>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="enabled">State</label>
-                                    <select class="custom-select form-control-border" id="enabled">
-                                        <option value="1">Enabled</option>
-                                        <option value="0">Disabled</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <button id="submitButton" onclick="submit()" class="btn btn-success">Add</button>
-                                    <button id="removeButton" onclick="remove()" class="btn btn-danger">Remove</button>
-                                </div>
+                                <table id="simulationsTable" class="table table-bordered table-hover">
+                                    <thead>
+                                    <th>ID</th>
+                                    <th>Mode</th>
+                                    <th>Frequency(%)</th>
+                                    <th>Enabled</th>
+                                    </thead>
+                                    <tbody class="simulation-table-selector">
+
+                                    </tbody>
+                                </table>
                             </div>
                             <!-- /.card-body -->
                         </div>
@@ -396,6 +500,73 @@
             </div><!-- /.container-fluid -->
         </section>
         <!-- /.content -->
+
+        <!-- excel table modal -->
+        <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog" aria-labelledby="excelTableModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog" role="document" style="max-width:fit-content">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="excelTableModalLabel">Register New Simulations by Excel</h5>
+                    </div>
+                    <div class="modal-body">
+                        <table class="table table-bordered" id="excelObjects" style="overflow-y: auto;">
+                            <thead>
+                            <tr>
+                                <th>Target</th>
+                                <th>Simulation Policy</th>
+                                <th>Interval</th>
+                                <th>Enabled</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" onclick="$('#excelTableModal').modal('hide')">
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
+                        <button class="btn btn-success" type="button" onclick="performUpload()" id="registerByExcel">
+                            Register
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Excel modal end -->
+
+
+        <!-- excel table modal -->
+        <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog"
+             aria-labelledby="simulationCopyModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog" role="document" style="max-width:fit-content">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="simulationCopyModalLabel">Select devices to copy simulations</h5>
+                    </div>
+                    <div class="modal-body">
+                        <label>
+                            <select class="duallistbox" id="duallistbox" multiple="multiple">
+                            </select>
+                        </label>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button"
+                                onclick="$('#simulationCopyModal').modal('hide')">
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary" type="button" onclick="copySimulations()">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Excel modal end -->
+
+
     </div>
     <!-- /.content-wrapper -->
     <footer class="main-footer">
@@ -432,10 +603,9 @@
 <script src="../../plugins/datatables-buttons/js/buttons.html5.min.js"></script>
 <script src="../../plugins/datatables-buttons/js/buttons.print.min.js"></script>
 <script src="../../plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
-<!-- Bootstrap slider -->
-<script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
+<script src="../../js/xlsx.full.min.js"></script>
 <script src="../../plugins/jquery-contextmenu/js/jquery.contextMenu.min.js"></script>
 <script src="../../plugins/jquery-contextmenu/js/jquery.ui.position.js"></script>
-
+<script src="../../plugins/bootstrap4-duallistbox/jquery.bootstrap-duallistbox.min.js"></script>
 </body>
 </html>

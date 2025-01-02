@@ -24,10 +24,7 @@ public class ServiceInitializer {
 
     @EventListener(ApplicationReadyEvent.class)
     public void afterStart() {
-        deviceService.createScheme();
-        simulationService.createScheme();
-        groupService.createScheme();
-        errorService.createScheme();
+        groupService.makeRootGroup();
 
         List<Device> devices = deviceService.selectDevices();
         for (Device device : devices) {

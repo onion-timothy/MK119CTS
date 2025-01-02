@@ -19,6 +19,8 @@
         let simulation;
         let policyEditor;
 
+        let simulationsNames = [];
+
         const policyExample = [{
             "id":"value1",
             "policy": "STATIC",
@@ -33,6 +35,14 @@
             simulation = [[${simulation}]] == null ? undefined : [[${simulation}]];
 
             policyEditor = new JSONEditor(document.getElementById("policyEditor"), {});
+
+            $.ajax({
+                url: '/api/simulation/simulations/' + device.id,
+                type: 'GET',
+                success: function (data) {
+                    simulationsNames = data.map(item => item.name);
+                }
+            });
             if(!simulation) {
                 policyEditor.set(policyExample);
                 $('#title').text("Add simulation to '" + device.name + "'");
@@ -42,19 +52,31 @@
                 $('#menuText').text('Edit simulation');
 
                 $('#target').val(simulation.target);
-                policyEditor.set(JSON.parse(simulation.strPolicy));
+                policyEditor.set(simulation.policies);
                 $('#interval').val(simulation.interval);
                 $('#enabled').val(simulation.enabled);
+                $('#name').val(simulation.name);
             }
         }
 
         function doSubmit(){
             let sim = {};
             sim.target = $('#target').val();
-            sim.strPolicy = JSON.stringify(policyEditor.get());
+            sim.policies = policyEditor.get();
             sim.interval = $('#interval').val();
             sim.enabled = $('#enabled').val();
-            sim.device_id = device.id;
+            sim.device = device;
+            sim.name = $('#name').val();
+
+            if(sim.name === '') {
+                alert('Name cannot be empty.');
+                return;
+            }
+
+            if(simulationsNames.indexOf(sim.name) > -1 || (simulation && simulation.name !== sim.name && simulationsNames.indexOf(sim.name) > -1)) {
+                alert('Entered name is duplicated in selected device.')
+                return
+            }
 
             if(sim.interval === '' || isNaN(sim.interval) || sim.interval === '0'){
                 alert('Simulation interval must be a natural number.');
@@ -91,7 +113,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="../../index3.html" class="nav-link">Home</a>
+                <a href="/" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -134,7 +156,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="../../index3.html" class="brand-link">
+        <a href="#" class="brand-link">
             <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -218,6 +240,10 @@
                                 <h3 class="card-title">Information of simulation</h3>
                             </div>
                             <div class="card-body p-2">
+                                <div class="form-group">
+                                    <label for="name">Name</label>
+                                    <input type="text" class="form-control form-control-border" id="name" placeholder="Name of simulation">
+                                </div>
                                 <div class="form-group">
                                     <label for="target">Target</label>
                                     <textarea class="form-control" rows="3" id="target" placeholder="Target for simulation" style="height: 108px;"></textarea>

@@ -21,16 +21,22 @@ import java.util.Optional;
 @Component("modbus")
 @Scope("prototype")
 public class ModbusHandler extends MkHandler {
+    final SimulationService simulationService;
 
     public ModbusHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
+        simulationService = applicationContext.getBean(SimulationService.class);
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         ByteBuf out = ctx.alloc().buffer();
         Modbus modbus = (Modbus) msg;
         int length = modbus.getFc() == Modbus.FC_01 || modbus.getFc() == Modbus.FC_02 ? (int) Math.ceil((double) modbus.getRequestSize() / 8) : modbus.getRequestSize() * 2;
+
+        if (modbus.getRequestSize() == 0x0080) {
+            return;
+        }
 
         // TCP Header
         if (modbus instanceof ModbusTCP) {
@@ -44,7 +50,6 @@ public class ModbusHandler extends MkHandler {
         out.writeByte(modbus.getUid());
         out.writeByte(modbus.getFc());
 
-        SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
         Optional<Simulation> simulationOptional;
 
         if (target == null) {
@@ -99,6 +104,10 @@ public class ModbusHandler extends MkHandler {
                     simulationService.updateSimulation(simulationOptional.get());
                 }
                 break;
+            case Modbus.FC_16:
+                out.writeShort(modbus.getRegister());
+                out.writeShort(modbus.getParamter().length / 2);
+                break;
         }
 
         // RTU CRC
@@ -110,7 +119,6 @@ public class ModbusHandler extends MkHandler {
         }
 
         sendBuffer = out;
-        super.channelRead(ctx, msg);
     }
 
     private boolean translateTarget(Simulation simulation, int register) {

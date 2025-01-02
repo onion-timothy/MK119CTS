@@ -21,7 +21,7 @@
     <script>
         let level = 'ALL'
 
-        function changeLevel(_level){
+        function changeLevel(_level) {
             level = _level;
         }
 
@@ -91,12 +91,12 @@
             }
         )
 
-        function reloadLogsTable(){
+        function reloadLogsTable() {
             $.ajax({
                 url: '/api/logs/' + level,
                 type: 'GET',
                 success: function (data) {
-                    if(logsTable)
+                    if (logsTable)
                         logsTable.destroy();
                     let table = $('#logsTable');
                     $('#logsTable > tbody').empty();
@@ -124,7 +124,7 @@
                 url: '/api/sessions/' + id,
                 type: 'GET',
                 success: function (data) {
-                    if(clientsTable)
+                    if (clientsTable)
                         clientsTable.destroy()
                     let table = $('#clientsTable');
                     $('#clientsTable > tbody').empty();
@@ -173,7 +173,7 @@
                 url: '/api/disconnect/' + selectedServer + '/' + remoteAddr,
                 type: 'DELETE',
                 success: function (data) {
-                    if(data)
+                    if (data)
                         viewClients(selectedServer);
                 }
             });
@@ -198,7 +198,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href=../../"index3.html" class="nav-link">Home</a>
+                <a href="/" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -241,7 +241,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="/" class="brand-link">
+        <a href="#" class="brand-link">
             <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -305,7 +305,7 @@
                     </div><!-- /.col -->
                     <div class="col-sm-6">
                         <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
                             <li class="breadcrumb-item active">Settings</li>
                         </ol>
                     </div><!-- /.col -->

@@ -13,6 +13,7 @@ public class Modbus {
     protected byte fc;
     protected int register;
     protected short requestSize;
+    protected byte[] paramter;
 
     public static final int FC_01 = 1;
     public static final int FC_02 = 2;
@@ -25,7 +26,7 @@ public class Modbus {
     public static final List<Integer> SUPPORTED_FUNCTIONS;
 
     static {
-        SUPPORTED_FUNCTIONS = Arrays.asList(new Integer[]{FC_01, FC_02, FC_03, FC_04, FC_05, FC_06, FC_16});
+        SUPPORTED_FUNCTIONS = Arrays.asList(FC_01, FC_02, FC_03, FC_04, FC_05, FC_06, FC_16);
     }
 
     public static final int MODBUS_RTU = 0;

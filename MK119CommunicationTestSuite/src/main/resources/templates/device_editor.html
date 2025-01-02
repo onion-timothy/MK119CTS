@@ -61,8 +61,8 @@
             }).on("ready.jstree", function () {
                 // 시작할 때 루트 노드를 열어준다.
                 if (device != null) {
-                    $.jstree.reference('#tree-container').open_node('g_' + device.group_id);
-                    $.jstree.reference('#tree-container').select_node('g_' + device.group_id);
+                    $.jstree.reference('#tree-container').open_node('g_' + device.group.id);
+                    $.jstree.reference('#tree-container').select_node('g_' + device.group.id);
                 }
             });
             diCount = $('#diCount').bootstrapSlider();
@@ -72,8 +72,10 @@
 
             device = [[${device}]];
             if (device) {
-                communicationSettings = JSON.parse(device.strCommunicationSettings);
+                communicationSettings = device.communicationSettings;
                 loadEditDevice(device);
+            } else {
+                onTransportChange(1)
             }
         }
 
@@ -84,11 +86,12 @@
             $('#enabled').val(device.enabled);
             $('#log').val(device.log);
             $.jstree.reference('#tree-container').open_node('g_1');
-            $('#transport').val(device.intTransport);
+            $('#transport').val(device.transport);
+            onTransportChange(device.transport);
             $('#host').val(device.host);
             $('#port').val(device.port);
             let protocolSelector = $('#protocol');
-            protocolSelector.val(device.intProtocol);
+            protocolSelector.val(device.protocol);
             protocolSelector.prop('disabled', true);
             $('#devId').val(device.id);
         }
@@ -103,11 +106,28 @@
         }
 
         function validatePanel2() {
-            let groupselected = typeof($.jstree.reference('#tree-container').get_selected()[0]);
-            if (groupselected === 'undefined') {
+            let group = $.jstree.reference('#tree-container').get_selected()[0];
+            if (typeof(group) === 'undefined') {
                 alert('Group not selected.');
             } else {
-                stepper.next();
+                $.ajax({
+                    url: '/api/device/devices/' + group.replace('g_', ''),
+                    type: 'GET',
+                    success: function (data) {
+                        let deviceNames = data.map(item => item.name);
+                        let name = $('#name');
+
+                        if(device && device.name === name.val()){
+                            stepper.next();
+                        } else {
+                            if (deviceNames.indexOf(name.val()) > -1) {
+                                alert('Entered name is duplicated in selected group.')
+                            } else {
+                                stepper.next();
+                            }
+                        }
+                    }
+                });
             }
         }
 
@@ -122,13 +142,13 @@
         function validatePanel3() {
             let host = $('#host').val();
             let port = $('#port').val();
-            let protocol = parseInt($('#protocol').val());
+            let protocol = $('#protocol').val();
             if (host === '' || port === '') {
                 alert('Host and port is cannot be empty.');
             } else {
                 stepper.next();
 
-                if (protocol === 1) {
+                if (protocol === 'GENERIC') {
                     showForm('formGeneric');
                     if (rxJsonEditor)
                         rxJsonEditor.destroy();
@@ -138,21 +158,21 @@
                     txJsonEditor = new JSONEditor(document.getElementById("txJson"), {});
                     rxJsonEditor.set(device == null ? rxExample : communicationSettings.rx);
                     txJsonEditor.set(device == null ? txExample : communicationSettings.tx);
-                } else if (protocol === 2) {
+                } else if (protocol === 'MODBUS') {
                     showForm('formModbus');
                     if (device != null) {
                         $('#uid').val(communicationSettings.unitId);
                         $('#packetType').val(communicationSettings.packetType);
                         $('#registers1').val(communicationSettings.registers);
                     }
-                } else if (protocol === 3) {
+                } else if (protocol === 'XGT_PLC') {
                     showForm('formLSISXGT');
                     if (device != null) {
                         $('#cpuid').val(communicationSettings.cpuId);
                         $('#blocksize').val((communicationSettings.maxBlockSize))
                         $('#registers2').val(communicationSettings.registers);
                     }
-                } else if (protocol === 4) {
+                } else if (protocol === 'DAEYUN_RCU') {
                     showForm('formMKRCU');
                     if (rxJsonRCUEditor)
                         rxJsonRCUEditor.destroy();
@@ -172,23 +192,23 @@
                         aiCount.bootstrapSlider('setValue', communicationSettings.aiCount);
                         rsCount.bootstrapSlider('setValue', communicationSettings.rsCount);
                     }
-                } else if (protocol === 5) {
+                } else if (protocol === 'SNMP') {
                     showForm('formSNMP');
                     if (device != null) {
                         $('#snmpVersion').val(communicationSettings.snmpVersion);
                         $('#getCommunity').val(communicationSettings.getCommunity);
                         $('#setCommunity').val(communicationSettings.setCommunity);
                     }
-                } else if (protocol === 6) {
+                } else if (protocol === 'BACNET') {
                     showForm('formBACnet');
                     if (device != null) {
                         $('#deviceInstanceId').val(communicationSettings.deviceInstanceId);
                         $('#broadcast').val(communicationSettings.broadcast);
                     }
-                } else if (protocol === 7) {
+                } else if (protocol === 'OPC_AGENT') {
                     showForm('formMKOPCAgent');
                     $('#agentTagsCount').val(communicationSettings.registers);
-                } else if (protocol === 8) {
+                } else if (protocol === 'DB') {
                     showForm('formDB');
                     if (device != null) {
                         $('#dbDriver').val(communicationSettings.dbdriver);
@@ -197,7 +217,7 @@
                         document.getElementById("dbPassword").value = communicationSettings.dbPassword;
                         $('#dbDatabase').val(communicationSettings.dbDatabase);
                     }
-                } else if (protocol === 9) {
+                } else if (protocol === 'ETHERNET_IP') {
                     showForm('formEthernetIP');
                 }
             }
@@ -214,24 +234,28 @@
 
         function addDevice() {
             let dev = {};
-            dev.intTransport = $('#transport').val();
-            dev.intProtocol = parseInt($('#protocol').val());
+            dev.transport = $('#transport').val();
+            dev.protocol = $('#protocol').val();
             dev.host = $('#host').val();
             dev.port = $('#port').val();
             dev.name = $('#name').val();
             dev.enabled = $('#enabled').val();
             dev.log = $('#log').val();
-            dev.group_id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            let group = {};
+            group.id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            group.name = null;
+            group.parentId = null;
+            dev.group = group;
 
             if (device != null) {
                 dev.id = $('#devId').val();
             }
 
             let communicationSettings = {};
-            if (dev.intProtocol === 1) {
+            if (dev.protocol === 'GENERIC') {
                 communicationSettings.rx = rxJsonEditor.get();
                 communicationSettings.tx = txJsonEditor.get();
-            } else if (dev.intProtocol === 2) {
+            } else if (dev.protocol === 'MODBUS') {
                 communicationSettings.unitId = $('#uid').val();
                 communicationSettings.packetType = $('#packetType').val();
                 communicationSettings.registers = $('#registers1').val();
@@ -248,7 +272,7 @@
                     alert('Registers count must assigned to number.');
                     return;
                 }
-            } else if (dev.intProtocol === 3) {
+            } else if (dev.protocol === 'XGT_PLC') {
                 communicationSettings.cpuId = $('#cpuid').val();
                 communicationSettings.maxBlockSize = $('#blocksize').val();
                 communicationSettings.registers = $('#registers2').val();
@@ -275,7 +299,7 @@
                     alert('Registers count must assigned to number.');
                     return;
                 }
-            } else if (dev.intProtocol === 4) {
+            } else if (dev.protocol === 'DAEYUN_RCU') {
                 communicationSettings.rx = rxJsonRCUEditor.get();
                 communicationSettings.tx = txJsonRCUEditor.get();
                 communicationSettings.cpuAddr = $('#cpuAddr').val();
@@ -292,7 +316,7 @@
                     alert('Invalid CPU Address. MK RCU CPU Address must in 0~255.')
                     return
                 }
-            } else if (dev.intProtocol === 5) {
+            } else if (dev.protocol === 'SNMP') {
                 communicationSettings.snmpVersion = $('#snmpVersion').val();
                 communicationSettings.getCommunity = $('#getCommunity').val();
                 communicationSettings.setCommunity = $('#setCommunity').val();
@@ -304,7 +328,7 @@
                     alert('Invalid SNMP Version. SNMP Version must in 1 or 2.')
                     return
                 }
-            } else if (dev.intProtocol === 6) {
+            } else if (dev.protocol === 'BACNET') {
                 communicationSettings.deviceInstanceId = $('#deviceInstanceId').val();
                 communicationSettings.broadcast = $('#broadcast').val();
 
@@ -320,13 +344,13 @@
                     alert('BACnet broadcast address cannot be empty.')
                     return
                 }
-            } else if (dev.intProtocol === 7) {
+            } else if (dev.protocol === 'OPC_AGENT') {
                 communicationSettings.registers = $('#agentTagsCount').val();
                 if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)) {
                     alert('OPC Agent tags count must assigned to number.')
                     return
                 }
-            } else if (dev.intProtocol === 8) {
+            } else if (dev.protocol === 'DB') {
                 communicationSettings.dbdriver = $('#dbDriver').val();
                 communicationSettings.dbUrl = $('#dbUrl').val();
                 communicationSettings.dbUsername = $('#dbUsername').val();
@@ -353,7 +377,7 @@
                     alert('DB name cannot be empty.')
                     return
                 }
-            } else if (dev.intProtocol === 9) {
+            } else if (dev.protocol === 'ETHERNET_IP') {
                 communicationSettings.cpuSlot = $('#cpuSlot').val();
 
                 if(communicationSettings.cpuSlot === ''){
@@ -362,7 +386,7 @@
                 }
             }
 
-            dev.strCommunicationSettings = JSON.stringify(communicationSettings);
+            dev.communicationSettings = communicationSettings;
             $.ajax({
                 url: device == null ? '/api/device/addDevice' : '/api/device/updateDevice',
                 type: device == null ? 'PUT' : 'POST',
@@ -380,6 +404,80 @@
             });
         }
 
+        const tcp_protocols = [
+            {value: 'GENERIC', text: 'Generic'},
+            {value: 'MODBUS', text: 'Modbus'},
+            {value: 'XGT_PLC', text: 'LSIS-XGT'},
+            {value: 'DAEYUN_RCU', text: 'MK RCU'},
+            {value: 'DB', text: 'DB'},
+            {value: 'ETHERNET_IP', text: 'Ethernet/IP'}
+        ]
+
+        const udp_protocols = [
+            {value: 'GENERIC', text: 'Generic'},
+            {value: 'MODBUS', text: 'Modbus'},
+            {value: 'XGT_PLC', text: 'LSIS-XGT'},
+            {value: 'SNMP', text: 'SNMP'},
+            {value: 'BACNET', text: 'BACnet'},
+            {value: 'OPC_AGENT', text: 'MK OPC Agent'},
+            {value: 'DB', text: 'DB'}
+        ]
+
+        function onTransportChange() {
+            let transport = $('#transport').val()
+            let protocol = $('#protocol');
+            protocol.empty()
+            let p = transport === 'TCP' ? tcp_protocols : udp_protocols;
+            p.forEach(option => {
+                protocol.append($('<option>', {
+                    value: option.value,
+                    text: option.text
+                }))
+            })
+            onProtocolChange(1)
+        }
+
+        function onProtocolChange() {
+            let host = $('#host')
+            let port = $('#port')
+            let transport = $('#transport').val()
+            let protocol = $('#protocol').val()
+
+            host.attr('readonly', false)
+            host.attr('placeholder', 'Binding host for device')
+            host.val('')
+            port.attr('readonly', false)
+            port.attr('placeholder', 'Binding port for device')
+            port.val('')
+
+            let hostForm = $('#hostFormGroup')
+            let portForm = $('#portFormGroup')
+            hostForm.show()
+            portForm.show()
+
+            if (protocol === 'MODBUS') {
+                port.attr('placeholder', 502)
+            } else if (protocol === 'XGT_PLC') {
+                port.attr('placeholder', transport === 'TCP' ? 2004 : 2005)
+            } else if (protocol === 'DAEYUN_RCU') {
+                port.attr('placeholder', 1470)
+            } else if (protocol === 'SNMP') {
+                port.attr('placeholder', 161)
+            } else if (protocol === 'BACNET') {
+                host.attr('readonly', true)
+                host.val('0.0.0.0')
+                port.attr('readonly', true)
+                port.val(47808)
+            } else if (protocol === 'OPC_AGENT') {
+                port.attr('placeholder', 9999)
+            } else if (protocol === 'ETHERNET_IP') {
+                port.attr('placeholder', 44818)
+            } else if (protocol === 'DB') {
+                hostForm.hide()
+                portForm.hide()
+            }
+        }
+
         /*]]>*/
     </script>
 </head>
@@ -393,7 +491,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="../../index3.html" class="nav-link">Home</a>
+                <a href="/" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -436,7 +534,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="../../index3.html" class="brand-link">
+        <a href="#" class="brand-link">
             <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
@@ -594,28 +692,28 @@
                                                  aria-labelledby="stepper1trigger3">
                                                 <div class="form-group">
                                                     <label for="transport">Transport</label>
-                                                    <select class="custom-select form-control-border" id="transport">
-                                                        <option value="1">TCP</option>
-                                                        <option value="2">UDP</option>
+                                                    <select class="custom-select form-control-border" id="transport" oninput="onTransportChange()">
+                                                        <option value="TCP">TCP</option>
+                                                        <option value="UDP">UDP</option>
                                                     </select>
                                                     <label for="protocol">Protocol</label>
-                                                    <select class="custom-select form-control-border" id="protocol">
-                                                        <option value="1">Generic</option>
-                                                        <option value="2">Modbus</option>
-                                                        <option value="3">LSIS-XGT</option>
-                                                        <option value="4">MK RCU</option>
-                                                        <option value="5">SNMP</option>
-                                                        <option value="6">BACnet</option>
-                                                        <option value="7">MK OPC Agent</option>
-                                                        <option value="8">DB</option>
-                                                        <option value="9">Ethernet/IP</option>
+                                                    <select class="custom-select form-control-border" id="protocol" oninput="onProtocolChange()">
+                                                        <option value="GENERIC">Generic</option>
+                                                        <option value="MODBUS">Modbus</option>
+                                                        <option value="XGT_PLC">LSIS-XGT</option>
+                                                        <option value="DAEYUN_RCU">MK RCU</option>
+                                                        <option value="SNMP">SNMP</option>
+                                                        <option value="BACNET">BACnet</option>
+                                                        <option value="OPC_AGENT">MK OPC Agent</option>
+                                                        <option value="DB">DB</option>
+                                                        <option value="ETHERNET_IP">Ethernet/IP</option>
                                                     </select>
-                                                    <div class="form-group">
+                                                    <div class="form-group" id="hostFormGroup">
                                                         <label for="host">Host</label>
                                                         <input type="text" class="form-control form-control-border"
                                                                id="host" placeholder="Binding host for device">
                                                     </div>
-                                                    <div class="form-group">
+                                                    <div class="form-group" id="portFormGroup">
                                                         <label for="port">Port</label>
                                                         <input type="number" class="form-control form-control-border"
                                                                id="port" placeholder="Binding port for device" oninput="this.value|=0"/>
@@ -685,27 +783,27 @@
                                                     <label for="diCount">DI Channels</label>
                                                     <div class="slider-green">
                                                         <input id="diCount" data-slider-id='diCount' type="text"
-                                                               data-slider-min="0" data-slider-max="32"
+                                                               data-slider-min="1" data-slider-max="32"
                                                                data-slider-step="1" data-slider-value="8"/>
                                                     </div>
                                                     <label for="doCount">DO Channels</label>
                                                     <div class="slider-green">
                                                         <input id="doCount" data-slider-id='doCount' type="text"
-                                                               data-slider-min="0" data-slider-max="32"
+                                                               data-slider-min="1" data-slider-max="32"
                                                                data-slider-step="1" data-slider-value="8"/>
                                                     </div>
                                                     <label for="aiCount">AI Channels</label>
                                                     <div class="slider-green">
                                                         <input id="aiCount" data-slider-id='aiCount' type="text"
-                                                               data-slider-min="0" data-slider-max="8"
+                                                               data-slider-min="1" data-slider-max="8"
                                                                data-slider-step="1" data-slider-value="4"/>
                                                     </div>
-                                                    <label for="rsCount">RS Channels</label>
+                                                    <!--label for="rsCount">RS Channels</label>
                                                     <div class="slider-green">
                                                         <input id="rsCount" data-slider-id='rsCount' type="text"
-                                                               data-slider-min="0" data-slider-max="4"
+                                                               data-slider-min="1" data-slider-max="1"
                                                                data-slider-step="1" data-slider-value="1"/>
-                                                    </div>
+                                                    </div-->
                                                     <div class="form-group">
                                                         <label for="rxJsonRCU">Packet parser descripter(RX for device)</label>
                                                         <div id="rxJsonRCU"></div>

@@ -30,6 +30,7 @@ import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -58,7 +59,7 @@ public class ApiController {
         for (Group group : groups) {
             Map<Object, Object> groupObj = new HashMap<>();
             groupObj.put("id", "g_" + group.getId());
-            groupObj.put("parent", group.getParent_id() == 0 ? "#" : "g_" + group.getParent_id());
+            groupObj.put("parent", group.getParentId() == 0 ? "#" : "g_" + group.getParentId());
             groupObj.put("text", group.getName());
             groupObj.put("children", true);
             groupObj.put("type", "group");
@@ -68,7 +69,7 @@ public class ApiController {
         for (Device device : devices) {
             Map<Object, Object> deviceObj = new HashMap<>();
             deviceObj.put("id", "d_" + device.getId());
-            deviceObj.put("parent", device.getGroup_id() == 0 ? "#" : "g_" + device.getGroup_id());
+            deviceObj.put("parent", device.getGroup().getId() == 0 ? "#" : "g_" + device.getGroup().getId());
             deviceObj.put("text", device.getName());
             deviceObj.put("children", false);
             deviceObj.put("type", "device");
@@ -85,7 +86,7 @@ public class ApiController {
         for (Group group : groups) {
             Map<Object, Object> groupObj = new HashMap<>();
             groupObj.put("id", "g_" + group.getId());
-            groupObj.put("parent", group.getParent_id() == 0 ? "#" : "g_" + group.getParent_id());
+            groupObj.put("parent", group.getParentId() == 0 ? "#" : "g_" + group.getParentId());
             groupObj.put("text", group.getName());
             groupObj.put("type", "group");
             ret.add(groupObj);
@@ -284,17 +285,19 @@ public class ApiController {
 
     @RequestMapping(value = "/disconnect/{server}/{remoteAddr}", method = RequestMethod.DELETE)
     public Boolean disconnect(@PathVariable Integer server, @PathVariable String remoteAddr) {
-        IOServer ioServer = ioServerInstances.getServerInstance(server);
-        for (ChannelInboundHandlerAdapter handler : ioServer.getHandlers()) {
-            MkHandler mkHandler = (MkHandler) handler;
-            InetSocketAddress addr = (InetSocketAddress) mkHandler.getContext().channel().remoteAddress();
+        AtomicBoolean ret = new AtomicBoolean(false);
+        ioServerInstances.getServerInstance(server).ifPresent(s->{
+            for (ChannelInboundHandlerAdapter handler : s.getHandlers()) {
+                MkHandler mkHandler = (MkHandler) handler;
+                InetSocketAddress addr = (InetSocketAddress) mkHandler.getContext().channel().remoteAddress();
 
-            if (remoteAddr.equals(addr.getHostName() + ":" + addr.getPort())) {
-                mkHandler.getContext().close();
-                return true;
+                if (remoteAddr.equals(addr.getHostName() + ":" + addr.getPort())) {
+                    mkHandler.getContext().close();
+                    ret.set(true);
+                }
             }
-        }
-        return false;
+        });
+        return ret.get();
     }
 
     @RequestMapping(value = "/logs/{level}", method = RequestMethod.GET)
@@ -308,21 +311,22 @@ public class ApiController {
         return logs.stream().filter(e -> e.getLevel().name().toUpperCase().equals(level)).collect(Collectors.toList());
     }
 
-    @RequestMapping(value = "/error/{device_id}", method = RequestMethod.GET)
-    public Error gerError(@PathVariable Integer device_id) {
-        return errorService.selectErrorByDeviceId(device_id);
+    @RequestMapping(value = "/error/errors/{device_id}", method = RequestMethod.GET)
+    public List<Error> gerError(@PathVariable Integer device_id) {
+        return errorService.selectErrorsByDeviceId(device_id);
     }
 
     @RequestMapping(value = "/error/addError", method = RequestMethod.PUT)
     public String addError(@RequestBody Error error) {
         errorService.insertError(error);
+        ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
         return "success";
     }
 
     @RequestMapping(value = "/error/updateError", method = RequestMethod.POST)
     public String updateError(@RequestBody Error error) {
         errorService.updateError(error);
-        deviceService.restartDevice(deviceService.selectDevice(error.getDevice_id()));
+        ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
         return "success";
     }
 
@@ -332,16 +336,30 @@ public class ApiController {
         return "success";
     }
 
+    @RequestMapping(value = "/error/getEnabled/{error_id}", method = RequestMethod.DELETE)
+    public Boolean getEnabled(@PathVariable Integer error_id) {
+        return errorService.getErrorEnabled(error_id);
+    }
+
     @RequestMapping(value = "/simulation/copySimulation/{device_id}", method = RequestMethod.PUT)
     public String copySimulations(@PathVariable Integer device_id, @RequestBody List<Integer> copyTo) {
-        for(Integer index : copyTo) {
+        for (Integer index : copyTo) {
             Device device = deviceService.selectDevice(index);
             simulationService.copySimulations(index, device_id);
             List<Simulation> simulations = simulationService.selectSimulationsByDeviceId(index);
-            for(Simulation simulation : simulations) {
+            for (Simulation simulation : simulations) {
                 simulationService.startSimulation(device, simulation);
             }
         }
+        return "success";
+    }
+
+    @RequestMapping(value = "/error/setEnabled/{error_id}/{enabled}")
+    public String updateErrorEnabled(@PathVariable Integer error_id, @PathVariable Integer enabled) {
+        Error error = errorService.selectErrorById(error_id);
+        error.setEnabled(enabled);
+        errorService.updateError(error);
+        ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
         return "success";
     }
 

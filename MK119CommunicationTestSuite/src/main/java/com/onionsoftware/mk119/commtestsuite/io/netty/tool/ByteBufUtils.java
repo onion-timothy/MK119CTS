@@ -660,7 +660,7 @@ public class ByteBufUtils {
     }
 
     public static Modbus parseModbusPacket(ByteBuf in, int uid, int type) {
-        if (in.readableBytes() == 12 && type == Modbus.MODBUS_TCP) {
+        if (type == Modbus.MODBUS_TCP) {
             ModbusTCP modbusTcp = new ModbusTCP();
             modbusTcp.setTid(in.readShort());
             modbusTcp.setPid(in.readShort());
@@ -670,10 +670,12 @@ public class ByteBufUtils {
             }
 
             modbusTcp.setTcpLength(in.readShort());
+            /*
             if (modbusTcp.getTcpLength() != 6) {
                 MkLogger.log("io", LogLevel.ERROR, "Modbus Invalid tcp length. {0}", modbusTcp.getTcpLength());
                 return null;
             }
+             */
 
             modbusTcp.setUid(in.readByte());
             if (uid != 0 && modbusTcp.getUid() != uid) {
@@ -688,9 +690,22 @@ public class ByteBufUtils {
             }
 
             modbusTcp.setRegister(in.readUnsignedShort());
-            modbusTcp.setRequestSize(in.readShort());
+            if(modbusTcp.getFc() == Modbus.FC_16) {
+                int paramSize_register = in.readShort();
+                int paramSize_byte = in.readByte();
+                if(paramSize_byte == paramSize_register * 2) {
+                    byte[] parameter = new byte[paramSize_byte];
+                    in.readBytes(parameter);
+                    modbusTcp.setParamter(parameter);
+                } else {
+                    MkLogger.log("io", LogLevel.ERROR, "Modbus FC16 invalid paramter size. {0}, {1}", paramSize_register, paramSize_byte);
+                    return null;
+                }
+            } else {
+                modbusTcp.setRequestSize(in.readShort());
+            }
             return modbusTcp;
-        } else if (in.readableBytes() == 8 && type == Modbus.MODBUS_RTU) {
+        } else if (type == Modbus.MODBUS_RTU) {
             ModbusRTU modbusRtu = new ModbusRTU();
             byte[] cpyBuf = new byte[6];
             in.getBytes(0, cpyBuf, 0, 6);

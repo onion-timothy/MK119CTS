@@ -15,10 +15,8 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
-import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Connection;
@@ -42,104 +40,15 @@ public class SimulationJob implements Runnable {
 
     @Override
     public void run() {
+        //MkLogger.log("simulation", LogLevel.INFO, "Simulation executed {0}", this.simulation.getId());
         List<SimulationPolicy> simulationPolicies = simulation.getPolicies();
-
-        Device device = deviceService.selectDevice(simulation.getDevice_id());
+        Device device = simulation.getDevice();
         if (device.getProtocol() == Protocol.BACNET) {
             double value = parseAndMakeValue(simulationPolicies.get(0));
             bacnetService.getSimulationValues().put(simulation.getId(), (float) value);
         } else if (Protocol.NETTY_PROTOCOLS.contains(device.getProtocol())) {
             double value = parseAndMakeValue(simulationPolicies.get(0));
-            IOServer server = ioServerInstances.getServerInstance(simulation.getDevice_id());
-            if (server != null) {
-                ServerData serverData = server.getServerData();
-                if (serverData != null) {
-                    if (serverData instanceof GenericData) {
-                        GenericData genericData = (GenericData) serverData;
-                        genericData.getTxFieldsIdValueMap().put(simulation.getTarget(), value);
-                    } else if (serverData instanceof ModbusData) {
-                        try {
-                            ModbusData modbusData = (ModbusData) serverData;
-                            String[] targetTokens = simulation.getTarget().split("_");
-                            int function = Integer.parseInt(targetTokens[0]);
-                            int register = Integer.parseInt(targetTokens[1]);
-
-                            if (function == Modbus.FC_01) {
-                                modbusData.setCoil_status(value == 1, register);
-                            } else if (function == Modbus.FC_02) {
-                                modbusData.setInput_status(value == 1, register);
-                            } else if (function == Modbus.FC_03) {
-                                modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
-                            } else if (function == Modbus.FC_04) {
-                                modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
-                            }
-                        } catch (NumberFormatException e) {
-                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for Modbus simulation device {1}({2}). Format target to {Function}_{Register}", getSimulation().getTarget(), device.getName(), device.getId());
-                        }
-                    } else if (serverData instanceof XGTData) {
-                        try {
-                            XGTData xgtData = (XGTData) serverData;
-                            String target = simulation.getTarget();
-                            int addr = extractNumbers(target);
-                            String block = String.valueOf(target.charAt(1));
-                            char dataTypeChar = target.charAt(2);
-                            DataType dataType = simulationPolicies.get(0).getData_type();
-
-                            if (dataTypeChar == 'B') {
-                                if (dataType == null || !dataType.name().contains("8")) {
-                                    MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
-                                    return;
-                                }
-                            } else if (dataTypeChar == 'W') {
-                                if (dataType == null || !dataType.name().contains("16")) {
-                                    MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
-                                    return;
-                                }
-                                addr *= 2;
-                            } else if (dataTypeChar == 'D') {
-                                if (dataType == null || !dataType.name().contains("32")) {
-                                    MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
-                                    return;
-                                }
-                                addr *= 4;
-                            }
-
-                            try {
-                                xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, addr);
-                            } catch (Exception e) {
-                                MkLogger.log("simulation", e, "XGTPLC data set error.");
-                            }
-                        } catch (NumberFormatException e) {
-                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for XGTPLC simulation device {1}({2}). Format target to {Block}B{Address}.", getSimulation().getTarget(), device.getName(), device.getId());
-                        }
-                    } else if (serverData instanceof DaeyunData) {
-                        DaeyunData daeyunData = (DaeyunData) serverData;
-                        if (simulation.getTarget().startsWith("@RCUDI_")) {
-                            int channel = Integer.parseInt(simulation.getTarget().split("_")[1]);
-                            daeyunData.setDigitalChannelValues(channel - 1, value != 0);
-                        } else if (simulation.getTarget().startsWith("@RCUAI_")) {
-                            int channel = Integer.parseInt(simulation.getTarget().split("_")[1]);
-                            daeyunData.setAnalogChannelValues(channel - 1, (short) value);
-                        } else {
-                            daeyunData.getTxFieldsIdValueMap().put(simulation.getTarget(), value);
-                        }
-                    } else if (serverData instanceof OPCAgentData) {
-                        try {
-                            OPCAgentData opcAgentData = (OPCAgentData) serverData;
-                            int index = Integer.parseInt(simulation.getTarget());
-                            opcAgentData.setValue(index, value);
-                        } catch (NumberFormatException e) {
-                            MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for OPCAgent simulation device {1}({2}). Format target to Integer.", getSimulation().getTarget(), device.getName(), device.getId());
-                        }
-                    } else if (serverData instanceof SnmpData) {
-                        SnmpData snmpData = (SnmpData) serverData;
-                        snmpData.getOidValueMap().put(simulation.getTarget(), value);
-                    } else if (serverData instanceof EthernetIPData) {
-                        EthernetIPData ethernetIPData = (EthernetIPData) serverData;
-                        ethernetIPData.putTagValue(simulation.getTarget(), value);
-                    }
-                }
-            }
+            ioServerInstances.getServerInstance(simulation.getDevice().getId()).ifPresent(s->setServerData(s.getServerData(), simulation, value));
         } else if (device.getProtocol() == Protocol.DB) {
             String replaced = simulation.getTarget();
             for (SimulationPolicy policy : simulationPolicies) {
@@ -191,7 +100,7 @@ public class SimulationJob implements Runnable {
         return value;
     }
 
-    private int extractNumbers(String input) {
+    private static int extractNumbers(String input) {
         StringBuilder numbers = new StringBuilder();
 
         for (int i = 0; i < input.length(); i++) {
@@ -202,5 +111,94 @@ public class SimulationJob implements Runnable {
         }
 
         return Integer.parseInt(numbers.toString());
+    }
+
+    public static void setServerData(ServerData serverData, Simulation simulation, double value) {
+        List<SimulationPolicy> simulationPolicies = simulation.getPolicies();
+        Device device = simulation.getDevice();
+        if (serverData instanceof GenericData) {
+            GenericData genericData = (GenericData) serverData;
+            genericData.getTxFieldsIdValueMap().put(simulation.getTarget(), value);
+        } else if (serverData instanceof ModbusData) {
+            try {
+                ModbusData modbusData = (ModbusData) serverData;
+                String[] targetTokens = simulation.getTarget().split("_");
+                int function = Integer.parseInt(targetTokens[0]);
+                int register = Integer.parseInt(targetTokens[1]);
+
+                if (function == Modbus.FC_01) {
+                    modbusData.setCoil_status(value == 1, register);
+                } else if (function == Modbus.FC_02) {
+                    modbusData.setInput_status(value == 1, register);
+                } else if (function == Modbus.FC_03) {
+                    modbusData.setHolding_registers(value, simulationPolicies.get(0).getData_type(), register);
+                } else if (function == Modbus.FC_04) {
+                    modbusData.setInput_registers(value, simulationPolicies.get(0).getData_type(), register);
+                }
+            } catch (Exception e) {
+                MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for Modbus simulation device {1}({2}). Format target to {Function}_{Register}", simulation.getTarget(), device.getName(), device.getId());
+            }
+        } else if (serverData instanceof XGTData) {
+            try {
+                XGTData xgtData = (XGTData) serverData;
+                String target = simulation.getTarget();
+                int addr = extractNumbers(target);
+                String block = String.valueOf(target.charAt(1));
+                char dataTypeChar = target.charAt(2);
+                DataType dataType = simulationPolicies.get(0).getData_type();
+
+                if (dataTypeChar == 'B') {
+                    if (dataType == null || !dataType.name().contains("8")) {
+                        MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
+                        return;
+                    }
+                } else if (dataTypeChar == 'W') {
+                    if (dataType == null || !dataType.name().contains("16")) {
+                        MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
+                        return;
+                    }
+                    addr *= 2;
+                } else if (dataTypeChar == 'D') {
+                    if (dataType == null || !dataType.name().contains("32")) {
+                        MkLogger.log("simulation", LogLevel.ERROR, "XGTPLC simulation wrong data type. {0}, {1}, {2}", device.getName(), dataType == null ? null : dataType.name(), dataTypeChar);
+                        return;
+                    }
+                    addr *= 4;
+                }
+
+                try {
+                    xgtData.setBlockData(block, simulationPolicies.get(0).getData_type(), value, addr);
+                } catch (Exception e) {
+                    MkLogger.log("simulation", e, "XGTPLC data set error.");
+                }
+            } catch (NumberFormatException e) {
+                MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for XGTPLC simulation device {1}({2}). Format target to {Block}B{Address}.", simulation.getTarget(), device.getName(), device.getId());
+            }
+        } else if (serverData instanceof DaeyunData) {
+            DaeyunData daeyunData = (DaeyunData) serverData;
+            if (simulation.getTarget().startsWith("@RCUDI_")) {
+                int channel = Integer.parseInt(simulation.getTarget().split("_")[1]);
+                daeyunData.setDigitalChannelValues(channel - 1, value != 0);
+            } else if (simulation.getTarget().startsWith("@RCUAI_")) {
+                int channel = Integer.parseInt(simulation.getTarget().split("_")[1]);
+                daeyunData.setAnalogChannelValues(channel - 1, (short) value);
+            } else {
+                daeyunData.getTxFieldsIdValueMap().put(simulation.getTarget(), value);
+            }
+        } else if (serverData instanceof OPCAgentData) {
+            try {
+                OPCAgentData opcAgentData = (OPCAgentData) serverData;
+                int index = Integer.parseInt(simulation.getTarget());
+                opcAgentData.setValue(index, value);
+            } catch (NumberFormatException e) {
+                MkLogger.log("simulation", LogLevel.ERROR, "'{0}' is Invalid target for OPCAgent simulation device {1}({2}). Format target to Integer.", simulation.getTarget(), device.getName(), device.getId());
+            }
+        } else if (serverData instanceof SnmpData) {
+            SnmpData snmpData = (SnmpData) serverData;
+            snmpData.getOidValueMap().put(simulation.getTarget(), value);
+        } else if (serverData instanceof EthernetIPData) {
+            EthernetIPData ethernetIPData = (EthernetIPData) serverData;
+            ethernetIPData.putTagValue(simulation.getTarget(), value);
+        }
     }
 }

@@ -61,7 +61,7 @@ public class BACnetService {
             localDeviceVirtual.setPort(47808);
             localDeviceVirtual.setProtocol(Protocol.BACNET);
             localDeviceVirtual.setTransport(Transport.UDP);
-            localDeviceVirtual.setStrCommunicationSettings(device.getStrCommunicationSettings());
+            localDeviceVirtual.setCommunicationSettings(device.getCommunicationSettings());
             localDeviceVirtual.setLog(device.getLog());
             localDeviceVirtual.setName("BACnet-local-endpoint");
             ioServerInstances.addServerInstance(localDeviceVirtual);

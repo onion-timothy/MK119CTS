@@ -1,8 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.db.service;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.repository.DeviceRepository;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
-import com.onionsoftware.mk119.commtestsuite.db.mapper.DeviceMapper;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.db.DBClientDevice;
 import com.onionsoftware.mk119.commtestsuite.io.db.DBDeviceService;
@@ -15,6 +15,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import javax.persistence.EntityNotFoundException;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -22,51 +23,50 @@ import java.util.List;
 @Getter
 @RequiredArgsConstructor
 public class DeviceService {
-    private final DeviceMapper deviceMapper;
     private final IOServerInstances ioServerInstances;
     private SimulationService simulationService;
     private final ApplicationContext applicationContext;
     private final DBDeviceService dbDeviceService;
     private final BACnetService bacnetService;
     private final Logger logger = LoggerFactory.getLogger("agent");
+    private final DeviceRepository deviceRepository;
 
     @PostConstruct
     public void init() {
         this.simulationService = (SimulationService) applicationContext.getBean("simulationService");
     }
 
-    public void createScheme() {
-        deviceMapper.createScheme();
-    }
-
     public List<Device> selectDevices() {
-        return deviceMapper.selectDevices();
+        return deviceRepository.findAll();
     }
 
     public List<Device> selectDevicesByGroupId(Integer group_id) {
-        return deviceMapper.selectDevicesByGroupId(group_id);
+        return deviceRepository.findDevicesByGroupId(group_id);
     }
 
     public Device selectDevice(Integer id) {
-        return deviceMapper.selectDevice(id);
+        return deviceRepository.findById(id).orElseThrow(EntityNotFoundException::new);
+    }
+
+    public Device getDevice(Integer id) {
+        return deviceRepository.getDeviceById(id);
     }
 
     public void insertDevice(Device device) {
-        deviceMapper.insertDevice(device);
-        device.setId(deviceMapper.identDevices());
-        startDevice(device);
+        Device inserted = deviceRepository.save(device);
+        startDevice(inserted);
     }
 
     public void deleteDevice(Integer id) {
         stopDevice(id);
-        deviceMapper.deleteDevice(id);
+        deviceRepository.deleteById(id);
         simulationService.deleteSimulationByDeviceId(id);
     }
 
     public void updateDevice(Device device) {
         stopDevice(device.getId());
-        deviceMapper.updateDevice(device);
-        startDevice(device);
+        Device updated = deviceRepository.save(device);
+        startDevice(updated);
     }
 
     public void restartDevice(Device device) {
@@ -75,15 +75,15 @@ public class DeviceService {
     }
 
     public boolean selectDeviceEnabled(Integer id) {
-        return deviceMapper.selectDeviceEnabled(id) == 1;
+        return deviceRepository.findById(id).orElseThrow(EntityNotFoundException::new).getEnabled() == Device.DEVICE_ENABLED;
     }
 
     public void updateDeviceEnabled(Integer enabled, Integer id) {
         stopDevice(id);
-        deviceMapper.updateDeviceEnabled(enabled, id);
-
-        Device device = selectDevice(id);
-        startDevice(device);
+        Device device = deviceRepository.findById(id).orElseThrow(EntityNotFoundException::new);
+        device.setEnabled(enabled);
+        Device updated = deviceRepository.save(device);
+        startDevice(updated);
     }
 
     public void startDevice(Device device) {
@@ -102,7 +102,7 @@ public class DeviceService {
                     logger.error("SQL error to establish connection.", e);
                 }
             }
-            simulationService.startDeviceSimulations(device.getId());
+            simulationService.startDeviceSimulations(device);
         }
     }
 

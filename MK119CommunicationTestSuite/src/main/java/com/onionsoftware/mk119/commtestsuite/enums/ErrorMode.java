@@ -4,7 +4,8 @@ public enum ErrorMode {
     DISCARD(0),
     TIMEOUT(1),
     GARBAGE(2),
-    DISCONNECT(3);
+    DISCONNECT(3),
+    SIMULATION(4);
     final private int value;
 
     ErrorMode(int value) {

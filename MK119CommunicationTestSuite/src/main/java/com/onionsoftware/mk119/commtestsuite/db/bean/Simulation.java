@@ -1,34 +1,54 @@
 package com.onionsoftware.mk119.commtestsuite.db.bean;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.onionsoftware.mk119.commtestsuite.db.bean.converter.JsonStringPolicyListConverter;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.Type;
+import javax.persistence.*;
 import java.util.List;
 
 @Getter
 @Setter
 @Component
-public class Simulation {
-    private int id;
-    private int device_id;
+@Entity
+@Table(name = "simulations", uniqueConstraints = {@UniqueConstraint(columnNames = {"name", "device_id"})})
+public class Simulation implements Cloneable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+    @ManyToOne
+    @JoinColumn(name = "device_id")
+    Device device;
     private String target;
-    private String strPolicy;
+    @Convert(converter = JsonStringPolicyListConverter.class)
     private List<SimulationPolicy> policies;
+    @Column(name="`interval`")
     private int interval;
     private int enabled;
+    String name;
 
-    static Gson parser = new Gson();
-
-    public void setStrPolicy(String strPolicy) {
-        this.strPolicy = strPolicy;
-        Type policyType = new TypeToken<List<SimulationPolicy>>(){}.getType();
-        this.policies = parser.fromJson(this.strPolicy, policyType);
-    }
+    @OneToOne(mappedBy = "simulation", cascade = CascadeType.REMOVE)
+    @JsonIgnore
+    private Error error;
 
     public static final int ENABLED = 1;
     public static final int DISABLED = 0;
+
+    @Override
+    public Simulation clone() {
+        try {
+            Simulation clone = (Simulation) super.clone();
+            clone.id = null;
+            clone.device = this.device;
+            clone.target = this.target;
+            clone.policies = this.policies;
+            clone.interval = this.interval;
+            clone.enabled = this.enabled;
+            return clone;
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError();
+        }
+    }
 }

@@ -38,7 +38,7 @@ public class GenericTCPUDPHandler extends MkHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         ByteBuf out = null;
         if (msg instanceof GenericTCPUDPPacket) {
             GenericTCPUDPPacket packet = (GenericTCPUDPPacket) msg;
@@ -53,7 +53,6 @@ public class GenericTCPUDPHandler extends MkHandler {
 
             if (out != null) {
                 sendBuffer = out.copy();
-                super.channelRead(ctx, msg);
             }
         }
     }

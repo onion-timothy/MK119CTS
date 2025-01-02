@@ -12,7 +12,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.tool.CRC16;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.DatagramPacket;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -37,7 +36,7 @@ public class DaeyunHandler extends MkHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         ByteBuf out = Unpooled.buffer();
         int error = ERROR_NO_ERROR;
         int length = 0;
@@ -80,12 +79,10 @@ public class DaeyunHandler extends MkHandler {
                 out.writeByte(4);
                 out.writeByte(0);
                 sendBuffer = out.copy();
-                super.channelRead(ctx, msg);
                 return;
             } else if (daeyun.getFunction() == Daeyun.HB_FUNCTION) {
                 out.writeByte(0);
                 sendBuffer = out.copy();
-                super.channelRead(ctx, msg);
                 return;
             } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
                 Optional<TXFrame> optionalTX = sendFrames.stream().filter(e -> e.getTx_id().equals(daeyun.getPacket().getRx_id())).findFirst();
@@ -112,7 +109,6 @@ public class DaeyunHandler extends MkHandler {
                 out.writeShort(crc);
 
                 sendBuffer = out.copy();
-                super.channelRead(ctx, msg);
             }
         }
     }

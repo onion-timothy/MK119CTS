@@ -23,6 +23,7 @@
         let devicesTable;
         let tree;
         let _devices;
+        let currentDevices;
 
         let groupSelected = '[[${group}]]';
 
@@ -35,6 +36,7 @@
         }
 
         function onload() {
+            $('[data-toggle="tooltip"]').tooltip()
             tree = $('#tree-container').jstree({
                 'core': {
                     'themes': {
@@ -86,6 +88,8 @@
                                 table.append(markup);
                             }
 
+                            currentDevices = data;
+
                             devicesTable = table.DataTable({
                                 "paging": true,
                                 "lengthChange": false,
@@ -99,7 +103,7 @@
                             $(function () {
                                 $('#devicesTable').contextMenu({
                                     selector: 'td',
-                                    callback: function (key, options) {
+                                    callback: function (key) {
                                         let id = $(this).parent().attr('id');
                                         if (key === 'add') {
                                             location.href = '/addDevice';
@@ -232,13 +236,13 @@
                             let markup =
                                 String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td><td>{8}</td></tr>",
                                     '',
-                                    rowObj[i].Name ? rowObj[i].Name : '',
-                                    rowObj[i].Host ? rowObj[i].Host : '',
-                                    rowObj[i].Transport ? rowObj[i].Transport : '',
-                                    rowObj[i].Port ? rowObj[i].Port : '',
-                                    rowObj[i].Protocol ? rowObj[i].Protocol : '',
-                                    rowObj[i].CommSettings ? rowObj[i].CommSettings : '',
-                                    rowObj[i].Enabled ? rowObj[i].Enabled : '',
+                                    rowObj[i].name ? rowObj[i].name : '',
+                                    rowObj[i].host ? rowObj[i].host.replace(/\s+/g, '') : '',
+                                    rowObj[i].transport ? rowObj[i].transport : '',
+                                    rowObj[i].port ? rowObj[i].port : '',
+                                    rowObj[i].protocol ? rowObj[i].protocol : '',
+                                    rowObj[i].communicationSettings ? rowObj[i].communicationSettings : '',
+                                    rowObj[i].enabled ? rowObj[i].enabled : '',
                                     rowObj[i].error
                                 );
                             $('#excelObjects').append(markup);
@@ -252,28 +256,29 @@
         }
 
         function getErrorMessage(devices, obj, objs) {
-            const duplicatedName1 = devices.filter((device) => device.name === obj.Name);
+            const duplicatedName1 = devices.filter((device) => device.name === obj.name);
             if (duplicatedName1.length > 0) {
                 return 'Duplicated device name.'
             }
-            const duplicatedName2 = objs.filter((_obj) => _obj.Name === obj.Name);
+            const duplicatedName2 = objs.filter((_obj) => _obj.name === obj.name);
             if (duplicatedName2.length > 1) {
                 return 'Duplicated device name.'
             }
-            if (obj.Transport !== 'TCP' && obj.Transport !== 'UDP') {
+            if (obj.transport !== 'TCP' && obj.transport !== 'UDP') {
                 return 'Invalid transport.'
             }
-            if (!Number.isInteger(obj.Port) || obj.Port > 65535 || obj.Port < 0) {
+            if (!Number.isInteger(obj.port) || obj.port > 65535 || obj.port < 0) {
                 return 'Invalid port.'
             }
-            if (obj.Protocol !== 'GENERIC' &&
-                obj.Protocol !== 'MODBUS' &&
-                obj.Protocol !== 'XGT_PLC' &&
-                obj.Protocol !== 'DAEYUN_RCU' &&
-                obj.Protocol !== 'SNMP' &&
-                obj.Protocol !== 'BACNET'
-                && obj.Protocol !== 'OPC_AGENT'
-                && obj.Protocol !== 'DB') {
+            if (obj.protocol !== 'GENERIC' &&
+                obj.protocol !== 'MODBUS' &&
+                obj.protocol !== 'XGT_PLC' &&
+                obj.protocol !== 'DAEYUN_RCU' &&
+                obj.protocol !== 'SNMP' &&
+                obj.protocol !== 'BACNET'
+                && obj.protocol !== 'OPC_AGENT'
+                && obj.protocol !== 'DB'
+                && obj.protocol !== 'ETHERNET_IP') {
                 return 'Invalid protocol.'
             }
             return '';
@@ -282,40 +287,18 @@
 
         function convertObject(obj) {
             let ret = {};
-            if (obj.Transport === 'TCP') {
-                ret.intTransport = 1;
-            } else if (obj.Transport === 'UDP') {
-                ret.intTransport = 2;
-            }
+            ret.transport = obj.transport;
+            ret.protocol = obj.protocol;
 
-            if (obj.Protocol === 'GENERIC') {
-                ret.intProtocol = 1;
-            } else if (obj.Protocol === 'MODBUS') {
-                ret.intProtocol = 2;
-            } else if (obj.Protocol === 'XGT_PLC') {
-                ret.intProtocol = 3;
-            } else if (obj.Protocol === 'DAEYUN_RCU') {
-                ret.intProtocol = 4;
-            } else if (obj.Protocol === 'SNMP') {
-                ret.intProtocol = 5;
-            } else if (obj.Protocol === 'BACNET') {
-                ret.intProtocol = 6;
-            } else if (obj.Protocol === 'OPC_AGENT') {
-                ret.intProtocol = 7;
-            } else if (obj.Protocol === 'DB') {
-                ret.intProtocol = 8;
-            }
-
-            ret.host = obj.Host;
-            ret.port = obj.Port;
-            ret.strCommunicationSettings = obj.CommSettings;
-            ret.name = obj.Name;
-            ret.group_id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
-            if (obj.Enabled === 'Enabled') {
-                ret.enabled = 1;
-            } else {
-                ret.enabled = 0;
-            }
+            ret.host = obj.host;
+            ret.port = obj.port;
+            ret.communicationSettings = JSON.parse(obj.communicationSettings);
+            ret.name = obj.name;
+            let group = {};
+            group.id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            ret.group = group;
+            ret.enabled = obj.enabled;
+            ret.log = 0;
             return ret;
         }
 
@@ -326,7 +309,8 @@
                     'action': function () {
                         let group = {};
                         group.name = prompt('Enter name of new group.');
-                        group.parent_id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                        if(group.name == null || group.name === '') return;
+                        group.parentId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
 
                         $.ajax({
                             url: '/api/group/addGroup',
@@ -456,6 +440,20 @@
             location.href = '/devices?group=' + group;
         }
 
+        function generateTemplate() {
+            let output = currentDevices.map(({ id, group, log, ...rest }) => rest).map(row => {
+                return {
+                    ...row,
+                    communicationSettings: JSON.stringify(row.communicationSettings)
+                };
+            });
+            const headers = ['name', 'host', 'transport', 'port', 'protocol', 'communicationSettings', 'enabled'];
+            const worksheet = XLSX.utils.json_to_sheet(output, {header : headers});
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+            XLSX.writeFile(workbook, "devices_template.xlsx");
+        }
+
         /*]]>*/
     </script>
 </head>
@@ -475,7 +473,7 @@
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
-                <a href="../../index3.html" class="nav-link">Home</a>
+                <a href="/" class="nav-link">Home</a>
             </li>
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="#" class="nav-link">Contact</a>
@@ -486,25 +484,9 @@
         <ul class="navbar-nav ml-auto">
             <!-- Navbar Search -->
             <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
+                <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip" data-placement="bottom" title="Export to template">
+                    <i class="fas fa-download"></i>
                 </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
             </li>
             <li class="nav-item">
                 <a class="nav-link" data-widget="fullscreen" href="#" role="button">
@@ -518,7 +500,7 @@
     <!-- Main Sidebar Container -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
         <!-- Brand Logo -->
-        <a href="../../index3.html" class="brand-link">
+        <a href="#" class="brand-link">
             <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
                  style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>

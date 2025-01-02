@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Component("ioServerInstances")
 @Getter
@@ -37,7 +38,7 @@ public class IOServerInstances {
         }
     }
 
-    public IOServer getServerInstance(int deviceId) {
-        return servers.get(deviceId);
+    public Optional<IOServer> getServerInstance(int deviceId) {
+        return Optional.ofNullable(servers.get(deviceId));
     }
 }

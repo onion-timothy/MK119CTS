@@ -43,7 +43,7 @@
     </select>
 
     <insert id="insertDevice" parameterType="com.onionsoftware.mk119.commtestsuite.db.bean.Device">
-        INSERT INTO DEVICES(intTransport, intProtocol, host, port, name, enabled, group_id, strCommunicationSettings, log)
+        INSERT INTO DEVICES(transport, protocol, host, port, name, enabled, group_id, communication_settings, log)
         VALUES (#{intTransport}, #{intProtocol}, #{host}, #{port}, #{name}, #{enabled}, #{group_id}, #{strCommunicationSettings}, #{log})
     </insert>
 
@@ -55,14 +55,14 @@
 
     <update id="updateDevice">
         UPDATE DEVICES
-        SET intTransport             = #{intTransport},
-            intProtocol              = #{intProtocol},
+        SET transport             = #{intTransport},
+            protocol              = #{intProtocol},
             host                     = #{host},
             port                     = #{port},
             name                     = #{name},
             enabled                  = #{enabled},
             group_id                 = #{group_id},
-            strCommunicationSettings = #{strCommunicationSettings},
+            communication_settings = #{strCommunicationSettings},
             log                      = #{log}
         WHERE id = #{id}
     </update>
