@@ -1,17 +1,20 @@
 package com.onionsoftware.mk119.commtestsuite.web;
 
-import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.bean.*;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.Group;
-import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
+import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LiveSimulationRequest;
+import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import com.onionsoftware.mk119.commtestsuite.web.bean.Session;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -361,6 +364,64 @@ public class ApiController {
         errorService.updateError(error);
         ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
         return "success";
+    }
+
+    @RequestMapping(value="/simulation/startLiveSimulation/{device_id}", method = RequestMethod.POST)
+    public String startLiveSimulation(@PathVariable Integer device_id) {
+        MkLogger.log("simulation", LogLevel.INFO, "Live simulation start request {0}.", device_id);
+        List<Simulation> simulations = simulationService.selectSimulationsByDeviceId(device_id);
+        simulations.forEach(simulationService::stopSimulation);
+        ioServerInstances.getServerInstance(device_id).ifPresent(server->server.getServerData().resetServerData());
+        MkLogger.log("simulation", LogLevel.INFO, "Simulations of {0} has stopped.", device_id);
+        return "success";
+    }
+
+    @RequestMapping(value="/simulation/live_request/{device_id}", method = RequestMethod.POST)
+    public String setLiveSimulation(@PathVariable Integer device_id, @RequestBody LiveSimulationRequest request) {
+        ioServerInstances.getServerInstance(device_id).ifPresent(server -> {
+            switch(server.getDevice().getProtocol()) {
+                case MODBUS:
+                    String[] targetTokens = request.getTarget().split("_");
+                    int function = Integer.parseInt(targetTokens[0]);
+                    int register = Integer.parseInt(targetTokens[1]);
+                    ModbusData modbusData = (ModbusData) server.getServerData();
+                    if (function == Modbus.FC_01) {
+                        modbusData.setCoil_status(request.getValue() == 1, register);
+                    } else if (function == Modbus.FC_02) {
+                        modbusData.setInput_status(request.getValue() == 1, register);
+                    } else if (function == Modbus.FC_03) {
+                        modbusData.setHolding_registers(request.getValue(), request.getDataType(), register);
+                    } else if (function == Modbus.FC_04) {
+                        modbusData.setInput_registers(request.getValue(), request.getDataType(), register);
+                    }
+                    break;
+                case XGT_PLC:
+                    break;
+            }
+        });
+        return "success";
+    }
+
+    @RequestMapping(value="/simulation/stopLiveSimulation/{device_id}", method = RequestMethod.POST)
+    public String stopLiveSimulation(@PathVariable Integer device_id) {
+        MkLogger.log("simulation", LogLevel.INFO, "Live simulation stop request {0}.", device_id);
+        ioServerInstances.getServerInstance(device_id).ifPresent(server -> server.getServerData().resetServerData());
+        simulationService.startDeviceSimulations(deviceService.selectDevice(device_id));
+        MkLogger.log("simulation", LogLevel.INFO, "Simulations of {0} has started.", device_id);
+        return "success";
+    }
+
+    @RequestMapping(value = "/simulation/updateStaticSimulationValue/{simulation_id}/{value}", method = RequestMethod.POST)
+    public String updateSimulation(@PathVariable Integer simulation_id, @PathVariable Double value) {
+        Simulation simulation = simulationService.selectSimulation(simulation_id);
+        if(simulation != null) {
+            List<SimulationPolicy> policies = simulation.getPolicies();
+            policies.get(0).setValue(value);
+            simulationService.updateSimulation(simulation);
+            return "success";
+        } else {
+            return "simulation id not found: " + simulation_id;
+        }
     }
 
     @ExceptionHandler({SQLException.class})

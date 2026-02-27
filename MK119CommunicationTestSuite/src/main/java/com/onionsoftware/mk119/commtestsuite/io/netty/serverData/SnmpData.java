@@ -10,4 +10,8 @@ import java.util.Map;
 @Setter
 public class SnmpData implements ServerData {
     private final Map<String, Double> oidValueMap = new HashMap<>();
+    @Override
+    public void resetServerData() {
+        oidValueMap.clear();
+    }
 }

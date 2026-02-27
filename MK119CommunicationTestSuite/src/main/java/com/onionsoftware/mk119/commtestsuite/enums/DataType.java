@@ -41,8 +41,8 @@ public enum DataType {
     public int getByteCount() {
         if (name().contains("8")) return 1;
         if (name().contains("16")) return 2;
-        if (name().contains("32")) return 3;
-        if (name().contains("64")) return 4;
+        if (name().contains("32")) return 4;
+        if (name().contains("64")) return 8;
         return 0;
     }
 }

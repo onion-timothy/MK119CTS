@@ -121,7 +121,7 @@
                                 }
                             })
                             obj.id = null;
-                            if (obj.range !== null) {
+                            if (obj.range !== undefined) {
                                 simulationPolicy.range = [];
                                 let range = obj.range.split(',');
                                 range.forEach(boundary => {
@@ -142,7 +142,7 @@
                         });
                     });
                     excelTable = $('#excelObjects').DataTable({
-                        "paging": true,
+                        "paging": false,
                         "lengthChange": false,
                         "searching": false,
                         "ordering": true,
@@ -190,7 +190,7 @@
                             policies.push(policy[j].policy);
                         }
                         let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleSimulation(" + data[i].id + "," + data[i].enabled + ")'></button>"
-                        let markup = "<tr id='sim_" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].name + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
+                        let markup = "<tr ondblclick='changeSimulationVal("+data[i].id+")' id='sim_" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].name + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
                         table.append(markup);
                     }
 
@@ -379,6 +379,34 @@
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
             XLSX.writeFile(workbook, "simulations_template.xlsx");
+        }
+
+        function changeSimulationVal(id) {
+            currentSimulations.some(s=>{
+                if(s.id === id) {
+                    if(s.policies[0].policy === 'STATIC') {
+                        let value = prompt('Update static simluation value:', s.policies[0].value);
+                        if(value === null) return true
+                        if (Number.isFinite(Number(value))) {
+                            $.ajax({
+                                url: '/api/simulation/updateStaticSimulationValue/' + id + '/' + value,
+                                type: 'POST',
+                                contentType: 'application/json',
+                                error: function (request) {
+                                    alert(request.status + request.responseText);
+                                },
+                                success: function(){
+                                    location.reload()
+                                },
+                                async: false,
+                            });
+                        } else alert('Input value is not a number.');
+                    } else {
+                        alert(s.name + ' is not static simulation.')
+                    }
+                    return true
+                }
+            });
         }
 
         /*]]>*/

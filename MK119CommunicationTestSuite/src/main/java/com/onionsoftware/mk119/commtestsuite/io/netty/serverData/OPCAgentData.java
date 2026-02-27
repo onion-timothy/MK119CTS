@@ -21,4 +21,8 @@ public class OPCAgentData implements ServerData {
     public double[] getValues(int start, int length) {
         return Arrays.copyOfRange(values, start, start + length);
     }
+    @Override
+    public void resetServerData() {
+        Arrays.fill(values, 0);
+    }
 }

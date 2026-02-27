@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS</title>
+
+    <!-- Google Font: Source Sans Pro -->
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <!-- Theme style -->
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <!-- jTree -->
+    <link rel="stylesheet" href="../../css/style.min.css"/>
+    <!-- BS Stepper -->
+    <link rel="stylesheet" href="../../plugins/bs-stepper/css/bs-stepper.min.css">
+    <!-- bootstrap slider -->
+    <link rel="stylesheet" href="../../plugins/bootstrap-slider/css/bootstrap-slider.min.css">
+    <link rel="stylesheet" href="../../css/bootstrap-select.min.css">
+
+    <style>
+        .form-group.rounded-outline {
+            border: 1px solid #ccc;        /* 더 얇은 테두리 */
+            border-radius: 0.5rem;         /* 더 둥글게 */
+            box-shadow: none;              /* 기본 포커스 그림자 제거 */
+            padding: 0.375rem 0.75rem;
+        }
+    </style>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        let device;
+        //let communicationSettings;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            window.stepper = new Stepper(document.querySelector('.bs-stepper'))
+        });
+        let tree;
+
+        let diCount;
+        let doCount;
+        let aiCount;
+        let rsCount;
+
+        function onload() {
+            $('#tree-container').jstree({
+                'core': {
+                    'themes': {
+                        'responsive': true,
+                        "variant": "large"
+                    },
+                    'check_callback': true,
+                    'data': {
+                        "url": "/api/group/groups/treeData"
+                    }
+                },
+                "types": {
+                    "group": {
+                        "icon": "fas fa-folder",
+                    }
+                },
+                "plugins": [
+                    "types", "wholerow", "sort"
+                ],
+            }).on("select_node.jstree", function (e, data) {
+                if (data.node.type === 'group') {
+                    $.jstree.reference('#tree-container').open_node(data.node.id);
+                }
+            }).on("ready.jstree", function () {
+                // 시작할 때 루트 노드를 열어준다.
+                if (device != null) {
+                    $.jstree.reference('#tree-container').open_node('g_' + device.group.id);
+                    $.jstree.reference('#tree-container').select_node('g_' + device.group.id);
+                }
+            });
+            diCount = $('#diCount').bootstrapSlider();
+            doCount = $('#doCount').bootstrapSlider();
+            aiCount = $('#aiCount').bootstrapSlider();
+            rsCount = $('#rsCount').bootstrapSlider();
+
+            device = [[${device}]];
+            if (device) {
+                loadEditDevice(device);
+            } else {
+                onTransportChange(1)
+            }
+        }
+
+        function loadEditDevice(device) {
+            $('#title').text("Edit device '" + device.name + "'");
+            $('#menuText').text('Edit device');
+            $('#name').val(device.name);
+            $('#enabled').val(device.enabled);
+            $('#log').val(device.log);
+            $.jstree.reference('#tree-container').open_node('g_1');
+            $('#transport').val(device.transport);
+            onTransportChange(device.transport);
+            $('#host').val(device.host);
+            $('#port').val(device.port);
+            let protocolSelector = $('#protocol');
+            protocolSelector.val(device.protocol);
+            protocolSelector.prop('disabled', true);
+            $('#devId').val(device.id);
+        }
+
+        function validatePanel1() {
+            let name = $('#name').val();
+            if (name === '') {
+                alert('Name cannot be empty.');
+            } else {
+                stepper.next();
+            }
+        }
+
+        function validatePanel2() {
+            let group = $.jstree.reference('#tree-container').get_selected()[0];
+            if (typeof(group) === 'undefined') {
+                alert('Group not selected.');
+            } else {
+                $.ajax({
+                    url: '/api/device/devices/' + group.replace('g_', ''),
+                    type: 'GET',
+                    success: function (data) {
+                        let deviceNames = data.map(item => item.name);
+                        let name = $('#name');
+
+                        if(device && device.name === name.val()){
+                            stepper.next();
+                        } else {
+                            if (deviceNames.indexOf(name.val()) > -1) {
+                                alert('Entered name is duplicated in selected group.')
+                            } else {
+                                stepper.next();
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function loadPPDPGD(commSettings, form) {
+            if(parseInt($(`#${form}-ppd-count`).val())===0) {
+                commSettings.rx.forEach((rx, i) => {
+                    addPPD(form)
+                    $(`#${form}-ppd-${i}-id`).val(rx.rx_id)
+                    $(`#${form}-ppd-${i}-length`).val(parseInt(rx.length))
+                    rx.fields.forEach((field, j) => {
+                        addPPDField(form, i)
+                        $(`#${form}-ppd-${i}-field-${j}-id`).val(field.field_id)
+                        $(`#${form}-ppd-${i}-field-${j}-datatype`).selectpicker('val', field.data_type)
+                        if (field.required_value) $(`#${form}-ppd-${i}-field-${j}-required_value`).val(field.required_value)
+                    })
+                })
+            }
+
+            if(parseInt($(`#${form}-pgd-count`).val())===0){
+                commSettings.tx.forEach((tx, i) => {
+                    addPGD(form)
+                    $(`#${form}-pgd-${i}-id`).val(tx.tx_id)
+                    tx.fields.forEach((field, j) => {
+                        addPGDField(form, i)
+                        $(`#${form}-pgd-${i}-field-${j}-id`).val(field.field_id)
+                        $(`#${form}-pgd-${i}-field-${j}-fieldtype`).val(field.field_type)
+                        $(`#${form}-pgd-${i}-field-${j}-datatype`).selectpicker('val', field.data_type)
+                        changeFieldType(`${form}-pgd-${i}-field-${j}-fieldtype`)
+
+                        if(field.field_type === 'STATIC' || field.field_type === 'REFERENCE' || field.field_type === 'CRC16' || field.field_type === 'CHECKSUM8') {
+                            $(`#${form}-pgd-${i}-field-${j}-value`).val(field.value)
+                        } else if (field.field_type === 'ITERATION') {
+                            $(`#${form}-pgd-${i}-field-${j}-iteration_count`).val(field.iteration_count)
+                        }
+                    })
+                })
+            }
+        }
+
+        function validatePanel3() {
+            let host = $('#host').val();
+            let port = $('#port').val();
+            let protocol = $('#protocol').val();
+            if (host === '' || port === '') {
+                alert('Host and port is cannot be empty.');
+            } else {
+                stepper.next();
+
+                if (protocol === 'GENERIC') {
+                    showForm('formGeneric');
+                    if(device) {
+                        loadPPDPGD(device.communicationSettings, 'generic')
+                    } else {
+                        if(parseInt($(`#generic-ppd-count`).val())===0)
+                            addPPD('generic', true);
+                        if(parseInt($(`#generic-pgd-count`).val())===0)
+                            addPGD('generic', true);
+                    }
+                } else if (protocol === 'MODBUS') {
+                    showForm('formModbus');
+                    if (device != null) {
+                        $('#uid').val(device.communicationSettings.unitId);
+                        $('#packetType').val(device.communicationSettings.packetType);
+                        $('#registers1').val(device.communicationSettings.registers);
+                    }
+                } else if (protocol === 'XGT_PLC') {
+                    showForm('formLSISXGT');
+                    if (device != null) {
+                        $('#cpuid').val(device.communicationSettings.cpuId);
+                        $('#blocksize').val((device.communicationSettings.maxBlockSize))
+                        $('#registers2').val(device.communicationSettings.registers);
+                    }
+                } else if (protocol === 'DAEYUN_RCU') {
+                    showForm('formMKRCU');
+                    if(!device) {
+                        if(parseInt($(`#rcu-ppd-count`).val())===0)
+                            addPPD('rcu', true);
+                        if(parseInt($(`#rcu-pgd-count`).val())===0)
+                            addPGD('rcu', true);
+                    } else {
+                        loadPPDPGD(device.communicationSettings, 'rcu')
+                        $('#cpuAddr').val(device.communicationSettings.cpuAddr);
+                        diCount.bootstrapSlider('setValue', device.communicationSettings.diCount);
+                        doCount.bootstrapSlider('setValue', device.communicationSettings.doCount);
+                        aiCount.bootstrapSlider('setValue', device.communicationSettings.aiCount);
+                    }
+                } else if (protocol === 'SNMP') {
+                    showForm('formSNMP');
+                    if (device != null) {
+                        $('#snmpVersion').val(device.communicationSettings.snmpVersion);
+                        $('#getCommunity').val(device.communicationSettings.getCommunity);
+                        $('#setCommunity').val(device.communicationSettings.setCommunity);
+                    }
+                } else if (protocol === 'BACNET') {
+                    showForm('formBACnet');
+                    if (device != null) {
+                        $('#deviceInstanceId').val(device.communicationSettings.deviceInstanceId);
+                        $('#broadcast').val(device.communicationSettings.broadcast);
+                    }
+                } else if (protocol === 'OPC_AGENT') {
+                    showForm('formMKOPCAgent');
+                    $('#agentTagsCount').val(device.communicationSettings.registers);
+                } else if (protocol === 'DB') {
+                    showForm('formDB');
+                    if (device != null) {
+                        $('#dbDriver').val(device.communicationSettings.dbdriver);
+                        $('#dbUrl').val(device.communicationSettings.dbUrl);
+                        $('#dbUsername').val(device.communicationSettings.dbUsername);
+                        document.getElementById("dbPassword").value = device.communicationSettings.dbPassword;
+                        $('#dbDatabase').val(device.communicationSettings.dbDatabase);
+                    }
+                } else if (protocol === 'ETHERNET_IP') {
+                    showForm('formEthernetIP');
+                    if (device != null) {
+                        $('#cpuSlot').val(device.communicationSettings.cpuSlot);
+                        $('#syn_port').val(device.communicationSettings.syn_port);
+                        $('#implicit_t2o_addr').val(device.communicationSettings.implicit_t2o_addr);
+                        $('#implicit_t2o_assy_size').val(device.communicationSettings.implicit_t2o_assy_size);
+                        $('#implicit_o2t_assy_size').val(device.communicationSettings.implicit_o2t_assy_size);
+                    }
+                }
+            }
+        }
+
+        let formIds = ['formGeneric', 'formModbus', 'formLSISXGT', 'formMKRCU', 'formSNMP', 'formBACnet', 'formMKOPCAgent', 'formDB', 'formEthernetIP'];
+
+        function showForm(formId) {
+            for (let i = 0; i < formIds.length; i++) {
+                $('#' + formIds[i]).hide();
+            }
+            $('#' + formId).show();
+        }
+
+        function makeTXObj(form) {
+            let txs = [];
+            for(let i=0;i<parseInt($(`#${form}-pgd-count`).val());i++){
+                let tx = {};
+                tx.tx_id = $(`#${form}-pgd-${i}-id`).val();
+                if(tx.tx_id === ''){
+                    alert(`ID of PGD-${i} is empty.`);
+                    return;
+                }
+                tx.fields = [];
+                for(let j=0;j<parseInt($(`#${form}-pgd-${i}-field-count`).val());j++) {
+                    let field = {};
+                    field.field_id = $(`#${form}-pgd-${i}-field-${j}-id`).val()
+                    if(field.field_id === '') {
+                        alert(`Field ID of PGD-${i} Field-${j} is empty.`);
+                        return;
+                    }
+                    field.field_type = $(`#${form}-pgd-${i}-field-${j}-fieldtype`).val()
+                    field.data_type = $(`#${form}-pgd-${i}-field-${j}-datatype`).val()
+
+                    if(field.field_type === 'STATIC' || field.field_type === 'REFERENCE' || field.field_type === 'CRC16' || field.field_type === 'CHECKSUM8') {
+                        field.value = $(`#${form}-pgd-${i}-field-${j}-value`).val()
+                        field.iteration_count = null;
+                        if(field.value === '') {
+                            alert(`Value of ${field.field_type} Field ${field.field_id} is empty.`);
+                            return;
+                        }
+                    } else if (field.field_type === 'ITERATION') {
+                        field.iteration_count = $(`#${form}-pgd-${i}-field-${j}-iteration_count`).val()
+                        field.value = $(`#${form}-pgd-${i}-field-${j}-value`).val();
+                        if(field.iteration_count === '') {
+                            alert(`Count of ITERATION Field ${field.field_id} is empty.`);
+                            return;
+                        }
+
+                        if(field.value === '') {
+                            field.value = null
+                        }
+                    } else {
+                        field.iteration_count = null;
+                        field.value = null;
+                    }
+                    tx.fields.push(field);
+                }
+                txs.push(tx)
+            }
+            return txs;
+        }
+
+        function makeRXObj(form) {
+            let rxs = [];
+            for(let i=0;i<parseInt($(`#${form}-ppd-count`).val());i++) {
+                let rx = {};
+                rx.rx_id = $(`#${form}-ppd-${i}-id`).val();
+                if(rx.rx_id === '') {
+                    alert(`ID of PPD-${i} is empty.`);
+                    return;
+                }
+                let $length = $(`#${form}-ppd-${i}-length`).val();
+                rx.length = $length === '' ? null : parseInt($length);
+                rx.fields = [];
+                for(let j=0;j<parseInt($(`#${form}-ppd-${i}-field-count`).val());j++) {
+                    let field = {};
+                    field.field_id = $(`#${form}-ppd-${i}-field-${j}-id`).val();
+                    if(field.field_id === '') {
+                        alert(`Field ID of PPD-${i} Field-${j} is empty.`);
+                        return;
+                    }
+                    field.data_type = $(`#${form}-ppd-${i}-field-${j}-datatype`).val();
+                    let $required_value = $(`#${form}-ppd-${i}-field-${j}-required_value`).val();
+                    field.required_value = $required_value === '' ? null : $required_value;
+                    rx.fields.push(field);
+                }
+                rxs.push(rx);
+            }
+            return rxs;
+        }
+
+        function addDevice() {
+            let dev = {};
+            dev.transport = $('#transport').val();
+            dev.protocol = $('#protocol').val();
+            dev.host = $('#host').val();
+            dev.port = $('#port').val();
+            dev.name = $('#name').val();
+            dev.enabled = $('#enabled').val();
+            dev.log = $('#log').val();
+            let group = {};
+            group.id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            group.name = null;
+            group.parentId = null;
+            dev.group = group;
+
+            if (device != null) {
+                dev.id = $('#devId').val();
+            }
+
+            let communicationSettings = {};
+            if (dev.protocol === 'GENERIC') {
+                communicationSettings.rx = makeRXObj('generic');
+                if(!communicationSettings.rx) return;
+                communicationSettings.tx = makeTXObj('generic');
+                if(!communicationSettings.tx) return;
+            } else if (dev.protocol === 'MODBUS') {
+                communicationSettings.unitId = $('#uid').val();
+                communicationSettings.packetType = $('#packetType').val();
+                communicationSettings.registers = $('#registers1').val();
+
+                if(communicationSettings.unitId === '' || isNaN(communicationSettings.unitId)){
+                    alert('Unit ID must assigned to number.');
+                    return;
+                }
+                if (communicationSettings.unitId < 0 || communicationSettings.unitId > 255) {
+                    alert('Invalid Unit ID. Modbus Unit ID must in 0~255.');
+                    return;
+                }
+                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)){
+                    alert('Registers count must assigned to number.');
+                    return;
+                }
+            } else if (dev.protocol === 'XGT_PLC') {
+                communicationSettings.cpuId = $('#cpuid').val();
+                communicationSettings.maxBlockSize = $('#blocksize').val();
+                communicationSettings.registers = $('#registers2').val();
+
+                if(communicationSettings.cpuId === '' || isNaN(communicationSettings.cpuId)) {
+                    alert('CPU ID must assigned to number.')
+                    return
+                }
+                if (communicationSettings.cpuId < 0 || communicationSettings.cpuId > 255) {
+                    alert('Invalid CPU ID. XGT CPU ID must in 0~255.')
+                    return
+                }
+
+                if(communicationSettings.maxBlockSize === '' || isNaN(communicationSettings.maxBlockSize)) {
+                    alert('Block size must assigned to number.')
+                    return
+                }
+                if (communicationSettings.maxBlockSize < 1 || communicationSettings.cpuId > 1400) {
+                    alert('Invalid Block size. Block size must in 1~1400.')
+                    return
+                }
+
+                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)){
+                    alert('Registers count must assigned to number.');
+                    return;
+                }
+            } else if (dev.protocol === 'DAEYUN_RCU') {
+                communicationSettings.rx = makeRXObj('rcu');
+                if(!communicationSettings.rx) return;
+                communicationSettings.tx = makeTXObj('rcu');
+                if(!communicationSettings.tx) return;
+                communicationSettings.cpuAddr = $('#cpuAddr').val();
+                communicationSettings.diCount = diCount.bootstrapSlider('getValue');
+                communicationSettings.doCount = doCount.bootstrapSlider('getValue');
+                communicationSettings.aiCount = aiCount.bootstrapSlider('getValue');
+                //communicationSettings.rsCount = rsCount.bootstrapSlider('getValue');
+
+                if(communicationSettings.cpuAddr === '' || isNaN(communicationSettings.cpuAddr)) {
+                    alert('CPU ID must assigned to number.')
+                    return
+                }
+                if (communicationSettings.cpuAddr < 0 || communicationSettings.cpuAddr > 255) {
+                    alert('Invalid CPU Address. MK RCU CPU Address must in 0~255.')
+                    return
+                }
+            } else if (dev.protocol === 'SNMP') {
+                communicationSettings.snmpVersion = $('#snmpVersion').val();
+                communicationSettings.getCommunity = $('#getCommunity').val();
+                communicationSettings.setCommunity = $('#setCommunity').val();
+                if(communicationSettings.snmpVersion === '' || isNaN(communicationSettings.snmpVersion)) {
+                    alert('SNMP Version must assigned to number.')
+                    return
+                }
+                if (communicationSettings.snmpVersion < 0 || communicationSettings.snmpVersion > 1) {
+                    alert('Invalid SNMP Version. SNMP Version must in 1 or 2.')
+                    return
+                }
+            } else if (dev.protocol === 'BACNET') {
+                communicationSettings.deviceInstanceId = $('#deviceInstanceId').val();
+                communicationSettings.broadcast = $('#broadcast').val();
+
+                if(communicationSettings.deviceInstanceId === '' || isNaN(communicationSettings.deviceInstanceId)) {
+                    alert('BACnet device instance number must assigned to number.')
+                    return
+                }
+                if (communicationSettings.deviceInstanceId < 1 || communicationSettings.deviceInstanceId > 65536) {
+                    alert('Invalid BACnet device instance number. BACnet device instance number must in 1~65536.')
+                    return
+                }
+                if(communicationSettings.broadcast === ''){
+                    alert('BACnet broadcast address cannot be empty.')
+                    return
+                }
+            } else if (dev.protocol === 'OPC_AGENT') {
+                communicationSettings.registers = $('#agentTagsCount').val();
+                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)) {
+                    alert('OPC Agent tags count must assigned to number.')
+                    return
+                }
+            } else if (dev.protocol === 'DB') {
+                communicationSettings.dbdriver = $('#dbDriver').val();
+                communicationSettings.dbUrl = $('#dbUrl').val();
+                communicationSettings.dbUsername = $('#dbUsername').val();
+                communicationSettings.dbPassword = document.getElementById("dbPassword").value;
+                communicationSettings.dbDatabase = $('#dbDatabase').val();
+
+                if(communicationSettings.dbdriver === ''){
+                    alert('DB Driver cannot be empty.')
+                    return
+                }
+                if(communicationSettings.dbUrl === ''){
+                    alert('DB URL cannot be empty.')
+                    return
+                }
+                if(communicationSettings.dbUsername === ''){
+                    alert('DB Username cannot be empty.')
+                    return
+                }
+                if(communicationSettings.dbPassword === ''){
+                    alert('DB Password cannot be empty.')
+                    return
+                }
+                if(communicationSettings.dbDatabase === ''){
+                    alert('DB name cannot be empty.')
+                    return
+                }
+            } else if (dev.protocol === 'ETHERNET_IP') {
+                communicationSettings.cpuSlot = $('#cpuSlot').val();
+                communicationSettings.syn_port = $('#syn_port').val();
+                communicationSettings.implicit_t2o_addr = $('#implicit_t2o_addr').val();
+                communicationSettings.implicit_t2o_assy_size = $('#implicit_t2o_assy_size').val();
+                communicationSettings.implicit_o2t_assy_size = $('#implicit_o2t_assy_size').val();
+
+                if(communicationSettings.cpuSlot === ''){
+                    alert('CPU slot number cannot be empty.')
+                    return
+                }
+            }
+
+            dev.communicationSettings = communicationSettings;
+            $.ajax({
+                url: device == null ? '/api/device/addDevice' : '/api/device/updateDevice',
+                type: device == null ? 'PUT' : 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(dev),
+                success: function () {
+                    location.href = '/';
+                },
+                error: function (request) {
+                    if (request.responseText.includes('UNIQUE')) {
+                        alert("Cannot create with the same name within a group.");
+                    } else
+                        alert(request.status + request.responseText);
+                }
+            });
+        }
+
+        const tcp_protocols = [
+            {value: 'GENERIC', text: 'Generic'},
+            {value: 'MODBUS', text: 'Modbus'},
+            {value: 'XGT_PLC', text: 'LSIS-XGT'},
+            {value: 'DAEYUN_RCU', text: 'MK RCU'},
+            {value: 'DB', text: 'DB'},
+            {value: 'ETHERNET_IP', text: 'Ethernet/IP'}
+        ]
+
+        const udp_protocols = [
+            {value: 'GENERIC', text: 'Generic'},
+            {value: 'MODBUS', text: 'Modbus'},
+            {value: 'XGT_PLC', text: 'LSIS-XGT'},
+            {value: 'SNMP', text: 'SNMP'},
+            {value: 'BACNET', text: 'BACnet'},
+            {value: 'OPC_AGENT', text: 'MK OPC Agent'},
+            {value: 'DB', text: 'DB'}
+        ]
+
+        function onTransportChange() {
+            let transport = $('#transport').val()
+            let protocol = $('#protocol');
+            protocol.empty()
+            let p = transport === 'TCP' ? tcp_protocols : udp_protocols;
+            p.forEach(option => {
+                protocol.append($('<option>', {
+                    value: option.value,
+                    text: option.text
+                }))
+            })
+            onProtocolChange(1)
+        }
+
+        function onProtocolChange() {
+            let host = $('#host')
+            let port = $('#port')
+            let transport = $('#transport').val()
+            let protocol = $('#protocol').val()
+
+            host.attr('readonly', false)
+            host.attr('placeholder', 'Binding host for device')
+            host.val('')
+            port.attr('readonly', false)
+            port.attr('placeholder', 'Binding port for device')
+            port.val('')
+
+            let hostForm = $('#hostFormGroup')
+            let portForm = $('#portFormGroup')
+            hostForm.show()
+            portForm.show()
+
+            if (protocol === 'MODBUS') {
+                port.attr('placeholder', 502)
+            } else if (protocol === 'XGT_PLC') {
+                port.attr('placeholder', transport === 'TCP' ? 2004 : 2005)
+            } else if (protocol === 'DAEYUN_RCU') {
+                port.attr('placeholder', 1470)
+            } else if (protocol === 'SNMP') {
+                port.attr('placeholder', 161)
+            } else if (protocol === 'BACNET') {
+                host.attr('readonly', true)
+                host.val('0.0.0.0')
+                port.attr('readonly', true)
+                port.val(47808)
+            } else if (protocol === 'OPC_AGENT') {
+                port.attr('placeholder', 9999)
+            } else if (protocol === 'ETHERNET_IP') {
+                port.attr('placeholder', 44818)
+            } else if (protocol === 'DB') {
+                hostForm.hide()
+                portForm.hide()
+            }
+        }
+
+        function addPPD(form, addDefaultField=false) {
+            let $pnum_input = $('#'+form+'-ppd-count');
+            let pnum = parseInt($pnum_input.val());
+
+            let html =
+                '<label for="'+form+'-ppd-'+pnum+'" id="'+form+'-ppd-'+pnum+'-label">PPD-'+pnum+'</label>\n' +
+                '<div id="'+form+'-ppd-'+pnum+'" class="form-group rounded-outline">\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-ppd-'+pnum+'-id">ID</label>\n' +
+                '        <input type="text" class="form-control form-control-border"\n' +
+                '               id="'+form+'-ppd-'+pnum+'-id" placeholder="ID of PPD.">\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-ppd-'+pnum+'-length">Length</label>\n' +
+                '        <input type="text" class="form-control form-control-border"\n' +
+                '               id="'+form+'-ppd-'+pnum+'-length" placeholder="Length of packet. Set as 0 if length not fixed." onbeforeinput="numeric_filter(this, event)">\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-ppd-'+pnum+'-fields-header">Fields</label>\n' +
+                '        <div class="form-group" id="'+form+'-ppd-'+pnum+'-fields-header">\n' +
+                '            <button class="btn btn-danger" id="'+form+'-ppd-'+pnum+'-decrease-field" onclick="removePPDField(\''+form+'\', '+pnum+')">\n' +
+                '                <i class="fas fa-minus"></i>\n' +
+                '            </button>\n' +
+                '            <button class="btn btn-success" id="'+form+'-ppd-'+pnum+'-increase-field" onclick="addPPDField(\''+form+'\', '+pnum+')">\n' +
+                '                <i class="fas fa-plus"></i>\n' +
+                '            </button>\n' +
+                '        </div>\n' +
+                '        <div id="'+form+'-ppd-'+pnum+'-fields">\n' +
+                '            <input type="hidden" id="'+form+'-ppd-'+pnum+'-field-count" value="0">\n' +
+                '        </div>\n' +
+                '        <div class="form-group">\n' +
+                '            <label for="'+form+'-ppd-'+pnum+'-accept-test">Acceptance test</label>\n' +
+                '            <div id="'+form+'-ppd-'+pnum+'-accept-test" contenteditable="true" class="form-control form-control-border" oninput="hex_filter(this)"></div>\n' +
+                '            <div id="'+form+'-ppd-'+pnum+'-accept-test-result" style="display: none"></div>\n' +
+                '        </div>\n' +
+                '    </div>\n' +
+                '</div>';
+
+            let $target = $('#'+form+'-ppd-editor')
+
+            $target.append(html);
+            if(addDefaultField) addPPDField(form, pnum);
+            $pnum_input.val(pnum + 1);
+        }
+
+        function removePPD(form) {
+            let $pnum_input = $('#'+form+'-ppd-count');
+            let pnum = parseInt($pnum_input.val()) - 1;
+
+            if(pnum > 0) {
+                $('#'+form+'-ppd-'+pnum+'-label').remove();
+                $('#'+form+'-ppd-'+pnum).remove()
+                $pnum_input.val(pnum);
+            } else {
+                alert('There must be at least one PPD.')
+            }
+        }
+
+        function addPPDField(form, pnum) {
+            let $fnum_input = $('#'+form+'-ppd-'+pnum+'-field-count');
+            let fnum = parseInt($fnum_input.val());
+            let html =
+                '<label for="'+form+'-ppd-'+pnum+'-field-'+fnum+'" id="'+form+'-ppd-'+pnum+'-field-'+fnum+'-label">Field-'+fnum+'</label>\n' +
+                '<div id="'+form+'-ppd-'+pnum+'-field-'+fnum+'" class="form-group rounded-outline">\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-ppd-'+pnum+'-field-'+fnum+'-id">Field ID</label>\n' +
+                '        <input type="text" class="form-control form-control-border"\n' +
+                '               id="'+form+'-ppd-'+pnum+'-field-'+fnum+'-id" placeholder="ID of PPD Field.">\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-ppd-'+pnum+'-field-'+fnum+'-datatype">Datatype-endian</label>\n' +
+                '        <select class="selectpicker form-control" data-live-search="true" id="'+form+'-ppd-'+pnum+'-field-'+fnum+'-datatype">\n' +
+                '            <optgroup label="Integer 8bits">\n' +
+                '               <option value="UI8">Unsigned</option>\n' +
+                '               <option value="SI8">Signed</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Unsigned Integer 16bits">\n' +
+                '               <option value="UI16AB" selected>A B</option>\n' +
+                '               <option value="UI16BA">B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Signed Integer 16bits">\n' +
+                '               <option value="SI16AB">A B</option>\n' +
+                '               <option value="SI16BA">B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Unsigned Integer 32bits">\n' +
+                '               <option value="UI32AD">A B C D</option>\n' +
+                '               <option value="UI32CB">C D A B</option>\n' +
+                '               <option value="UI32BC">B A D C</option>\n' +
+                '               <option value="UI32DA">D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Signed Integer 32bits">\n' +
+                '               <option value="SI32AD">A B C D</option>\n' +
+                '               <option value="SI32CB">C D A B</option>\n' +
+                '               <option value="SI32BC">B A D C</option>\n' +
+                '               <option value="SI32DA">D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Signed Integer 64bits">\n' +
+                '               <option value="SI64AH">A B C D E F G H</option>\n' +
+                '               <option value="SI64GB">G H E F C D A B</option>\n' +
+                '               <option value="SI64BG">B A D C F E H G</option>\n' +
+                '               <option value="SI64HA">H G F E D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Floating point 32bits">\n' +
+                '               <option value="FP32AD">A B C D</option>\n' +
+                '               <option value="FP32CB">C D A B</option>\n' +
+                '               <option value="FP32BC">B A D C</option>\n' +
+                '               <option value="FP32DA">D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Floating point 64bits">\n' +
+                '               <option value="FP64AH">A B C D E F G H</option>\n' +
+                '               <option value="FP64GB">G H E F C D A B</option>\n' +
+                '               <option value="FP64BG">B A D C F E H G</option>\n' +
+                '               <option value="FP64HA">H G F E D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '        </select>\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-ppd-'+pnum+'-field-'+fnum+'-required_value">Required value</label>\n' +
+                '        <input type="text" class="form-control form-control-border"\n' +
+                '               id="'+form+'-ppd-'+pnum+'-field-'+fnum+'-required_value" placeholder="Required value of field. Set as empty if validation is not needed." onbeforeinput="numeric_filter(this, event)">\n' +
+                '    </div>\n' +
+                '</div>';
+
+            let $target = $('#'+form+'-ppd-'+pnum+'-fields');
+            $target.append(html);
+
+            $('#'+form+'-ppd-'+pnum+'-field-'+fnum+'-datatype').selectpicker();
+            $fnum_input.val(fnum + 1);
+        }
+
+        function removePPDField(form, pnum) {
+            let $fnum_input = $('#'+form+'-ppd-'+pnum+'-field-count');
+            let fnum = parseInt($fnum_input.val()) - 1;
+
+            if(fnum > 0) {
+                $('#'+form+'-ppd-'+pnum+'-field-'+fnum+'-label').remove();
+                $('#'+form+'-ppd-'+pnum+'-field-'+fnum).remove()
+                $fnum_input.val(fnum);
+            } else {
+                alert('There must be at least one field.')
+            }
+        }
+
+        function addPGD(form, addDefaultField=false) {
+            let $pnum_input = $('#'+form+'-pgd-count');
+            let pnum = parseInt($pnum_input.val());
+
+            let html =
+                '<label for="'+form+'-pgd-'+pnum+'" id="'+form+'-pgd-'+pnum+'-label">PGD-'+pnum+'</label>\n' +
+                '<div id="'+form+'-pgd-'+pnum+'" class="form-group rounded-outline">\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-id">ID</label>\n' +
+                '        <input type="text" class="form-control form-control-border" id="'+form+'-pgd-'+pnum+'-id" placeholder="ID of PGD.">\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-fields-header">Fields</label>\n' +
+                '        <div class="form-group" id="'+form+'-pgd-'+pnum+'-fields-header">\n' +
+                '            <button class="btn btn-danger" id="'+form+'-pgd-'+pnum+'-decrease-field" onclick="removePGDField(\''+form+'\', '+pnum+')">\n' +
+                '                <i class="fas fa-minus"></i>\n' +
+                '            </button>\n' +
+                '            <button class="btn btn-success" id="'+form+'-pgd-'+pnum+'-increase-field" onclick="addPGDField(\''+form+'\', '+pnum+')">\n' +
+                '                <i class="fas fa-plus"></i>\n' +
+                '            </button>\n' +
+                '        </div>\n' +
+                '        <div id="'+form+'-pgd-'+pnum+'-fields">\n' +
+                '            <input type="hidden" id="'+form+'-pgd-'+pnum+'-field-count" value="0">\n' +
+                '        </div>\n' +
+                '    </div>\n' +
+                '</div>';
+
+            let $target = $('#'+form+'-pgd-editor');
+            $target.append(html);
+            if(addDefaultField) addPGDField(form, pnum)
+            $pnum_input.val(pnum + 1);
+        }
+
+        function removePGD(form) {
+            let $pnum_input = $('#'+form+'-pgd-count');
+            let pnum = parseInt($pnum_input.val()) - 1;
+
+            if(pnum > 0) {
+                $('#'+form+'-pgd-'+pnum+'-label').remove();
+                $('#'+form+'-pgd-'+pnum).remove()
+                $pnum_input.val(pnum);
+            } else {
+                alert('There must be at least one PGD.')
+            }
+        }
+
+        function addPGDField(form, pnum) {
+            let $fnum_input = $('#'+form+'-pgd-'+pnum+'-field-count');
+            let fnum = parseInt($fnum_input.val());
+
+            let html = 
+                '<label for="'+form+'-pgd-'+pnum+'-field-'+fnum+'" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-label">Field-'+fnum+'</label>\n' +
+                '<div id="'+form+'-pgd-'+pnum+'-field-'+fnum+'" class="form-group rounded-outline">\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-field-'+fnum+'-id">Field ID</label>\n' +
+                '        <input type="text" class="form-control form-control-border" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-id" placeholder="ID of PGD Field.">\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-field-'+fnum+'-fieldtype">Field type</label>\n' +
+                '        <select class="custom-select form-control-border" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-fieldtype" onchange="changeFieldType(this.id)">\n' +
+                '            <option value="STATIC" selected>STATIC</option>\n' +
+                '            <option value="REFERENCE">REFERENCE</option>\n' +
+                '            <option value="SIMULATION">SIMULATION</option>\n' +
+                '            <option value="ITERATION">ITERATION</option>\n' +
+                '            <option value="CRC16">CRC16</option>\n' +
+                '            <option value="CHECKSUM8">CHECKSUM8</option>\n' +
+                '        </select>\n' +
+                '    </div>\n' +
+                '    <div class="form-group">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-field-'+fnum+'-datatype">Datatype-endian</label>\n' +
+                '        <select class="selectpicker form-control" data-live-search="true" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-datatype">\n' +
+                '            <optgroup label="Integer 8bits">\n' +
+                '               <option value="UI8">Unsigned</option>\n' +
+                '               <option value="SI8">Signed</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Unsigned Integer 16bits">\n' +
+                '               <option value="UI16AB" selected>A B</option>\n' +
+                '               <option value="UI16BA">B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Signed Integer 16bits">\n' +
+                '               <option value="SI16AB">A B</option>\n' +
+                '               <option value="SI16BA">B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Unsigned Integer 32bits">\n' +
+                '               <option value="UI32AD">A B C D</option>\n' +
+                '               <option value="UI32CB">C D A B</option>\n' +
+                '               <option value="UI32BC">B A D C</option>\n' +
+                '               <option value="UI32DA">D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Signed Integer 32bits">\n' +
+                '               <option value="SI32AD">A B C D</option>\n' +
+                '               <option value="SI32CB">C D A B</option>\n' +
+                '               <option value="SI32BC">B A D C</option>\n' +
+                '               <option value="SI32DA">D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Signed Integer 64bits">\n' +
+                '               <option value="SI64AH">A B C D E F G H</option>\n' +
+                '               <option value="SI64GB">G H E F C D A B</option>\n' +
+                '               <option value="SI64BG">B A D C F E H G</option>\n' +
+                '               <option value="SI64HA">H G F E D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Floating point 32bits">\n' +
+                '               <option value="FP32AD">A B C D</option>\n' +
+                '               <option value="FP32CB">C D A B</option>\n' +
+                '               <option value="FP32BC">B A D C</option>\n' +
+                '               <option value="FP32DA">D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '            <optgroup label="Floating point 64bits">\n' +
+                '               <option value="FP64AH">A B C D E F G H</option>\n' +
+                '               <option value="FP64GB">G H E F C D A B</option>\n' +
+                '               <option value="FP64BG">B A D C F E H G</option>\n' +
+                '               <option value="FP64HA">H G F E D C B A</option>\n' +
+                '            </optgroup>\n' +
+                '        </select>\n' +
+                '    </div>\n' +
+                '    <div class="form-group" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-value-group">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-field-'+fnum+'-value">Value</label>\n' +
+                '        <input type="text" class="form-control form-control-border" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-value" placeholder="Use a direct value for STATIC, or ‘@’ + field ID for REFERENCE.">\n' +
+                '    </div>\n' +
+                '    <div class="form-group" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-iteration_count-group" style="display: none">\n' +
+                '        <label for="'+form+'-pgd-'+pnum+'-field-'+fnum+'-iteration_count">Iteration count</label>\n' +
+                '        <input type="text" class="form-control form-control-border" id="'+form+'-pgd-'+pnum+'-field-'+fnum+'-iteration_count" placeholder="Repeat count: number or ‘@’ + field ID">\n' +
+                '    </div>\n' +
+                '</div>';
+
+            let $target = $('#'+form+'-pgd-'+pnum+'-fields');
+            $target.append(html);
+
+            $('#'+form+'-pgd-'+pnum+'-field-'+fnum+'-datatype').selectpicker();
+            $fnum_input.val(fnum + 1);
+        }
+
+        function removePGDField(form, pnum) {
+            let $fnum_input = $('#'+form+'-pgd-'+pnum+'-field-count');
+            let fnum = parseInt($fnum_input.val()) - 1;
+
+            if(fnum > 0) {
+                $('#'+form+'-pgd-'+pnum+'-field-'+fnum+'-label').remove();
+                $('#'+form+'-pgd-'+pnum+'-field-'+fnum).remove()
+                $fnum_input.val(fnum);
+            } else {
+                alert('There must be at least one field.')
+            }
+        }
+
+        function numeric_filter(input, e) {
+            // 입력 타입이 텍스트가 아니면 무시
+            if (e.inputType !== "insertText") return;
+
+            const char = e.data;
+            const { selectionStart, selectionEnd, value } = input;
+
+            // 입력 후 결과 예측값
+            const nextValue =
+                value.slice(0, selectionStart) + char + value.slice(selectionEnd);
+
+            // 조건:
+            // 1. 숫자/마침표/하이픈만 포함
+            // 2. 하이픈은 0~1회만, 맨 앞에만
+            // 3. 마침표는 0~1회만
+            const dashCount = (nextValue.match(/-/g) || []).length;
+            const dotCount = (nextValue.match(/\./g) || []).length;
+
+            const isValid =
+                /^-?\d*(\.\d*)?$/.test(nextValue) &&
+                dashCount <= 1 &&
+                (nextValue.indexOf('-') <= 0) &&
+                dotCount <= 1;
+
+            if (!isValid) {
+                e.preventDefault(); // 입력 차단
+            }
+        }
+
+        function hex_filter(input) {
+            input.innerText = input.innerText.toUpperCase().replace(/[^0-9A-F]/g, "");
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(input);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+
+            accept_test(input)
+        }
+
+        function accept_test(input) {
+            let $result = $('#' + input.id + '-result');
+            let test_input = input.innerText
+            if(test_input === '') {
+                $result.text('')
+                $result.hide()
+                return
+            }
+
+            try {
+                let tokens = input.id.split('-');
+                let form = tokens[0];
+                let pnum = tokens[2];
+
+                let length = parseInt($('#' + form + '-ppd-' + pnum + '-length').val())
+                if(isNaN(length)) {
+                    $result.show();
+                    $result.text('Packet length is not a number.')
+                    return
+                }
+
+                let buffer = new TypedBuffer('hexstring', test_input);
+                if(length !== buffer.size()) {
+                    $result.show();
+                    $result.text('Buffer length is not matched with packet length.')
+                    return
+                }
+
+                let fcount = parseInt($('#' + form + '-ppd-' + pnum + '-field-count').val());
+                let fields = [];
+                let byte_count = 0;
+
+                for(let i=0;i<fcount;i++) {
+                    let field = {};
+                    field.id = $(`#${form}-ppd-${pnum}-field-${i}-id`).val();
+                    field.datatype = $('#' + form + '-ppd-' + pnum + '-field-' + i + '-datatype').val()
+                    let rval = $('#' + form + '-ppd-' + pnum + '-field-' + i + '-required_value').val();
+                    field.required_value = Number(rval === '' ? NaN : rval)
+                    field.byte_length = parseInt(field.datatype.replace(/[^0-9]/g, "")) / 8;
+                    byte_count += field.byte_length
+                    if(field.id === '') {
+                        $result.show();
+                        $result.text(`ID of Field ${i} is empty.`)
+                        return;
+                    }
+
+                    field.value = buffer.read(field.datatype)
+
+                    if(!isNaN(field.required_value)) {
+                        if(!isRoundedEqual(field.required_value, field.value)){
+                            $result.show();
+                            $result.text(`Value of Field '${field.id}' is not macthed.`)
+                            return;
+                        }
+                    }
+
+                    if(field.id==='crc16' && i === fcount - 1 && field.datatype.includes('UI16')) {
+                        if(buffer.getCRC16() !== field.value) {
+                            $result.show();
+                            $result.text('CRC16 test fail.')
+                            return;
+                        }
+                    }
+                    fields.push(field)
+                }
+
+                if(byte_count !== buffer.size()) {
+                    $result.show();
+                    $result.text('Sum of field byte count is not matched with buffer length.')
+                    return
+                }
+
+                $result.text('')
+                fields.forEach(e=>{
+                    $result.show();
+                    $result.append(`Field <b>${e.id}</b> → ${e.value}<br>`)
+                })
+                $result.append('Accepted.')
+            } catch(e) {
+                $result.show();
+                $result.text(e.message)
+            }
+        }
+
+        function isRoundedEqual(a, b, digits = 2) {
+            const factor = Math.pow(10, digits);
+            const ra = Math.round(a * factor) / factor;
+            const rb = Math.round(b * factor) / factor;
+            return ra === rb;
+        }
+
+        function changeFieldType(id) {
+            let tokens = id.split('-');
+            //generic-pgd-0-field-0-
+
+            let value = $(`#${tokens[0]}-pgd-${tokens[2]}-field-${tokens[4]}-value-group`);
+            let iteration_count = $(`#${tokens[0]}-pgd-${tokens[2]}-field-${tokens[4]}-iteration_count-group`);
+            switch ($('#' + id).val()) {
+                case 'STATIC':
+                case 'REFERENCE':
+                case 'CRC16':
+                case 'CHECKSUM8':
+                    value.show();
+                    iteration_count.hide();
+                    break;
+                case 'SIMULATION':
+                    value.hide();
+                    iteration_count.hide();
+                    break;
+                case 'ITERATION':
+                    value.show();
+                    iteration_count.show();
+                    break;
+            }
+
+        }
+
+        /*]]>*/
+    </script>
+</head>
+<body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+    <!-- Navbar -->
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <!-- Left navbar links -->
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+            </li>
+            <li class="nav-item d-none d-sm-inline-block">
+                <a href="/" class="nav-link">Home</a>
+            </li>
+            <li class="nav-item d-none d-sm-inline-block">
+                <a href="#" class="nav-link">Contact</a>
+            </li>
+        </ul>
+
+        <!-- Right navbar links -->
+        <ul class="navbar-nav ml-auto">
+            <!-- Navbar Search -->
+            <li class="nav-item">
+                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
+                    <i class="fas fa-search"></i>
+                </a>
+                <div class="navbar-search-block">
+                    <form class="form-inline">
+                        <div class="input-group input-group-sm">
+                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
+                                   aria-label="Search">
+                            <div class="input-group-append">
+                                <button class="btn btn-navbar" type="submit">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
+                    <i class="fas fa-expand-arrows-alt"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    <!-- /.navbar -->
+
+    <!-- Main Sidebar Container -->
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <!-- Brand Logo -->
+        <a href="#" class="brand-link">
+            <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
+                 style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Sidebar Menu -->
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
+                    data-accordion="false">
+                    <!-- Add icons to the links using the .nav-icon class
+                         with font-awesome or any other icon font library -->
+
+                    <li class="nav-item">
+                        <a href="/" class="nav-link">
+                            <i class="nav-icon fas fa-table"></i>
+                            <p>
+                                Devices
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/simulations" class="nav-link">
+                            <i class="nav-icon fas fa-chart-area"></i>
+                            <p>
+                                Value Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/errors" class="nav-link">
+                            <i class="nav-icon fas fa-bomb"></i>
+                            <p>
+                                Error Simulations
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/settings" class="nav-link">
+                            <i class="nav-icon fas fa-sliders-h"></i>
+                            <p>
+                                Settings
+                            </p>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <!-- /.sidebar-menu -->
+        </div>
+        <!-- /.sidebar -->
+    </aside>
+
+    <!-- Content Wrapper. Contains page content -->
+    <div class="content-wrapper">
+        <!-- Content Header (Page header) -->
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1 class="m-0" id="title">Add device</h1>
+                    </div><!-- /.col -->
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="#">Home</a></li>
+                            <li class="breadcrumb-item active" id="menuText">Add Device</li>
+                        </ol>
+                    </div><!-- /.col -->
+                </div><!-- /.row -->
+            </div><!-- /.container-fluid -->
+        </div>
+        <!-- /.content-header -->
+
+        <!-- Main content -->
+        <section class="content">
+            <div class="container-fluid">
+                <!-- Small boxes (Stat box) -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card card-default">
+                            <div class="card-header">
+                                <h3 class="card-title">Information of device</h3>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="bs-stepper linear">
+                                    <div class="bs-stepper-header" role="tablist">
+                                        <div class="step active" data-target="#test-l-1">
+                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger1"
+                                                    aria-controls="test-l-1" aria-selected="true">
+                                                <span class="bs-stepper-circle">1</span>
+                                                <span class="bs-stepper-label">Management information</span>
+                                            </button>
+                                        </div>
+                                        <div class="bs-stepper-line"></div>
+                                        <div class="step" data-target="#test-l-2">
+                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger2"
+                                                    aria-controls="test-l-2" aria-selected="false" disabled="disabled">
+                                                <span class="bs-stepper-circle">2</span>
+                                                <span class="bs-stepper-label">Group location</span>
+                                            </button>
+                                        </div>
+                                        <div class="bs-stepper-line"></div>
+                                        <div class="step" data-target="#test-l-3">
+                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger3"
+                                                    aria-controls="test-l-3" aria-selected="false" disabled="disabled">
+                                                <span class="bs-stepper-circle">3</span>
+                                                <span class="bs-stepper-label">Communication settings</span>
+                                            </button>
+                                        </div>
+                                        <div class="bs-stepper-line"></div>
+                                        <div class="step" data-target="#test-l-4">
+                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger4"
+                                                    aria-controls="test-l-4" aria-selected="false" disabled="disabled">
+                                                <span class="bs-stepper-circle">4</span>
+                                                <span class="bs-stepper-label">Protocol settings</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="bs-stepper-content">
+                                        <form onsubmit="return false">
+                                            <div id="test-l-1" role="tabpanel"
+                                                 class="bs-stepper-pane active dstepper-block"
+                                                 aria-labelledby="stepper1trigger1">
+                                                <input id="devId" type="hidden"/>
+                                                <div class="form-group">
+                                                    <label for="name">Device name</label>
+                                                    <input type="text" class="form-control form-control-border"
+                                                           id="name" placeholder="Displayed name for device">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="enabled">Initial state</label>
+                                                    <select class="custom-select form-control-border" id="enabled">
+                                                        <option value="1">Enabled</option>
+                                                        <option value="0">Disabled</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="log">Packet log</label>
+                                                    <select class="custom-select form-control-border" id="log">
+                                                        <option value="1">Enabled</option>
+                                                        <option value="0" selected="selected">Disabled</option>
+                                                    </select>
+                                                </div>
+                                                <button class="btn btn-primary" onclick="validatePanel1()">Next</button>
+                                            </div>
+                                            <div id="test-l-2" role="tabpanel" class="bs-stepper-pane"
+                                                 aria-labelledby="stepper1trigger2">
+                                                <div class="form-group">
+                                                    <div id="tree-container"></div>
+                                                </div>
+                                                <button class="btn btn-primary" onclick="stepper.previous()">Previous
+                                                </button>
+                                                <button class="btn btn-primary" onclick="validatePanel2()">Next</button>
+                                            </div>
+                                            <div id="test-l-3" role="tabpanel" class="bs-stepper-pane"
+                                                 aria-labelledby="stepper1trigger3">
+                                                <div class="form-group">
+                                                    <label for="transport">Transport</label>
+                                                    <select class="custom-select form-control-border" id="transport" oninput="onTransportChange()">
+                                                        <option value="TCP">TCP</option>
+                                                        <option value="UDP">UDP</option>
+                                                    </select>
+                                                    <label for="protocol">Protocol</label>
+                                                    <select class="custom-select form-control-border" id="protocol" oninput="onProtocolChange()">
+                                                        <option value="GENERIC">Generic</option>
+                                                        <option value="MODBUS">Modbus</option>
+                                                        <option value="XGT_PLC">LSIS-XGT</option>
+                                                        <option value="DAEYUN_RCU">MK RCU</option>
+                                                        <option value="SNMP">SNMP</option>
+                                                        <option value="BACNET">BACnet</option>
+                                                        <option value="OPC_AGENT">MK OPC Agent</option>
+                                                        <option value="DB">DB</option>
+                                                        <option value="ETHERNET_IP">Ethernet/IP</option>
+                                                    </select>
+                                                    <div class="form-group" id="hostFormGroup">
+                                                        <label for="host">Host</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="host" placeholder="Binding host for device">
+                                                    </div>
+                                                    <div class="form-group" id="portFormGroup">
+                                                        <label for="port">Port</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="port" placeholder="Binding port for device" onbeforeinput="numeric_filter(this, event)" value="1"/>
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-primary" onclick="stepper.previous()">Previous
+                                                </button>
+                                                <button class="btn btn-primary" onclick="validatePanel3()">Next</button>
+                                            </div>
+                                            <div id="test-l-4" role="tabpanel" class="bs-stepper-pane"
+                                                 aria-labelledby="stepper1trigger4">
+                                                <div id="formGeneric" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="generic-ppd-editor-header">Packet parser descriptor(RX for device)</label>
+                                                        <div class="form-group" id="generic-ppd-editor-header">
+                                                            <button class="btn btn-danger" id="generic-decrease-ppd" onclick="removePPD('generic', true)">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                            <button class="btn btn-success" id="generic-increase-ppd" onclick="addPPD('generic', true)">
+                                                                <i class="fas fa-plus"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div id="generic-ppd-editor">
+                                                            <input type="hidden" id="generic-ppd-count" value="0">
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="generic-pgd-editor-header">Packet generator descriptor(TX for device)</label>
+                                                        <div class="form-group" id="generic-pgd-editor-header">
+                                                            <button class="btn btn-danger" id="generic-decrease-pgd" onclick="removePGD('generic', true)">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                            <button class="btn btn-success" id="generic-increase-pgd" onclick="addPGD('generic', true)">
+                                                                <i class="fas fa-plus"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div id="generic-pgd-editor">
+                                                            <input type="hidden" id="generic-pgd-count" value="0">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div id="formModbus" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="uid">Unit ID</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="uid" placeholder="Unit ID for modbus device" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="packetType">Packet Type</label>
+                                                        <select class="custom-select form-control-border"
+                                                                id="packetType">
+                                                            <option value="0">Modbus-RTU</option>
+                                                            <option value="1">Modbus-TCP</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="registers1">Registers</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="registers1" placeholder="Registers count for Modbus device" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                </div>
+                                                <div id="formLSISXGT" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="cpuid">CPU ID</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="cpuid" placeholder="CPU ID for PLC device" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="blocksize">Max block size</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="blocksize"
+                                                               placeholder="Max size per block read request" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="registers2">Registers</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="registers2" placeholder="Registers count for XGT device" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                </div>
+                                                <div id="formMKRCU" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="cpuAddr">CPU Address</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="cpuAddr" placeholder="CPU Address for MK RCU" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                    <label for="diCount">DI Channels</label>
+                                                    <div class="slider-green">
+                                                        <input id="diCount" data-slider-id='diCount' type="text"
+                                                               data-slider-min="1" data-slider-max="32"
+                                                               data-slider-step="1" data-slider-value="8"/>
+                                                    </div>
+                                                    <label for="doCount">DO Channels</label>
+                                                    <div class="slider-green">
+                                                        <input id="doCount" data-slider-id='doCount' type="text"
+                                                               data-slider-min="1" data-slider-max="32"
+                                                               data-slider-step="1" data-slider-value="8"/>
+                                                    </div>
+                                                    <label for="aiCount">AI Channels</label>
+                                                    <div class="slider-green">
+                                                        <input id="aiCount" data-slider-id='aiCount' type="text"
+                                                               data-slider-min="1" data-slider-max="8"
+                                                               data-slider-step="1" data-slider-value="4"/>
+                                                    </div>
+                                                    <!--label for="rsCount">RS Channels</label>
+                                                    <div class="slider-green">
+                                                        <input id="rsCount" data-slider-id='rsCount' type="text"
+                                                               data-slider-min="1" data-slider-max="1"
+                                                               data-slider-step="1" data-slider-value="1"/>
+                                                    </div-->
+
+
+                                                    <div class="form-group">
+                                                        <label for="rcu-ppd-editor-header">Packet parser descriptor(RX for device)</label>
+                                                        <div class="form-group" id="rcu-ppd-editor-header">
+                                                            <button class="btn btn-danger" id="rcu-decrease-ppd" onclick="removePPD('rcu', true)">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                            <button class="btn btn-success" id="rcu-increase-ppd" onclick="addPPD('rcu', true)">
+                                                                <i class="fas fa-plus"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div id="rcu-ppd-editor">
+                                                            <input type="hidden" id="rcu-ppd-count" value="0">
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="rcu-pgd-editor-header">Packet generator descriptor(TX for device)</label>
+                                                        <div class="form-group" id="rcu-pgd-editor-header">
+                                                            <button class="btn btn-danger" id="rcu-decrease-pgd" onclick="removePGD('rcu', true)">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                            <button class="btn btn-success" id="rcu-increase-pgd" onclick="addPGD('rcu', true)">
+                                                                <i class="fas fa-plus"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div id="rcu-pgd-editor">
+                                                            <input type="hidden" id="rcu-pgd-count" value="0">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div id="formSNMP" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="snmpVersion">SNMP Version</label>
+                                                        <select class="custom-select form-control-border"
+                                                                id="snmpVersion">
+                                                            <option value="0">SNMPv1</option>
+                                                            <option value="1">SNMPv2</option>
+                                                            <!--option value="2">SNMPv3</option-->
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="getCommunity">Get community</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="getCommunity"
+                                                               placeholder="Community string for snmp read">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="setCommunity">Set community</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="setCommunity"
+                                                               placeholder="Community string for snmp write">
+                                                    </div>
+                                                </div>
+                                                <div id="formBACnet" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="deviceInstanceId">BACnet local device number</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="deviceInstanceId"
+                                                               placeholder="Instance number of BACnet local device" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="broadcast">BACnet broadcast address</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="broadcast"
+                                                               placeholder="Broadcast address of BACnet network">
+                                                    </div>
+                                                </div>
+                                                <div id="formMKOPCAgent" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="agentTagsCount">Count of agent's tags</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="agentTagsCount"
+                                                               placeholder="Tags count of OPC agent device" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                </div>
+                                                <div id="formDB" style="display: none">
+                                                    <h4>Connection</h4>
+                                                    <div class="form-group">
+                                                        <label for="dbDriver">Driver</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="dbDriver"
+                                                               placeholder="JDBC driver class name for connection">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="dbUrl">URL</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="dbUrl"
+                                                               placeholder="JDBC URL for connection">
+                                                    </div>
+                                                    <h4>Credential</h4>
+                                                    <div class="form-group">
+                                                        <label for="dbUsername">Username</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="dbUsername"
+                                                               placeholder="Username for access database server">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="dbPassword">Password</label>
+                                                        <input type="password" class="form-control form-control-border"
+                                                               id="dbPassword"
+                                                               placeholder="Password for access database server">
+                                                    </div>
+                                                    <h4>Database</h4>
+                                                    <div class="form-group">
+                                                        <label for="dbDatabase">Database name</label>
+                                                        <input type="text" class="form-control form-control-border"
+                                                               id="dbDatabase"
+                                                               placeholder="Database name to access">
+                                                    </div>
+                                                </div>
+                                                <div id="formEthernetIP" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="cpuSlot">CPU slot number</label>
+                                                        <input type="text" class="form-control form-control-border" id="cpuSlot" placeholder="CPU slot number in backplane" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="syn_port">Implicit SYN port</label>
+                                                        <input type="text" class="form-control form-control-border" id="syn_port" placeholder="Local SYN port for implicit messaging" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label for="implicit_t2o_addr">Implicit T->O Address</label>
+                                                        <input type="text" class="form-control form-control-border" id="implicit_t2o_addr" placeholder="Remote address for implicit messaging">
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label for="implicit_t2o_assy_size">Implicit T->O Assembly size</label>
+                                                        <input type="text" class="form-control form-control-border" id="implicit_t2o_assy_size" placeholder="Input assembly size for implicit messaging" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label for="implicit_o2t_assy_size">Implicit O->T Assembly size</label>
+                                                        <input type="text" class="form-control form-control-border" id="implicit_o2t_assy_size" placeholder="Output assembly size for implicit messaging" onbeforeinput="numeric_filter(this, event)">
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-primary mt-5" onclick="stepper.previous()">
+                                                    Previous
+                                                </button>
+                                                <button class="btn btn-primary mt-5" onclick="addDevice()">Submit
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- /.card-body -->
+                        </div>
+                        <!-- /.card -->
+                    </div>
+                </div>
+                <!-- /.row -->
+            </div><!-- /.container-fluid -->
+        </section>
+        <!-- /.content -->
+    </div>
+    <!-- /.content-wrapper -->
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+        <div class="float-right d-none d-sm-inline-block">
+            <b>Version</b> 0.1-alpha
+        </div>
+    </footer>
+</div>
+<!-- ./wrapper -->
+
+<!-- jQuery -->
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<!-- jQuery UI 1.11.4 -->
+<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
+<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
+<script>
+    $.widget.bridge('uibutton', $.ui.button)
+</script>
+<!-- Bootstrap 4 -->
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<!-- AdminLTE App -->
+<script src="../../js/adminlte.js"></script>
+<script src="../../js/jstree.min.js"></script>
+<!-- BS-Stepper -->
+<script src="../../plugins/bs-stepper/js/bs-stepper.min.js"></script>
+<!-- Bootstrap slider -->
+<script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
+<script src="../../js/bootstrap-select.min.js"></script>
+<script src="../../js/TypedBuffer.js"></script>
+</body>
+</html>

@@ -15,5 +15,4 @@ public class SimulationPolicy {
     private DataType data_type;
     private Double value;
     private List<Double> range;
-    private boolean stopOnControl;
 }

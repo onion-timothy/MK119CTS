@@ -14,6 +14,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.PeriodicTrigger;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import javax.persistence.EntityNotFoundException;
 import java.time.Instant;
 import java.util.HashMap;
@@ -35,6 +36,11 @@ public class SimulationService {
 
     public List<Simulation> selectSimulationsByDeviceId(Integer id) {
         return simulationRepository.findSimulationsByDeviceId(id);
+    }
+
+    @PostConstruct
+    public void test() {
+        System.out.println(threadPoolTaskScheduler.getPoolSize());
     }
 
     public void startSimulation(Device device, Simulation simulation) {

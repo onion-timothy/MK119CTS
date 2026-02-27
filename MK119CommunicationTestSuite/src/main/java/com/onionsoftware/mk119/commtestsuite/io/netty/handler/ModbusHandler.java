@@ -8,7 +8,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
-import com.onionsoftware.mk119.commtestsuite.io.netty.tool.CRC16;
+import com.onionsoftware.mk119.commtestsuite.io.netty.tool.Checksum;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import org.springframework.context.ApplicationContext;
@@ -43,6 +43,9 @@ public class ModbusHandler extends MkHandler {
             ModbusTCP tcp = (ModbusTCP) modbus;
             out.writeShort(tcp.getTid());
             out.writeShort(ModbusTCP.PROTOCOL_ID);
+            if(modbus.getFc() == Modbus.FC_16) {
+                length = 3;
+            }
             out.writeShort(length + 3);
         }
 
@@ -87,22 +90,24 @@ public class ModbusHandler extends MkHandler {
                 out.writeShort(modbus.getRegister());
                 out.writeShort(modbus.getRequestSize());
                 modbusData.setCoil_status(modbus.getRequestSize() == (short) 0xff00, modbus.getRegister());
-                simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals("1_" + modbus.getRegister())).findAny();
-                if (simulationOptional.isPresent() && simulationOptional.get().getPolicies().get(0).isStopOnControl()) {
-                    simulationOptional.get().setEnabled(Simulation.DISABLED);
-                    simulationService.updateSimulation(simulationOptional.get());
-                }
+                simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals("1_" + modbus.getRegister())).findAny().ifPresent(s->{
+                    if(s.isStopOnControl()) {
+                        s.setEnabled(Simulation.DISABLED);
+                        simulationService.updateSimulation(s);
+                    }
+                });
                 break;
             case Modbus.FC_06:
                 length = 3;
                 out.writeShort(modbus.getRegister());
                 out.writeShort(modbus.getRequestSize());
                 modbusData.setHolding_registers((double) modbus.getRequestSize(), DataType.SI16AB, modbus.getRegister());
-                simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> translateTarget(e, modbus.getRegister())).findAny();
-                if (simulationOptional.isPresent() && simulationOptional.get().getPolicies().get(0).isStopOnControl()) {
-                    simulationOptional.get().setEnabled(Simulation.DISABLED);
-                    simulationService.updateSimulation(simulationOptional.get());
-                }
+                simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> translateTarget(e, modbus.getRegister())).findAny().ifPresent(s->{
+                    if(s.isStopOnControl()) {
+                        s.setEnabled(Simulation.DISABLED);
+                        simulationService.updateSimulation(s);
+                    }
+                });
                 break;
             case Modbus.FC_16:
                 out.writeShort(modbus.getRegister());
@@ -114,7 +119,7 @@ public class ModbusHandler extends MkHandler {
         if (modbus instanceof ModbusRTU) {
             byte[] toCRC = new byte[length + 3];
             out.getBytes(0, toCRC, 0, length + 3);
-            short crc = CRC16.getCRC16(toCRC);
+            short crc = Checksum.getCRC16(toCRC);
             out.writeShort(crc);
         }
 

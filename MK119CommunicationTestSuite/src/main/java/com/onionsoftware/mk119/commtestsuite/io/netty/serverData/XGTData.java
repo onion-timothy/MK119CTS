@@ -7,6 +7,7 @@ import io.netty.buffer.Unpooled;
 import lombok.Getter;
 import lombok.Setter;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 @Getter
 @Setter
@@ -40,5 +41,15 @@ public class XGTData implements ServerData {
         for (int i = 0; i < byteCount; i++) {
             registers[startByte++] = buf.readByte();
         }
+    }
+
+    @Override
+    public void resetServerData() {
+        Arrays.fill(mblock, (byte) 0);
+        Arrays.fill(dblock, (byte) 0);
+        Arrays.fill(pblock, (byte) 0);
+        Arrays.fill(kblock, (byte) 0);
+        Arrays.fill(sblock, (byte) 0);
+        Arrays.fill(ublock, (byte) 0);
     }
 }

@@ -85,7 +85,7 @@ public class SnmpHandler extends MkHandler {
                 ret.add(snmpVarBind);
                 double valueToWrite = Double.parseDouble(snmpVarBind.getValue().toString());
                 snmpData.getOidValueMap().put(oid.toString(), valueToWrite);
-                if (simulation.getPolicies().get(0).isStopOnControl()) {
+                if (simulation.isStopOnControl()) {
                     simulation.setEnabled(Simulation.DISABLED);
                     simulationService.updateSimulation(simulation);
                 }

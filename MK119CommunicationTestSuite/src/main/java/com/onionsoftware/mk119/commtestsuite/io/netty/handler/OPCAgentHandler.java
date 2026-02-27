@@ -17,7 +17,7 @@ public class OPCAgentHandler extends MkHandler {
         super(applicationContext, server);
     }
 
-    private static final int DEFAULT_TAGS_LENGTH = 1023;
+    private static final int DEFAULT_TAGS_LENGTH = 2000;
 
     @Override
     protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {

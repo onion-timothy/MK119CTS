@@ -105,7 +105,7 @@ public class XGTHandler extends MkHandler {
                         Optional<Simulation> simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals(variable.getVarname())).findAny();
                         if (simulationOptional.isPresent()) {
                             Simulation simulation = simulationOptional.get();
-                            if (simulation.getPolicies().get(0).isStopOnControl()) {
+                            if (simulation.isStopOnControl()) {
                                 simulation.setEnabled(Simulation.DISABLED);
                                 simulationService.updateSimulation(simulation);
                             }

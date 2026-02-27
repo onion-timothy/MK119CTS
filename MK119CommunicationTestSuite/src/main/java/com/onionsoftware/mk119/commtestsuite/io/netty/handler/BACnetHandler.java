@@ -83,20 +83,16 @@ public class BACnetHandler extends MkHandler {
                 BACnetWriteProperty writeProperty = (BACnetWriteProperty) msg;
                 byte instanceNumberSADR = writeProperty.getBacnetNPDU().getSadr()[writeProperty.getBacnetNPDU().getSadr().length - 1];
 
-                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
-                if (deviceOptional.isPresent()) {
-                    Device device = deviceOptional.get();
+                bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst().ifPresent(device->{
                     List<Simulation> simulationList = bacnetService.getSimulationMap().get(device.getId());
-                    Optional<Simulation> optionalSimulation = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(writeProperty.getOid())).findAny();
-                    if (optionalSimulation.isPresent()) {
+                    simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(writeProperty.getOid())).findAny().ifPresent(s->{
                         ByteBuf buf = writeProperty.encodeBACnetWritePropertyResponse(device);
-                        Simulation simulation = optionalSimulation.get();
-                        if (simulation.getPolicies().get(0).isStopOnControl()) {
+                        if (s.isStopOnControl()) {
                             SimulationService service = (SimulationService) applicationContext.getBean("simulationService");
-                            simulation.setEnabled(Simulation.DISABLED);
-                            service.updateSimulation(simulation);
+                            s.setEnabled(Simulation.DISABLED);
+                            service.updateSimulation(s);
                         }
-                        bacnetService.getSimulationValues().put(simulation.getId(), writeProperty.getValue().getValue());
+                        bacnetService.getSimulationValues().put(s.getId(), writeProperty.getValue().getValue());
                         if (buf != null) {
                             sendBuffer = buf.copy();
                         } else {
@@ -107,8 +103,8 @@ public class BACnetHandler extends MkHandler {
                                     writeProperty.getBacnetAPDU().getInvoke_id(),
                                     writeProperty.getBacnetAPDU().getService_choice());
                         }
-                    }
-                }
+                    });
+                });
             }
         }
     }

@@ -5,7 +5,8 @@ public enum TXFieldType {
     REFERENCE(2),
     SIMULATION(3),
     ITERATION(4),
-    CRC16(5);
+    CRC16(5),
+    CHECKSUM8(6);
 
     final private int value;
 

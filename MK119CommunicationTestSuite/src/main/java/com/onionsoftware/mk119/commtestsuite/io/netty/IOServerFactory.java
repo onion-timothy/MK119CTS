@@ -51,7 +51,7 @@ public class IOServerFactory {
             case SNMP:
                 return new SnmpData();
             case ETHERNET_IP:
-                return new EthernetIPData();
+                return new EthernetIPData(device.getCommunicationSettings());
             default:
                 return null;
         }

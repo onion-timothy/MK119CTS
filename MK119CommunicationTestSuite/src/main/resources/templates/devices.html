@@ -166,6 +166,10 @@
                                             }
                                         } else if (key === 'addBatch') {
                                             $('#excel').click();
+                                        } else if (key === 'simulation') {
+                                            if (typeof (id) != 'undefined') {
+                                                location.href = '/livesimulation/' + id
+                                            }
                                         }
                                     },
                                     items: {
@@ -174,6 +178,7 @@
                                         "edit": {name: "Edit device", icon: "fas fa-pen"},
                                         "delete": {name: "Delete device", icon: "fas fa-trash"},
                                         "toggle": {name: "Toggle device", icon: "fas fa-toggle-off"},
+                                        "simulation": {name: "Live simulation", icon: "fas fa-magic"},
                                     }
                                 });
                             });

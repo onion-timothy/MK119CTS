@@ -16,12 +16,13 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -380,8 +381,15 @@ public class ByteBufUtils {
                         int start = (int) Double.parseDouble(field.getValue());
                         byte[] toCRC = new byte[length - 2 - start];
                         out.getBytes(start, toCRC, 0, length - 2 - start);
-                        short crc = CRC16.getCRC16(toCRC);
+                        short crc = Checksum.getCRC16(toCRC);
                         out.writeShort(crc);
+                        break;
+                    case CHECKSUM8:
+                        int _start = (int) Double.parseDouble(field.getValue());
+                        byte[] toChecksum8 = new byte[length - 1 - _start];
+                        out.getBytes(_start, toChecksum8, 0, length - 1 - _start);
+                        byte checksum8 = Checksum.getChecksum8(toChecksum8);
+                        out.writeByte(checksum8);
                         break;
                 }
             }
@@ -480,13 +488,20 @@ public class ByteBufUtils {
                 RXField newFieldObj = field.clone();
                 newFieldObj.setValue((Double) method.invoke(null, in));
 
-                if (field.getField_id().equals("CRC16") && field.getData_type() == DataType.SI16AB) {
+                if (field.getField_id().equals("CRC16") && (field.getData_type() == DataType.UI16AB || field.getData_type() == DataType.UI16BA)) {
                     int crcByteCount = in.readerIndex() - 2;
                     byte[] cpy = new byte[crcByteCount];
                     in.getBytes(0, cpy, 0, crcByteCount);
-                    short crc16 = CRC16.getCRC16(cpy);
+                    short crc16 = Checksum.getCRC16(cpy);
                     if (crc16 != (short) newFieldObj.getValue().doubleValue()) {
                         MkLogger.log("io", LogLevel.ERROR, "CRC doesn't match for generic packet. {0}", parser.toJson(frame));
+                        return null;
+                    }
+                }
+
+                if(methodName.contains("FP") && newFieldObj.getRequired_value() != null) {
+                    if(!isRoundedEqual(newFieldObj.getRequired_value(), newFieldObj.getValue(), 2)){
+                        MkLogger.log("io", LogLevel.ERROR, "Designated value not matched for generic packet. {0}", parser.toJson(frame));
                         return null;
                     }
                 }
@@ -509,6 +524,12 @@ public class ByteBufUtils {
         return ret;
     }
 
+    public static boolean isRoundedEqual(double d1, double d2, int scale) {
+        BigDecimal bd1 = BigDecimal.valueOf(d1).setScale(scale, RoundingMode.HALF_UP);
+        BigDecimal bd2 = BigDecimal.valueOf(d2).setScale(scale, RoundingMode.HALF_UP);
+        return bd1.equals(bd2);
+    }
+
     public static OPCAgent parseOPCAgentPacket(ByteBuf in) {
         OPCAgent agent = new OPCAgent();
         agent.setProtocolHeader(in.readByte());
@@ -524,7 +545,7 @@ public class ByteBufUtils {
     public static Daeyun parseDaeyunPacket(ByteBuf in, List<RXFrame> acceptFrames) {
         byte[] _cpyBuf = new byte[in.readableBytes() - 2];
         in.getBytes(0, _cpyBuf, 0, in.readableBytes() - 2);
-        short _crc = CRC16.getCRC16(_cpyBuf);
+        short _crc = Checksum.getCRC16(_cpyBuf);
 
         Daeyun daeyun = new Daeyun();
         daeyun.setAddress(in.readByte());
@@ -709,7 +730,7 @@ public class ByteBufUtils {
             ModbusRTU modbusRtu = new ModbusRTU();
             byte[] cpyBuf = new byte[6];
             in.getBytes(0, cpyBuf, 0, 6);
-            short crc = CRC16.getCRC16(cpyBuf);
+            short crc = Checksum.getCRC16(cpyBuf);
 
             modbusRtu.setUid(in.readByte());
             if (uid != 0 && modbusRtu.getUid() != uid) {

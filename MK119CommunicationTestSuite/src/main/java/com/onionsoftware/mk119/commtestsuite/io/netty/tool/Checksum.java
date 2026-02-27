@@ -1,6 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.tool;
 
-public class CRC16 {
+public class Checksum {
     static byte[] tab_H = {(byte)
             0x00, (byte) 0xC1, (byte) 0x81, (byte) 0x40, (byte) 0x01, (byte) 0xC0, (byte) 0x80, (byte) 0x41, (byte) 0x01, (byte) 0xC0, (byte) 0x80, (byte) 0x41, (byte) 0x00, (byte) 0xC1, (byte) 0x81, (byte)
             0x40, (byte) 0x01, (byte) 0xC0, (byte) 0x80, (byte) 0x41, (byte) 0x00, (byte) 0xC1, (byte) 0x81, (byte) 0x40, (byte) 0x00, (byte) 0xC1, (byte) 0x81, (byte) 0x40, (byte) 0x01, (byte) 0xC0, (byte)
@@ -59,7 +59,14 @@ public class CRC16 {
 
     public static short getCRC16(byte[] value) {
         return getCRC16(value, 0, value.length);
+    }
 
+    public static byte getChecksum8(byte[] bytes) {
+        int sum = 0;
+        for (byte b : bytes) {
+            sum += b;
+        }
+        return (byte) (sum & 0xff);
     }
 }
 

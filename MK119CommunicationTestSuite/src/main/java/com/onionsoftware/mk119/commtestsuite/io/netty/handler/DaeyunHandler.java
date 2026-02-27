@@ -8,7 +8,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DaeyunData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.io.netty.tool.CRC16;
+import com.onionsoftware.mk119.commtestsuite.io.netty.tool.Checksum;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -105,7 +105,7 @@ public class DaeyunHandler extends MkHandler {
             if (error == ERROR_NO_ERROR) {
                 byte[] toCRC = new byte[length];
                 out.getBytes(0, toCRC, 0, length);
-                short crc = CRC16.getCRC16(toCRC);
+                short crc = Checksum.getCRC16(toCRC);
                 out.writeShort(crc);
 
                 sendBuffer = out.copy();

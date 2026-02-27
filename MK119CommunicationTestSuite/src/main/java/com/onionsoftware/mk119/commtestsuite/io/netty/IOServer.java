@@ -123,7 +123,8 @@ public class IOServer extends Thread {
                     .option(ChannelOption.AUTO_CLOSE, true)
                     .option(ChannelOption.SO_REUSEADDR, true)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
-                    .childOption(ChannelOption.TCP_NODELAY, true);
+                    .childOption(ChannelOption.TCP_NODELAY, true)
+                    .childOption(ChannelOption.SO_SNDBUF, 16384);
             bootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
                 @Override
                 protected void initChannel(SocketChannel ch) {
@@ -147,7 +148,8 @@ public class IOServer extends Thread {
             Bootstrap bootstrap = new Bootstrap().localAddress(device.getHost(), device.getPort());
             bootstrap.group(bossGroup).channel(NioDatagramChannel.class)
                     .option(ChannelOption.AUTO_CLOSE, true)
-                    .option(ChannelOption.SO_BROADCAST, true);
+                    .option(ChannelOption.SO_BROADCAST, true)
+                    .option(ChannelOption.SO_SNDBUF, 16384);
             bootstrap.handler(new ChannelInitializer<DatagramChannel>() {
                 @Override
                 protected void initChannel(DatagramChannel ch) {

@@ -30,4 +30,11 @@ public class DaeyunData implements ServerData {
     public void setAnalogChannelValues(int channel, short value) {
         this.analogChannelValues[channel] = value;
     }
+
+    @Override
+    public void resetServerData() {
+        txFieldsIdValueMap.clear();
+        Arrays.fill(analogChannelValues, (short) 0);
+        digitalChannelValues.clear();
+    }
 }

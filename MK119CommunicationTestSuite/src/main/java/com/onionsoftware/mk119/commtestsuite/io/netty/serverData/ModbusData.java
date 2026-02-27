@@ -68,7 +68,8 @@ public class ModbusData implements ServerData {
     private void writeByteBufToRegisters(ByteBuf buf, short[] registers, int startRegister) {
         int shortCount = buf.readableBytes() / 2;
         for (int i = 0; i < shortCount; i++) {
-            registers[startRegister] = buf.readShort();
+            short v = buf.readShort();
+            registers[startRegister] = v;
             startRegister++;
         }
     }
@@ -79,5 +80,14 @@ public class ModbusData implements ServerData {
 
     public void setInput_status(boolean value, int input) {
         input_status.set(input, value);
+    }
+
+    @Override
+    public void resetServerData() {
+        int registerCount = holding_registers.length;
+        coil_status = new BitSet(registerCount);
+        input_status = new BitSet(registerCount);
+        holding_registers = new short[registerCount];
+        input_registers = new short[registerCount];
     }
 }

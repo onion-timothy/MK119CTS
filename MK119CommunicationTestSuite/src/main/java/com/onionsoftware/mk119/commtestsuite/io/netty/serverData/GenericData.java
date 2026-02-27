@@ -3,6 +3,7 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.serverData;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,5 +18,10 @@ public class GenericData implements ServerData {
 
     public GenericData() {
         this.txFieldsIdValueMap = new HashMap<>();
+    }
+
+    @Override
+    public void resetServerData() {
+        txFieldsIdValueMap.clear();
     }
 }

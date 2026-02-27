@@ -48,13 +48,13 @@ public class WebController {
 
     @RequestMapping("/addDevice")
     public String addDevice() {
-        return "device_editor";
+        return "device_editor2";
     }
 
     @RequestMapping("/editDevice/{id}")
     public String editDevice(Model model, @PathVariable Integer id) {
         model.addAttribute("device", deviceService.selectDevice(id));
-        return "device_editor";
+        return "device_editor2";
     }
 
     @RequestMapping("/simulations")
@@ -110,5 +110,11 @@ public class WebController {
     @RequestMapping("/settings")
     public String settings() {
         return "settings";
+    }
+
+    @RequestMapping("/livesimulation/{device_id}")
+    public String livesimulation(Model model, @PathVariable Integer device_id) {
+        model.addAttribute("device", deviceService.selectDevice(device_id));
+        return "livesimulation";
     }
 }

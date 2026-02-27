@@ -28,6 +28,7 @@ public class Simulation implements Cloneable {
     private int interval;
     private int enabled;
     String name;
+    boolean stopOnControl;
 
     @OneToOne(mappedBy = "simulation", cascade = CascadeType.REMOVE)
     @JsonIgnore
@@ -46,6 +47,7 @@ public class Simulation implements Cloneable {
             clone.policies = this.policies;
             clone.interval = this.interval;
             clone.enabled = this.enabled;
+            clone.stopOnControl = this.stopOnControl;
             return clone;
         } catch (CloneNotSupportedException e) {
             throw new AssertionError();

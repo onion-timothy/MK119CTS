@@ -16,30 +16,24 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
 
 @Component("ethernet_ip")
 @Scope("prototype")
 public class EthernetIPHandler extends MkHandler {
-    int session;
-    static List<Integer> sessions = new ArrayList<>();
     ByteBuffer out;
     private final SimulationService simulationService;
+    private final IOServer server;
 
     public EthernetIPHandler(ApplicationContext applicationContext, IOServer server) {
         super(applicationContext, server);
         simulationService = (SimulationService) applicationContext.getBean("simulationService");
-        session = new Random().nextInt();
-        while (sessions.contains(session)) {
-            session = new Random().nextInt();
-        }
-        sessions.add(session);
         out = ByteBuffer.allocateDirect(1024);
         out.order(ByteOrder.LITTLE_ENDIAN);
+        this.server = server;
     }
 
     @Override
@@ -48,7 +42,8 @@ public class EthernetIPHandler extends MkHandler {
         if (msg instanceof Encapsulation) {
             Encapsulation encapsulation = (Encapsulation) msg;
             if (encapsulation.getCommand() == Encapsulation.Command.RegisterSession) {
-                Encapsulation res = new Encapsulation(Encapsulation.Command.RegisterSession, this.session, new RegisterSessionProtocol());
+                int session = ((EthernetIPData) target.getServerData()).createSession();
+                Encapsulation res = new Encapsulation(Encapsulation.Command.RegisterSession, session, new RegisterSessionProtocol());
                 res.setContext(encapsulation.getContext());
                 try {
                     res.encode(out, null);
@@ -56,22 +51,35 @@ public class EthernetIPHandler extends MkHandler {
                     throw new RuntimeException(e);
                 }
             } else if (encapsulation.getCommand() == Encapsulation.Command.UnRegisterSession) {
-                sessions.remove(new Integer(session));
+                ((EthernetIPData) target.getServerData()).invalidateSession(encapsulation.getSession());
                 return;
             } else if (encapsulation.getCommand() == Encapsulation.Command.SendRRData) {
                 SendRRDataProtocol sendRRDataProtocol = (SendRRDataProtocol) encapsulation.getBody();
                 UnconnectedSendProtocol unconnectedSendProtocol = (UnconnectedSendProtocol) sendRRDataProtocol.getBody();
 
-                MessageRouterProtocol mr_encoder = (MessageRouterProtocol) unconnectedSendProtocol.getEncoder();
-                MessageRouterProtocol mr_body = (MessageRouterProtocol) unconnectedSendProtocol.getBody();
-
+                MessageRouterProtocol mr_encoder = unconnectedSendProtocol.getEncoder();
                 CNService service = mr_encoder.getService();
 
                 if (service == CNService.Get_Attribute_All) {
                     GetIdentityProtocol getIdentityProtocol = new GetIdentityProtocol();
                     getIdentityProtocol.setIdentity(GetIdentityProtocol.IDENTITY_ROCKWELL_AB_1756_EN_2TD);
                     unconnectedSendProtocol.setBody(new MessageRouterProtocol(CNService.Get_Attribute_All, null, getIdentityProtocol));
+                } else if (service == CNService.CM_ForwardOpen) {
+                    ConnectionManagerProtocol connectionManagerProtocol = (ConnectionManagerProtocol) ((MessageRouterProtocol) unconnectedSendProtocol.getBody()).getBody();
+                    sendRRDataProtocol.setCount((short) 4);
+                    sendRRDataProtocol.setAddr_type((short) 0);
+                    sendRRDataProtocol.setAddr_length((short) 0);
+                    sendRRDataProtocol.setData_type((short) 0xb2);
+
+                    EthernetIPData ethernetIPData = (EthernetIPData) server.getServerData();
+                    connectionManagerProtocol.setO2t_sin_family((short) 2);
+                    connectionManagerProtocol.setO2t_sin_port(ethernetIPData.getImplicit_o_t_port());
+                    connectionManagerProtocol.setO2t_sin_addr(ethernetIPData.getImplicit_t_o_addr());
+
+                    InetSocketAddress remote = (InetSocketAddress) ctx.channel().remoteAddress();
+                    connectionManagerProtocol.setT2o_sin_addr(ByteBuffer.wrap(remote.getAddress().getAddress()).order(ByteOrder.BIG_ENDIAN).getInt());
                 } else {
+                    MessageRouterProtocol mr_body = (MessageRouterProtocol) unconnectedSendProtocol.getBody();
                     service = mr_body.getService();
                     EthernetIPData ethernetIPData = (EthernetIPData) getTarget().getServerData();
                     CNSymbolPath path = (CNSymbolPath) mr_body.getPath();
@@ -116,7 +124,7 @@ public class EthernetIPHandler extends MkHandler {
         EthernetIPData data = (EthernetIPData) getTarget().getServerData();
         data.putTagValue(s.getTarget(), value);
 
-        if (s.getPolicies().get(0).isStopOnControl()) {
+        if (s.isStopOnControl()) {
             simulationService.stopSimulation(s);
         }
     }
