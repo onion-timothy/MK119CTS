@@ -21,7 +21,11 @@ public class DBDeviceService {
     }
 
     public Connection getConnection(Device device) {
-        Optional<DBClientDevice> optDev = devices.stream().filter(e -> e.getDevice().getId() == device.getId()).findFirst();
+        // Integer == Integer 는 값이 아니라 참조를 비교한다. Integer 캐시(-128~127) 안의 id 는
+        // 우연히 맞지만 128 이상에서는 같은 장비인데도 false 가 되어 connection 을 못 찾는다.
+        Optional<DBClientDevice> optDev = devices.stream()
+                .filter(e -> java.util.Objects.equals(e.getDevice().getId(), device.getId()))
+                .findFirst();
         return optDev.map(DBClientDevice::getConnection).orElse(null);
     }
 }

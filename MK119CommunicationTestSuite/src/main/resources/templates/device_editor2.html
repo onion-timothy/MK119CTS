@@ -406,7 +406,7 @@
                     alert('Block size must assigned to number.')
                     return
                 }
-                if (communicationSettings.maxBlockSize < 1 || communicationSettings.cpuId > 1400) {
+                if (communicationSettings.maxBlockSize < 1 || communicationSettings.maxBlockSize > 1400) {
                     alert('Invalid Block size. Block size must in 1~1400.')
                     return
                 }
