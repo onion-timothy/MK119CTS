@@ -8,7 +8,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class SnmpData implements ServerData {
+public class SnmpData extends ServerData {
     private final Map<String, Double> oidValueMap = new HashMap<>();
     @Override
     public void resetServerData() {

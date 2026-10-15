@@ -14,7 +14,7 @@ import java.util.BitSet;
 
 @Getter
 @Setter
-public class ModbusData implements ServerData {
+public class ModbusData extends ServerData {
     private BitSet coil_status;
     private BitSet input_status;
     private short[] holding_registers;

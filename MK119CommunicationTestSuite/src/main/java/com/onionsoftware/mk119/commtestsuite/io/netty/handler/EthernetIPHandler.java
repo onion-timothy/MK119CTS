@@ -4,6 +4,7 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import etherip.protocol.*;
@@ -12,25 +13,20 @@ import etherip.types.CNService;
 import etherip.types.CNSymbolPath;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-@Component("ethernet_ip")
-@Scope("prototype")
 public class EthernetIPHandler extends MkHandler {
     ByteBuffer out;
     private final SimulationService simulationService;
     private final IOServer server;
 
-    public EthernetIPHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
-        simulationService = (SimulationService) applicationContext.getBean("simulationService");
+    public EthernetIPHandler(IOServer server, SimulationService simulationService) {
+        super(server);
+        this.simulationService = simulationService;
         out = ByteBuffer.allocateDirect(1024);
         out.order(ByteOrder.LITTLE_ENDIAN);
         this.server = server;
@@ -94,7 +90,10 @@ public class EthernetIPHandler extends MkHandler {
                             try {
                                 CIPWriteDataProtocol cipWriteDataProtocol = (CIPWriteDataProtocol) mr_body.getBody();
                                 double value = cipWriteDataProtocol.getData().getNumber(0).doubleValue();
-                                simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().split("@")[1].equals(tag)).findFirst().ifPresent(s -> processWrite(s, value));
+                                // target 은 REAL@TAG1 형식이고 패킷에는 TAG1 만 온다.
+                                // EthernetIPData 가 태그 이름을 보조 키로 색인해 둔다.
+                                Simulation hit = ethernetIPData.simulationFor(tag);
+                                if (hit != null) processWrite(hit, value);
                             } catch (Exception e) {
                                 MkLogger.log("io", LogLevel.ERROR, "Error while process enip write deivce {0} tag {1}", getTarget().getDevice().getName(), tag);
                             }
@@ -122,10 +121,12 @@ public class EthernetIPHandler extends MkHandler {
 
     private void processWrite(Simulation s, double value) {
         EthernetIPData data = (EthernetIPData) getTarget().getServerData();
-        data.putTagValue(s.getTarget(), value);
-
-        if (s.isStopOnControl()) {
-            simulationService.stopSimulation(s);
+        try {
+            data.setServerData(s, value, ServerDataChangeSource.PROTOCOL_WRITE);
+        } catch (Exception e) {
+            MkLogger.log("io", e, "EthernetIP setServerData failed for target {0}", s.getTarget());
         }
+
+        simulationService.applyStopOnControl(s);
     }
 }

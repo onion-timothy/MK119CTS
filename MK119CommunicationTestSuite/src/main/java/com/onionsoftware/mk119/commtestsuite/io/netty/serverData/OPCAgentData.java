@@ -7,7 +7,7 @@ import java.util.Arrays;
 
 @Getter
 @Setter
-public class OPCAgentData implements ServerData {
+public class OPCAgentData extends ServerData {
     private final double[] values;
 
     public OPCAgentData(int size) {

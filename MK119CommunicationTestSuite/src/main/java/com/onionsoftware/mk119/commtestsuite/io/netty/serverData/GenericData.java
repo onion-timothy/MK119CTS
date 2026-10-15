@@ -9,7 +9,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class GenericData implements ServerData {
+public class GenericData extends ServerData {
     private final Map<String, Double> txFieldsIdValueMap;
 
     public GenericData(Map<String, Double> txFieldsIdValueMap) {

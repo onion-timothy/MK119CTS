@@ -8,24 +8,22 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.Checksum;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.Optional;
 
-@Component("modbus")
-@Scope("prototype")
 public class ModbusHandler extends MkHandler {
     final SimulationService simulationService;
 
-    public ModbusHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
-        simulationService = applicationContext.getBean(SimulationService.class);
+    public ModbusHandler(IOServer server, SimulationService simulationService) {
+        super(server);
+        this.simulationService = simulationService;
     }
 
     @Override
@@ -89,25 +87,27 @@ public class ModbusHandler extends MkHandler {
                 length = 3;
                 out.writeShort(modbus.getRegister());
                 out.writeShort(modbus.getRequestSize());
-                modbusData.setCoil_status(modbus.getRequestSize() == (short) 0xff00, modbus.getRegister());
-                simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals("1_" + modbus.getRegister())).findAny().ifPresent(s->{
-                    if(s.isStopOnControl()) {
-                        s.setEnabled(Simulation.DISABLED);
-                        simulationService.updateSimulation(s);
-                    }
-                });
+                try {
+                    modbusData.setServerData("1_" + modbus.getRegister(),
+                            modbus.getRequestSize() == (short) 0xff00 ? 1.0 : 0.0,
+                            null, ServerDataChangeSource.PROTOCOL_WRITE);
+                } catch (Exception e) {
+                    MkLogger.log("io", e, "Modbus FC_05 setServerData failed for register {0}", modbus.getRegister());
+                }
+                applyStopOnControlFor(modbusData, "1_" + modbus.getRegister());
                 break;
             case Modbus.FC_06:
                 length = 3;
                 out.writeShort(modbus.getRegister());
                 out.writeShort(modbus.getRequestSize());
-                modbusData.setHolding_registers((double) modbus.getRequestSize(), DataType.SI16AB, modbus.getRegister());
-                simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> translateTarget(e, modbus.getRegister())).findAny().ifPresent(s->{
-                    if(s.isStopOnControl()) {
-                        s.setEnabled(Simulation.DISABLED);
-                        simulationService.updateSimulation(s);
-                    }
-                });
+                try {
+                    modbusData.setServerData("3_" + modbus.getRegister(),
+                            (double) modbus.getRequestSize(), DataType.SI16AB,
+                            ServerDataChangeSource.PROTOCOL_WRITE);
+                } catch (Exception e) {
+                    MkLogger.log("io", e, "Modbus FC_06 setServerData failed for register {0}", modbus.getRegister());
+                }
+                applyStopOnControlFor(modbusData, "3_" + modbus.getRegister());
                 break;
             case Modbus.FC_16:
                 out.writeShort(modbus.getRegister());
@@ -126,10 +126,15 @@ public class ModbusHandler extends MkHandler {
         sendBuffer = out;
     }
 
-    private boolean translateTarget(Simulation simulation, int register) {
-        if (simulation.getTarget().startsWith("4")) return false;
-        int startRegister = Integer.parseInt(simulation.getTarget().split("_")[1]);
-        int byteCount = simulation.getPolicies().get(0).getData_type().getByteCount();
-        return register >= startRegister && register < startRegister + byteCount;
+    /**
+     * 제어를 수용한 target 에 걸린 Simulation 을 찾아 stopOnControl 을 적용한다.
+     * <p>
+     * 예전에는 패킷마다 DB 에서 장비의 Simulation 을 모두 읽어 와 걸렀다. ServerData 의
+     * 색인은 다중 레지스터가 차지하는 칸까지 들고 있어 같은 일을 조회 없이 해낸다.
+     * function code 가 키에 들어 있으므로 코일(1_N) 이 레지스터 쓰기에 걸리지도 않는다.
+     */
+    private void applyStopOnControlFor(ServerData serverData, String target) {
+        Simulation simulation = serverData.simulationFor(target);
+        if (simulation != null) simulationService.applyStopOnControl(simulation);
     }
 }

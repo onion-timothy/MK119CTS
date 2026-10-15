@@ -10,7 +10,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class DaeyunData implements ServerData {
+public class DaeyunData extends ServerData {
     private final Map<String, Double> txFieldsIdValueMap = new HashMap<>();
     private final short[] analogChannelValues = new short[32];
     private final BitSet digitalChannelValues = new BitSet(32);

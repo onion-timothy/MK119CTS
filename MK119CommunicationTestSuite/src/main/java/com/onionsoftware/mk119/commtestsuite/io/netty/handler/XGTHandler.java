@@ -6,23 +6,21 @@ import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGTVariable;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.XGTData;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-@Component("xgt_plc")
-@Scope("prototype")
 public class XGTHandler extends MkHandler {
+    private final SimulationService simulationService;
 
-    public XGTHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public XGTHandler(IOServer server, SimulationService simulationService) {
+        super(server);
+        this.simulationService = simulationService;
     }
 
     @Override
@@ -86,30 +84,20 @@ public class XGTHandler extends MkHandler {
                 out.writeShort(0);
                 out.writeShortLE(1);
                 for (XGTVariable variable : xgt.getVariableList()) {
-                    int addr = extractNumbers(variable.getVarname());
-                    String block = String.valueOf(variable.getVarname().charAt(1));
                     char dataTypeChar = variable.getVarname().charAt(2);
                     DataType dataType = null;
                     if (dataTypeChar == 'B') {
                         dataType = DataType.SI8;
                     } else if (dataTypeChar == 'W') {
-                        addr *= 2;
                         dataType = DataType.SI16BA;
                     } else if (dataTypeChar == 'D') {
-                        addr *= 4;
                         dataType = DataType.SI32DA;
                     }
                     try {
-                        xgtData.setBlockData(block, dataType, (double) variable.getValue(), addr);
-                        SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
-                        Optional<Simulation> simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals(variable.getVarname())).findAny();
-                        if (simulationOptional.isPresent()) {
-                            Simulation simulation = simulationOptional.get();
-                            if (simulation.isStopOnControl()) {
-                                simulation.setEnabled(Simulation.DISABLED);
-                                simulationService.updateSimulation(simulation);
-                            }
-                        }
+                        xgtData.setServerData(variable.getVarname(), (double) variable.getValue(),
+                                dataType, ServerDataChangeSource.PROTOCOL_WRITE);
+                        Simulation hit = xgtData.simulationFor(variable.getVarname());
+                        if (hit != null) simulationService.applyStopOnControl(hit);
                     } catch (Exception e) {
                         MkLogger.log("io", e, "XGTPLC Error on execute control.");
                     }
@@ -117,18 +105,5 @@ public class XGTHandler extends MkHandler {
             }
             sendBuffer = out.copy();
         }
-    }
-
-    private int extractNumbers(String input) {
-        StringBuilder numbers = new StringBuilder();
-
-        for (int i = 0; i < input.length(); i++) {
-            char ch = input.charAt(i);
-            if (Character.isDigit(ch)) {
-                numbers.append(ch);
-            }
-        }
-
-        return Integer.parseInt(numbers.toString());
     }
 }

@@ -11,7 +11,7 @@ import java.util.Arrays;
 
 @Getter
 @Setter
-public class XGTData implements ServerData {
+public class XGTData extends ServerData {
     private byte[] mblock;
     private byte[] dblock;
     private byte[] pblock;

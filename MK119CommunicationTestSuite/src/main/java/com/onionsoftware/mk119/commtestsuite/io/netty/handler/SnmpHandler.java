@@ -2,27 +2,26 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 import com.ireasoning.protocol.snmp.*;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
-import com.onionsoftware.mk119.commtestsuite.db.bean.ErrorResult;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.SnmpData;
+import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-@Component("snmp")
-@Scope("prototype")
 public class SnmpHandler extends MkHandler {
-    public SnmpHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    private final SimulationService simulationService;
+
+    public SnmpHandler(IOServer server, SimulationService simulationService) {
+        super(server);
+        this.simulationService = simulationService;
     }
 
     @Override
@@ -78,17 +77,17 @@ public class SnmpHandler extends MkHandler {
         SnmpVarBindList ret = new SnmpVarBindList();
         for (SnmpVarBind snmpVarBind : packet.getVarBinds()) {
             SnmpOID oid = snmpVarBind.getName();
-            SimulationService simulationService = (SimulationService) applicationContext.getBean("simulationService");
-            Optional<Simulation> simulationOptional = simulationService.selectSimulationsByDeviceId(target.getDevice().getId()).stream().filter(e -> e.getTarget().equals(oid.toString())).findAny();
-            if (simulationOptional.isPresent()) {
-                Simulation simulation = simulationOptional.get();
+            Simulation found = snmpData.simulationFor(oid.toString());
+            if (found != null) {
+                Simulation simulation = found;
                 ret.add(snmpVarBind);
                 double valueToWrite = Double.parseDouble(snmpVarBind.getValue().toString());
-                snmpData.getOidValueMap().put(oid.toString(), valueToWrite);
-                if (simulation.isStopOnControl()) {
-                    simulation.setEnabled(Simulation.DISABLED);
-                    simulationService.updateSimulation(simulation);
+                try {
+                    snmpData.setServerData(simulation, valueToWrite, ServerDataChangeSource.PROTOCOL_WRITE);
+                } catch (Exception e) {
+                    MkLogger.log("io", e, "SNMP setServerData failed for OID {0}", oid.toString());
                 }
+                simulationService.applyStopOnControl(simulation);
             } else {
                 packet.setErrorIndex(1);
                 packet.setErrorStatus(2);
