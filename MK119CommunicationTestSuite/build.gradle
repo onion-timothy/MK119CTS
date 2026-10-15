@@ -6,7 +6,16 @@ plugins {
 
 group = 'com.onionsoftware.mk119.commtestsuite'
 version = '0.0.1-SNAPSHOT'
-sourceCompatibility = '1.8'
+
+// 운영 런타임이 Java 8 이므로 toolchain 을 8 로 고정한다.
+// 고정하지 않으면 gradle 을 띄운 JVM 이 그대로 쓰여, 같은 코드가 Java 8 과 17 에서
+// 다르게 동작했다(예: etherip 의 CIPData.toString() 이 Java 9+ 의 ByteBuffer.clear()
+// 시그니처를 요구해 Java 8 에서만 NoSuchMethodError). 컴파일·bootRun·테스트가 모두 8 을 쓴다.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+}
 
 repositories {
     mavenCentral()
@@ -20,6 +29,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa'
     implementation 'org.projectlombok:lombok:1.18.28'
     runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
@@ -34,7 +44,7 @@ dependencies {
     implementation group: 'com.google.guava', name: 'guava', version: '32.0.1-jre'
     implementation group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
 
-    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok:1.18.28'
     implementation files('lib/ireasoningsnmp.jar')
     implementation files('lib/etherip-1.0.0.jar')
     developmentOnly("org.springframework.boot:spring-boot-devtools")
