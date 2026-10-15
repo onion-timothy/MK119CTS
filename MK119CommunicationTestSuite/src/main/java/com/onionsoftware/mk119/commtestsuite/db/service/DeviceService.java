@@ -11,7 +11,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -24,8 +25,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DeviceService {
     private final IOServerInstances ioServerInstances;
+    @Autowired
+    @Lazy
     private SimulationService simulationService;
-    private final ApplicationContext applicationContext;
+    @Autowired
+    @Lazy
+    private ErrorService errorService;
     private final DBDeviceService dbDeviceService;
     private final BACnetService bacnetService;
     private final Logger logger = LoggerFactory.getLogger("agent");
@@ -33,7 +38,6 @@ public class DeviceService {
 
     @PostConstruct
     public void init() {
-        this.simulationService = (SimulationService) applicationContext.getBean("simulationService");
     }
 
     public List<Device> selectDevices() {
@@ -75,7 +79,8 @@ public class DeviceService {
     }
 
     public boolean selectDeviceEnabled(Integer id) {
-        return deviceRepository.findById(id).orElseThrow(EntityNotFoundException::new).getEnabled() == Device.DEVICE_ENABLED;
+        return deviceRepository.findById(id).orElseThrow(EntityNotFoundException::new)
+                .isDeviceEnabled();
     }
 
     public void updateDeviceEnabled(Integer enabled, Integer id) {
@@ -87,7 +92,7 @@ public class DeviceService {
     }
 
     public void startDevice(Device device) {
-        if (device.getEnabled() == Device.DEVICE_ENABLED) {
+        if (device.isDeviceEnabled()) {
             if (Protocol.NETTY_PROTOCOLS.contains(device.getProtocol())) {
                 ioServerInstances.addServerInstance(device);
             } else if (device.getProtocol() == Protocol.BACNET) {
@@ -103,12 +108,14 @@ public class DeviceService {
                 }
             }
             simulationService.startDeviceSimulations(device);
+            errorService.startAllErrorSchedules(device.getId());
         }
     }
 
     public void stopDevice(Integer id) {
         Device dev = this.selectDevice(id);
         simulationService.stopDeviceSimulations(id);
+        errorService.stopAllErrorSchedules(id);
         if (Protocol.NETTY_PROTOCOLS.contains(dev.getProtocol())) {
             ioServerInstances.stopServerInstance(id);
         } else if (dev.getProtocol() == Protocol.BACNET) {
