@@ -10,6 +10,7 @@ public class BACnetNPDU {
     private byte control;
     private short dest_net_addr;
     private byte dest_mac_layer_addr_len;
+    private byte[] dadr;
     private int hop_count;
 
     private short src_net_addr;

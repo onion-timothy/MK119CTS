@@ -10,9 +10,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import javax.persistence.EntityNotFoundException;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
@@ -73,6 +71,8 @@ public class BACnetReadProperty extends BACnetPacket {
         List<Simulation> simulationList = bacnetService.getSimulationMap().get(device.getId());
 
         if (this.getPropertyIdentifier().getValue() == BACNET_PROPERTY_IDENTIFIER_OBJ_LST) {
+            // BACnet 스펙(ASHRAE 135): Device.Object_List 는 device object 자신을 반드시 첫 엔트리로 포함해야 한다.
+            // 시뮬레이션이 없어도 최소 1개(device 자신) 항목이 있는 응답이 된다.
             oid.setTagClass(BACNET_TAG_CLASS_APPLICATION);
             oid.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_OBJECT_IDENTIFIER);
             oid.setLength((byte) 4);
@@ -94,7 +94,20 @@ public class BACnetReadProperty extends BACnetPacket {
             if (oid.getObject_type() == BACNET_OBJECT_TYPE_device) {
                 write = device.getName();
             } else if (BACNET_OBJECT_TYPE_SUPPORTED.contains((byte) oid.getObject_type())) {
-                write = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(oid)).findAny().orElseThrow(EntityNotFoundException::new).getTarget();
+                // 형식이 틀린 target 은 matches 가 false 로 걸러낸다. 예전에는 requireNonNull 이 터져
+                // 잘못된 시뮬레이션 하나가 이 장비의 응답 전체를 무응답으로 만들었다.
+                // 모르는 object 는 null 을 반환해 호출부가 BACnet Error 를 보내게 한다
+                // (예전에는 EntityNotFoundException 이 올라가 아무 응답도 못 갔다).
+                if (simulationList == null) {
+                    return null;
+                }
+                Optional<Simulation> named = simulationList.stream()
+                        .filter(e -> BACnetObjectIdentifier.matches(e.getTarget(), oid))
+                        .findAny();
+                if (!named.isPresent()) {
+                    return null;
+                }
+                write = named.get().getTarget();
             }
             if (!write.isEmpty()) {
                 BACnetCharacterString name = new BACnetCharacterString(write, BACNET_CHARACTER_STRING_ENCODING_UTF8);
@@ -114,7 +127,9 @@ public class BACnetReadProperty extends BACnetPacket {
                 if(simulationList == null){
                     return null;
                 }
-                Optional<Simulation> simulationOpt = simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(oid)).findAny();
+                Optional<Simulation> simulationOpt = simulationList.stream()
+                        .filter(e -> BACnetObjectIdentifier.matches(e.getTarget(), oid))
+                        .findAny();
                 if (simulationOpt.isPresent()) {
                     Simulation simulation = simulationOpt.get();
                     Float value = bacnetService.getSimulationValues().get(simulation.getId());
@@ -137,9 +152,5 @@ public class BACnetReadProperty extends BACnetPacket {
         writeBACnetTag(buf_apdu, closingTag);
         mergeBACnetBuffers(buf, buf_bvlc, buf_npdu, buf_apdu);
         return buf;
-    }
-
-    private static String getEmptyString(){
-        return "";
     }
 }

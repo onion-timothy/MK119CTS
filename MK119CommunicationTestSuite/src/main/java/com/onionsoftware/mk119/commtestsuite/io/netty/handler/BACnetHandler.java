@@ -8,103 +8,161 @@ import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifie
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetUnsignedInteger;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.BACnetData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import java.net.InetSocketAddress;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 import static com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetConstants.*;
 
-@Component("bacnet")
-@Scope("prototype")
 public class BACnetHandler extends MkHandler {
     private final BACnetService bacnetService;
+    private final SimulationService simulationService;
 
-    public BACnetHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
-        this.bacnetService = (BACnetService) applicationContext.getBean("bacnetService");
+    public BACnetHandler(IOServer server, BACnetService bacnetService, SimulationService simulationService) {
+        super(server);
+        this.bacnetService = bacnetService;
+        this.simulationService = simulationService;
     }
 
     @Override
     protected void generateBuffer(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof BACnetPacket) {
             if (msg instanceof BACnetWhois) {
-                for (Device device : bacnetService.getBacnetDevices()) {
-                    ByteBuf buf = ((BACnetWhois) msg).encodeBACnetIAmDeviceResponse(device);
-                    if (buf != null) {
-                        sendBuffer = buf.copy();
-                    }
+                Device myDevice = getTarget().getDevice();
+                ByteBuf buf = ((BACnetWhois) msg).encodeBACnetIAmDeviceResponse(myDevice);
+                if (buf != null) {
+                    sendBuffer = buf.copy();
                 }
             } else if (msg instanceof BACnetReadProperty) {
                 BACnetReadProperty readProperty = (BACnetReadProperty) msg;
-                byte instanceNumberSADR = readProperty.getBacnetNPDU().getSadr()[readProperty.getBacnetNPDU().getSadr().length - 1];
                 int instanceNumber = readProperty.getOid().getInstance_number();
 
-                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device ? instanceNumber : instanceNumberSADR)).findFirst();
-                if (deviceOptional.isPresent()) {
-                    ByteBuf buf = readProperty.encodeBACnetReadPropertyResponse(deviceOptional.get());
+                Device myDevice = getTarget().getDevice();
+                int myDeviceInstanceId = Integer
+                        .parseInt(myDevice.getCommunicationSettings().get("deviceInstanceId").toString());
+                // Device 객체는 OID 인스턴스로, 그 외 객체는 목적지 주소(DADR)로 대상 장비를 식별한다.
+                int targetInstanceId = (readProperty.getOid().getObject_type() == BACNET_OBJECT_TYPE_device
+                        ? instanceNumber
+                        : resolveTargetInstance(readProperty, myDeviceInstanceId));
+
+                if (myDeviceInstanceId == targetInstanceId) {
+                    ByteBuf buf = readProperty.encodeBACnetReadPropertyResponse(myDevice);
                     if (buf != null) {
                         sendBuffer = buf.copy();
                     } else {
                         MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readProperty {0}", getSender());
                         BACnetError error = getBACnetError();
                         sendBuffer = error.encodeBACnetError(
-                                deviceOptional.get(),
+                                myDevice,
                                 readProperty.getBacnetAPDU().getInvoke_id(),
                                 readProperty.getBacnetAPDU().getService_choice());
                     }
+                } else {
+                    forwardToCorrectServer(targetInstanceId, msg);
                 }
             } else if (msg instanceof BACnetReadPropertyMultiple) {
                 BACnetReadPropertyMultiple readPropertyMultiple = (BACnetReadPropertyMultiple) msg;
-                byte instanceNumberSADR = readPropertyMultiple.getBacnetNPDU().getSadr()[readPropertyMultiple.getBacnetNPDU().getSadr().length - 1];
 
-                Optional<Device> deviceOptional = bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst();
-                if (deviceOptional.isPresent()) {
-                    ByteBuf buf = readPropertyMultiple.encodeBACnetReadPropertyMultipleResponse(deviceOptional.get());
+                Device myDevice = getTarget().getDevice();
+                int myDeviceInstanceId = Integer
+                        .parseInt(myDevice.getCommunicationSettings().get("deviceInstanceId").toString());
+                int targetInstanceId = resolveTargetInstance(readPropertyMultiple, myDeviceInstanceId);
+
+                if (myDeviceInstanceId == targetInstanceId) {
+                    ByteBuf buf = readPropertyMultiple.encodeBACnetReadPropertyMultipleResponse(myDevice);
                     if (buf != null) {
                         sendBuffer = buf.copy();
                     } else {
-                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readPropertyMultiple {0}", getSender());
+                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readPropertyMultiple {0}",
+                                getSender());
                         BACnetError error = getBACnetError();
                         sendBuffer = error.encodeBACnetError(
-                                deviceOptional.get(),
+                                myDevice,
                                 readPropertyMultiple.getBacnetAPDU().getInvoke_id(),
                                 readPropertyMultiple.getBacnetAPDU().getService_choice());
                     }
+                } else {
+                    forwardToCorrectServer(targetInstanceId, msg);
                 }
             } else if (msg instanceof BACnetWriteProperty) {
                 BACnetWriteProperty writeProperty = (BACnetWriteProperty) msg;
-                byte instanceNumberSADR = writeProperty.getBacnetNPDU().getSadr()[writeProperty.getBacnetNPDU().getSadr().length - 1];
 
-                bacnetService.getBacnetDevices().stream().filter(e -> Integer.parseInt(e.getCommunicationSettings().get("deviceInstanceId").toString()) == instanceNumberSADR).findFirst().ifPresent(device->{
-                    List<Simulation> simulationList = bacnetService.getSimulationMap().get(device.getId());
-                    simulationList.stream().filter(e -> Objects.requireNonNull(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget())).equals(writeProperty.getOid())).findAny().ifPresent(s->{
-                        ByteBuf buf = writeProperty.encodeBACnetWritePropertyResponse(device);
-                        if (s.isStopOnControl()) {
-                            SimulationService service = (SimulationService) applicationContext.getBean("simulationService");
-                            s.setEnabled(Simulation.DISABLED);
-                            service.updateSimulation(s);
-                        }
-                        bacnetService.getSimulationValues().put(s.getId(), writeProperty.getValue().getValue());
-                        if (buf != null) {
-                            sendBuffer = buf.copy();
-                        } else {
-                            MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process writePropertyMultiple {0}", getSender());
-                            BACnetError bacnetError = getBACnetError();
-                            sendBuffer = bacnetError.encodeBACnetError(
-                                    device,
-                                    writeProperty.getBacnetAPDU().getInvoke_id(),
-                                    writeProperty.getBacnetAPDU().getService_choice());
-                        }
+                Device myDevice = getTarget().getDevice();
+                int myDeviceInstanceId = Integer
+                        .parseInt(myDevice.getCommunicationSettings().get("deviceInstanceId").toString());
+                int targetInstanceId = resolveTargetInstance(writeProperty, myDeviceInstanceId);
+
+                if (myDeviceInstanceId == targetInstanceId) {
+                    List<Simulation> simulationList = bacnetService.getSimulationMap().get(myDevice.getId());
+                    if (simulationList != null) {
+                        simulationList.stream()
+                                // 형식이 틀린 target 은 걸러낸다. requireNonNull 이던 때는 잘못된 시뮬레이션
+                                // 하나가 이 장비의 WriteProperty 처리를 통째로 막았다.
+                                .filter(e -> BACnetObjectIdentifier.matches(e.getTarget(), writeProperty.getOid()))
+                                .findAny().ifPresent(s -> {
+                                    ByteBuf buf = writeProperty.encodeBACnetWritePropertyResponse(myDevice);
+                                    simulationService.applyStopOnControl(s);
+                                    try {
+                                        BACnetData bacnetData = (BACnetData) getTarget().getServerData();
+                                        bacnetData.setServerData(s,
+                                                (double) writeProperty.getValue().getValue(),
+                                                ServerDataChangeSource.PROTOCOL_WRITE);
+                                    } catch (Exception ex) {
+                                        MkLogger.log("io", ex,
+                                                "BACnet setServerData failed for target {0}", s.getTarget());
+                                    }
+                                    if (buf != null) {
+                                        sendBuffer = buf.copy();
+                                    } else {
+                                        MkLogger.log("io", LogLevel.ERROR,
+                                                "BACnet error occur process writePropertyMultiple {0}", getSender());
+                                        BACnetError bacnetError = getBACnetError();
+                                        sendBuffer = bacnetError.encodeBACnetError(
+                                                myDevice,
+                                                writeProperty.getBacnetAPDU().getInvoke_id(),
+                                                writeProperty.getBacnetAPDU().getService_choice());
+                                    }
+                                });
+                    }
+                } else {
+                    forwardToCorrectServer(targetInstanceId, msg);
+                }
+            }
+        }
+    }
+
+    /**
+     * 요청의 목적지 주소(DADR) 마지막 바이트로 대상 장비 인스턴스를 정한다.
+     * 마스터(BACnet4J)는 장비를 네트워크 2의 원격 장비(DADR=인스턴스)로 지정해 보낸다.
+     * 목적지 주소가 없는 로컬 요청이면 이 소켓에 바인딩된 장비를 대상으로 처리한다.
+     */
+    private int resolveTargetInstance(BACnetPacket packet, int localInstanceId) {
+        byte[] dadr = packet.getBacnetNPDU().getDadr();
+        if (dadr != null && dadr.length > 0) {
+            return dadr[dadr.length - 1] & 0xFF;
+        }
+        return localInstanceId;
+    }
+
+    private void forwardToCorrectServer(int targetInstanceId, Object msg) {
+        IOServer targetServer = bacnetService.getBacnetServerMap().get(targetInstanceId);
+        if (targetServer != null) {
+            for (ChannelInboundHandlerAdapter handler : targetServer.getHandlers()) {
+                if (handler instanceof BACnetHandler) {
+                    BACnetHandler targetHandler = (BACnetHandler) handler;
+                    InetSocketAddress originalSender = this.getSender();
+                    targetHandler.getContext().executor().execute(() -> {
+                        targetHandler.setSender(originalSender);
+                        targetHandler.channelRead(targetHandler.getContext(), msg);
                     });
-                });
+                }
             }
         }
     }

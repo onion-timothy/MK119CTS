@@ -82,6 +82,11 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
                 writeBACnetTag(buf_apdu, olist);
 
                 writeOpeningTag(buf_apdu, (byte) 4);
+                // BACnet 스펙(ASHRAE 135): Device.Object_List 는 device object 자신을 반드시 첫 엔트리로 포함해야 한다.
+                oid.setTagClass(BACNET_TAG_CLASS_APPLICATION);
+                oid.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_OBJECT_IDENTIFIER);
+                oid.setLength((byte) 4);
+                writeBACnetTag(buf_apdu, oid);
                 List<Simulation> simulationList = bacnetService.getSimulationMap().get(device.getId());
                 if (simulationList != null) {
                     for (Simulation simulation : simulationList) {

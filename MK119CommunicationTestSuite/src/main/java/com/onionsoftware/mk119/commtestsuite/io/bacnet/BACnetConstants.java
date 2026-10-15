@@ -13,6 +13,10 @@ public class BACnetConstants {
     public static final int BACNET_NPDU_CONTROL_DEST_SPEC_EXPT_RPLY = 0x24;
     public static final int BACNET_NPDU_CONTROL_DEST_SRC_SPEC = 0x28;
     public static final int BACNET_NPDU_CONTROL_SRC_SPEC = 0x08;
+    // NPDU control 바이트의 개별 비트 (ASHRAE 135 6.2.2). 표준 비트플래그 기반 파싱에 사용한다.
+    public static final int BACNET_NPDU_CONTROL_DEST_PRESENT = 0x20; // 목적지 지정(DNET/DLEN/DADR) 존재
+    public static final int BACNET_NPDU_CONTROL_SRC_PRESENT = 0x08;  // 소스 지정(SNET/SLEN/SADR) 존재
+    public static final int BACNET_NPDU_CONTROL_NET_MSG = 0x80;      // APDU가 아닌 네트워크 계층 메시지
     public static final byte BACNET_APDU_TYPE_UNCONFIRMED_REQ = 0x01;
     public static final byte BACNET_APDU_TYPE_CONFIRMED_REQ = 0x00;
     public static final byte BACNET_APDU_TYPE_COMPLEX_ACK = 0x03;
