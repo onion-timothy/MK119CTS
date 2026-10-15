@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS — Batch Add Devices</title>
+
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; margin: 0; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; overflow: hidden; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+        .content-wrapper > section.content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+        .batch-root { display: flex; flex-direction: column; height: 100%; padding: 10px; gap: 10px; min-height: 0; }
+        .batch-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .batch-panes {
+            flex: 1 1 auto; min-height: 0; display: grid; gap: 10px;
+            /* 세로 긴 뷰포트 기본: 세로 3단 */
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+        }
+        /* 가로가 더 길면 가로 3단으로 */
+        @media (orientation: landscape) {
+            .batch-panes {
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.4fr);
+                grid-template-rows: 1fr;
+            }
+        }
+        .batch-pane { background:#fff; border:1px solid #dee2e6; border-radius:4px; display:flex; flex-direction:column; overflow:hidden; min-height: 0; min-width: 0; }
+        .batch-pane-header { padding:8px 12px; border-bottom:1px solid #dee2e6; background:#f8f9fa; font-weight:600; display:flex; align-items:center; justify-content:space-between; flex: 0 0 auto; }
+        .batch-pane-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px; }
+        .batch-pane-body.no-pad { padding: 0; }
+        .cts-tabulator { height: 100%; }
+        .detail-form .form-group { margin-bottom: .65rem; }
+        .detail-form label { font-weight: 600; margin-bottom: .15rem; font-size: .85rem; color:#495057; }
+        .detail-form input, .detail-form select, .detail-form textarea { font-size: .9rem; }
+        .error-chip { color:#dc3545; font-size:.8rem; white-space: normal; word-break: break-word; }
+        .ok-chip { color:#28a745; font-size:.8rem; }
+        .row-error { background-color: #fdecea !important; }
+        .status-bar { font-size: .85rem; color:#6c757d; }
+        /* simulation 이 없는 device 의 빈 테이블 안내 (에러는 아니지만 알아차려야 하는 상태) */
+        .sim-empty { color:#fd7e14; font-weight:600; font-size:.95rem; padding:18px 12px; text-align:center; }
+        .sim-empty-sub { color:#6c757d; font-weight:400; font-size:.8rem; margin-top:6px; }
+        /* Tabulator 기본 placeholder 스타일(회색 소형 텍스트)을 덮어쓴다 */
+        #simulationsTable .tabulator-placeholder { background: transparent; }
+        #simulationsTable .tabulator-placeholder .tabulator-placeholder-contents {
+            color: inherit; font-weight: inherit; font-size: inherit; max-width: 420px;
+        }
+        /* 아이콘 전용 셀: 기본 padding/ellipsis 때문에 '...' 이 생기는 것 방지 */
+        .tabulator .tabulator-cell.status-cell { padding-left: 2px; padding-right: 2px; text-overflow: clip; overflow: visible; }
+
+        /* Register 중 입력 차단 오버레이 */
+        #busyOverlay {
+            display: none;
+            position: fixed; inset: 0; z-index: 2000;
+            background: rgba(0, 0, 0, .45);
+            align-items: center; justify-content: center;
+        }
+        #busyOverlay.show { display: flex; }
+        #busyOverlay .busy-box {
+            background: #fff; border-radius: 6px; padding: 24px 32px;
+            display: flex; flex-direction: column; align-items: center; gap: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,.3); min-width: 260px;
+        }
+        #busyOverlay .spinner {
+            width: 42px; height: 42px; border-radius: 50%;
+            border: 4px solid #e9ecef; border-top-color: #007bff;
+            animation: busySpin .8s linear infinite;
+        }
+        @keyframes busySpin { to { transform: rotate(360deg); } }
+        #busyOverlay .busy-text { font-weight: 600; color: #495057; }
+        #busyOverlay .busy-sub { font-size: .8rem; color: #6c757d; }
+    </style>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        const GROUP_ID = /*[[${group}]]*/ 1;
+        const SESSION_KEY = 'batchAddValidation';
+        const PROTOCOLS = ['GENERIC','MODBUS','XGT_PLC','DAEYUN_RCU','SNMP','BACNET','OPC_AGENT','DB','ETHERNET_IP'];
+        const TRANSPORTS = ['TCP','UDP'];
+
+        let devicesTable, simulationsTable;
+        let devices = [];        // [{name, host, transport, port, protocol, communicationSettings, enabled, error, _rid}]
+        let simulations = [];    // [{deviceName, name, target, policies:[{...}], interval, enabled, error, _rid, _deviceRid}]
+        let registeredDevices = [];   // 페이지 진입 시 1회 받아오는 서버 등록 device 스냅샷
+        let selectedRid = null;   // 임시 행 ID — 이름은 중복될 수 있어 선택 기준으로 쓸 수 없음
+        let ridSeq = 1;
+
+        function newRid() { return 'r' + (ridSeq++); }
+
+        function selectedDevice() {
+            return selectedRid ? devices.find(d => d._rid === selectedRid) : null;
+        }
+
+        function deviceByRid(rid) {
+            return rid ? devices.find(d => d._rid === rid) : null;
+        }
+
+        /**
+         * simulation 을 device '행'(_rid)에 바인딩한다.
+         * 이름은 편집 가능하고 중복될 수 있으므로 식별자로 쓸 수 없다.
+         * - 이미 살아있는 행에 바인딩돼 있으면 유지한다 → device 이름을 바꿔도 따라간다.
+         * - 이름이 정확히 하나의 device 와 매칭되면 그 행에 바인딩한다.
+         * - 0개 또는 2개 이상이면 미해결(null)로 남기고, 중복이 해소되면 다음 호출에서 자동 바인딩된다.
+         */
+        function resolveSimulationBindings() {
+            let byName = new Map();
+            devices.forEach(d => {
+                if (!d.name) return;
+                if (!byName.has(d.name)) byName.set(d.name, []);
+                byName.get(d.name).push(d);
+            });
+
+            simulations.forEach(s => {
+                if (s._deviceRid && deviceByRid(s._deviceRid)) return;
+                let matches = byName.get(s.deviceName) || [];
+                s._deviceRid = matches.length === 1 ? matches[0]._rid : null;
+            });
+        }
+
+        /** 바인딩된 device 의 현재 이름. 미해결이면 파일에 적힌 원본 이름. */
+        function simDeviceName(s) {
+            let d = deviceByRid(s._deviceRid);
+            return d ? d.name : s.deviceName;
+        }
+
+        /** 어느 device 행에 속하는지 UI가 판단할 수 없는 경우를 알린다. */
+        function bindError(s) {
+            if (deviceByRid(s._deviceRid)) return null;
+            let matches = devices.filter(d => d.name === s.deviceName);
+            if (matches.length > 1) {
+                return 'Ambiguous: ' + matches.length + ' devices named "' + s.deviceName + '".';
+            }
+            return null;  // 0개인 경우는 validateSimulationRow 가 'Unknown device' 로 잡는다
+        }
+
+        /** 행 검증 error 와 바인딩 error 를 합친 값. */
+        function simError(s) {
+            return s.error || bindError(s);
+        }
+
+        function load() {
+            let raw = sessionStorage.getItem(SESSION_KEY);
+            if (!raw) return;
+            try {
+                let parsed = JSON.parse(raw);
+                devices = (parsed.devices || []).map(d => ({ ...d, _rid: newRid(), error: null }));
+                simulations = (parsed.simulations || []).map(s => ({ ...s, _rid: newRid(), _deviceRid: null, error: null }));
+            } catch (e) {
+                console.error(e);
+                alert('Failed to load batch data.');
+            }
+        }
+
+        /** 검증 기준이 되는 등록 device 목록. 진입 시 1회만 받아온다. */
+        function fetchRegisteredDevices() {
+            return $.ajax({ url: '/api/device/devices', type: 'GET' })
+                .done(function (res) { registeredDevices = res || []; })
+                .fail(function (xhr) {
+                    alert('Failed to load registered devices (' + xhr.status + '). '
+                        + 'Duplicate name / endpoint checks against existing devices will not work.');
+                });
+        }
+
+        function errorCount() {
+            let n = 0;
+            devices.forEach(d => { if (d.error) n++; });
+            simulations.forEach(s => { if (simError(s)) n++; });
+            return n;
+        }
+
+        function updateStatus() {
+            let dOk = devices.filter(d => !d.error).length;
+            let sOk = simulations.filter(s => !simError(s)).length;
+            let errs = errorCount();
+            let txt = 'Devices: ' + dOk + '/' + devices.length + '   Simulations: ' + sOk + '/' + simulations.length;
+            if (errs > 0) {
+                $('#statusLine').html('<span class="text-danger font-weight-bold">' + errs + ' error(s)</span> &nbsp; ' + txt);
+            } else {
+                $('#statusLine').text(txt);
+            }
+            $('#registerBtn').prop('disabled', errs > 0 || (devices.length + simulations.length) === 0);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  검증 (전부 클라이언트에서 수행 — 서버 왕복 없음)
+        //  규칙은 ApiController.validateDeviceRow / validateSimulationRow 와 동일하게 유지한다.
+        //  서버는 batchInsert 시점에 같은 규칙으로 다시 검사하므로 이쪽이 뚫려도 DB 는 보호된다.
+        // ─────────────────────────────────────────────────────────────────────
+        const INT_MAX = 2147483647;
+        const TRANSPORT_PROTOCOLS = {
+            TCP: ['GENERIC','MODBUS','XGT_PLC','DAEYUN_RCU','DB','ETHERNET_IP'],
+            UDP: ['GENERIC','MODBUS','XGT_PLC','SNMP','BACNET','OPC_AGENT','DB']
+        };
+        const POLICIES = ['STATIC','RANDOM','ACCUMULATE','SEQUENCE'];
+        const DATA_TYPES = [
+            'UI8','SI8','UI16AB','UI16BA','SI16AB','SI16BA',
+            'UI32AD','UI32CB','UI32BC','UI32DA','SI32AD','SI32CB','SI32BC','SI32DA',
+            'SI64AH','SI64GB','SI64BG','SI64HA',
+            'FP32AD','FP32CB','FP32BC','FP32DA','FP64AH','FP64GB','FP64BG','FP64HA'
+        ];
+
+        /**
+         * host/transport/port 가 이 device 만의 바인딩 엔드포인트인지.
+         * DB 는 외부 DB 서버로 접속하는 클라이언트라 host/port 가 바인딩과 무관하고,
+         * BACNET 은 모든 device 가 0.0.0.0:47808 을 공유하므로 둘 다 검사 대상이 아니다.
+         */
+        function bindsEndpoint(protocol) {
+            return protocol !== 'DB' && protocol !== 'BACNET';
+        }
+
+        function normHost(h) { return (h === null || h === undefined) ? '' : String(h).trim(); }
+
+        /** 와일드카드로 바인딩하면 해당 transport/port 를 인터페이스 전체에서 점유한다. */
+        function isWildcardHost(h) {
+            let x = normHost(h);
+            return x === '0.0.0.0' || x === '::' || x === '[::]' || x === '*';
+        }
+
+        function transportPortKey(transport, port) { return transport + '|' + port; }
+
+        function addEndpoint(map, host, transport, port) {
+            let k = transportPortKey(transport, port);
+            if (!map[k]) map[k] = [];
+            let h = normHost(host);
+            if (map[k].indexOf(h) < 0) map[k].push(h);
+        }
+
+        /** 충돌하는 상대 host 를 반환한다. 충돌이 없으면 null. */
+        function findEndpointConflict(map, host, transport, port) {
+            let hosts = map[transportPortKey(transport, port)];
+            if (!hosts || hosts.length === 0) return null;
+            let h = normHost(host);
+            if (isWildcardHost(h)) return hosts[0];      // 신규가 와일드카드면 아무 host 와도 충돌
+            if (hosts.indexOf(h) >= 0) return h;
+            for (let i = 0; i < hosts.length; i++) {     // 기존이 와일드카드면 특정 IP 도 불가
+                if (isWildcardHost(hosts[i])) return hosts[i];
+            }
+            return null;
+        }
+
+        function endpointConflictMessage(host, conflictHost, transport, port, what) {
+            let h = normHost(host);
+            let self = h + ':' + port + '/' + transport;
+            if (h === conflictHost) return 'Endpoint ' + self + ' ' + what + '.';
+            return 'Endpoint ' + self + ' ' + what + ' — conflicts with ' + conflictHost + ':' + port
+                 + '/' + transport + ' (wildcard host binds all interfaces).';
+        }
+
+        function blank(v) { return v === null || v === undefined || String(v).trim() === ''; }
+
+        function num(v) {
+            if (typeof v === 'number') return isFinite(v) ? v : null;
+            if (typeof v === 'string' && v.trim() !== '' && isFinite(Number(v))) return Number(v);
+            return null;
+        }
+
+        function firstError() {
+            for (let i = 0; i < arguments.length; i++) if (arguments[i]) return arguments[i];
+            return null;
+        }
+
+        function reqNum(cs, key, min, max) {
+            if (blank(cs[key])) return "communicationSettings: missing '" + key + "'.";
+            let n = num(cs[key]);
+            if (n === null) return "communicationSettings: '" + key + "' must be a number.";
+            if (n < min || n > max) return "communicationSettings: '" + key + "' must be " + min + "~" + max + ".";
+            return null;
+        }
+
+        function reqText(cs, key) {
+            return blank(cs[key]) ? "communicationSettings: missing '" + key + "'." : null;
+        }
+
+        /** rx/tx 는 배열 또는 배열 JSON 문자열 둘 다 허용 (decoder 가 양쪽을 다룬다). */
+        function reqList(cs, key) {
+            let v = cs[key];
+            if (v === null || v === undefined) return "communicationSettings: missing '" + key + "'.";
+            let list = null;
+            if (Array.isArray(v)) {
+                list = v;
+            } else if (typeof v === 'string') {
+                try { let p = JSON.parse(v); if (Array.isArray(p)) list = p; } catch (e) { /* 아래에서 형식 에러 */ }
+            }
+            if (list === null) return "communicationSettings: '" + key + "' must be an array.";
+            return list.length === 0 ? "communicationSettings: '" + key + "' is empty." : null;
+        }
+
+        function reqIpv4(cs, key) {
+            if (blank(cs[key])) return "communicationSettings: missing '" + key + "'.";
+            let parts = String(cs[key]).trim().split('.');
+            if (parts.length !== 4) return "communicationSettings: '" + key + "' must be an IPv4 address.";
+            for (let i = 0; i < parts.length; i++) {
+                if (!/^\d+$/.test(parts[i])) return "communicationSettings: '" + key + "' must be an IPv4 address.";
+                let o = parseInt(parts[i], 10);
+                if (o < 0 || o > 255) return "communicationSettings: '" + key + "' has an invalid octet.";
+            }
+            return null;
+        }
+
+        function toSettingsMap(raw) {
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+            if (typeof raw === 'string' && raw.trim() !== '') {
+                try {
+                    let p = JSON.parse(raw);
+                    if (p && typeof p === 'object' && !Array.isArray(p)) return p;
+                } catch (e) { return null; }
+            }
+            return null;
+        }
+
+        /** 프로토콜별 communicationSettings 필수 키/범위. 정의되지 않은 여분 키는 통과시킨다. */
+        function validateCommSettings(protocol, csRaw) {
+            let cs = toSettingsMap(csRaw);
+            if (cs === null) return 'communicationSettings must be a JSON object.';
+            switch (protocol) {
+                case 'GENERIC':
+                    return firstError(reqList(cs,'rx'), reqList(cs,'tx'));
+                case 'MODBUS':
+                    return firstError(reqNum(cs,'unitId',0,255), reqNum(cs,'packetType',0,1),
+                                      reqNum(cs,'registers',1,INT_MAX));
+                case 'XGT_PLC':
+                    return firstError(reqNum(cs,'cpuId',0,255), reqNum(cs,'maxBlockSize',1,1400),
+                                      reqNum(cs,'registers',1,INT_MAX));
+                case 'DAEYUN_RCU':
+                    return firstError(reqList(cs,'rx'), reqList(cs,'tx'), reqNum(cs,'cpuAddr',0,255),
+                                      reqNum(cs,'diCount',0,INT_MAX), reqNum(cs,'doCount',0,INT_MAX),
+                                      reqNum(cs,'aiCount',0,INT_MAX));
+                case 'SNMP':
+                    return firstError(reqNum(cs,'snmpVersion',0,1), reqText(cs,'getCommunity'),
+                                      reqText(cs,'setCommunity'));
+                case 'BACNET':
+                    return firstError(reqNum(cs,'deviceInstanceId',1,65536), reqText(cs,'broadcast'));
+                case 'OPC_AGENT':
+                    return firstError(reqNum(cs,'registers',1,INT_MAX));
+                case 'DB':
+                    return firstError(reqText(cs,'dbdriver'), reqText(cs,'dbUrl'), reqText(cs,'dbUsername'),
+                                      reqText(cs,'dbPassword'), reqText(cs,'dbDatabase'));
+                case 'ETHERNET_IP':
+                    // syn_port 는 EthernetIPData 가 Short.parseShort 로 읽으므로 상한이 32767
+                    return firstError(reqNum(cs,'cpuSlot',0,255), reqNum(cs,'syn_port',0,32767),
+                                      reqIpv4(cs,'implicit_t2o_addr'),
+                                      reqNum(cs,'implicit_t2o_assy_size',0,INT_MAX),
+                                      reqNum(cs,'implicit_o2t_assy_size',0,INT_MAX));
+                default:
+                    return null;
+            }
+        }
+
+        function validateDeviceRow(d, existingNames, seenNames, existingEndpoints, seenEndpoints) {
+            if (blank(d.name)) return 'Missing name.';
+            let name = String(d.name);
+            if (existingNames.has(name)) return 'Duplicated device name (already exists).';
+            if (seenNames.has(name)) return 'Duplicated device name in file.';
+
+            let transport = blank(d.transport) ? null : String(d.transport);
+            if (transport === null || TRANSPORTS.indexOf(transport) < 0) return 'Invalid transport.';
+
+            let protocol = blank(d.protocol) ? null : String(d.protocol);
+            if (protocol === null || PROTOCOLS.indexOf(protocol) < 0) return 'Invalid protocol.';
+
+            let allowed = TRANSPORT_PROTOCOLS[transport];
+            if (allowed && allowed.indexOf(protocol) < 0) {
+                return protocol + ' is not supported over ' + transport + '.';
+            }
+
+            if (bindsEndpoint(protocol)) {
+                if (blank(d.host)) return 'Missing host.';
+                let port = num(d.port);
+                if (port === null) return 'Invalid port.';
+                port = Math.trunc(port);
+                if (port < 0 || port > 65535) return 'Invalid port range.';
+
+                let conflict = findEndpointConflict(existingEndpoints, d.host, transport, port);
+                if (conflict !== null) {
+                    return endpointConflictMessage(d.host, conflict, transport, port, 'already used by another device');
+                }
+                conflict = findEndpointConflict(seenEndpoints, d.host, transport, port);
+                if (conflict !== null) {
+                    return endpointConflictMessage(d.host, conflict, transport, port, 'duplicated in file');
+                }
+            }
+
+            return validateCommSettings(protocol, d.communicationSettings);
+        }
+
+        /** simulation 은 device 안에서만 이름이 유일해야 한다 (DB 제약: UNIQUE(name, device_id)). */
+        function simKey(deviceName, simName) {
+            return deviceName + '\u0000' + simName;
+        }
+
+        function validateSimulationRow(s, allowedDeviceNames, registeredNames, seenSimKeys) {
+            let deviceName = simDeviceName(s);
+            if (blank(deviceName)) return 'Missing deviceName.';
+            if (!allowedDeviceNames.has(String(deviceName))) {
+                if (registeredNames.has(String(deviceName))) {
+                    return "Device '" + deviceName + "' already exists — add its simulations from the Simulations page.";
+                }
+                return 'Unknown device: ' + deviceName;
+            }
+            if (blank(s.name)) return 'Missing simulation name.';
+            if (seenSimKeys.has(simKey(String(deviceName), String(s.name)))) {
+                return "Duplicated simulation name '" + s.name + "' for device '" + deviceName + "' in file.";
+            }
+            // policy/data_type 은 policies[0] 안에 접혀 있다. 평평한 형태도 받아들인다.
+            let p = (s.policies && s.policies.length > 0 && s.policies[0]) ? s.policies[0] : s;
+            if (!blank(p.policy) && POLICIES.indexOf(String(p.policy)) < 0) return 'Invalid policy: ' + p.policy;
+            if (!blank(p.data_type) && DATA_TYPES.indexOf(String(p.data_type)) < 0) return 'Invalid data_type: ' + p.data_type;
+            return null;
+        }
+
+        /** 전체 재검증. 동기 실행이므로 입력마다 불러도 부담이 없다. */
+        function validateAll() {
+            resolveSimulationBindings();
+
+            // 서버에서 받아둔 등록 device 스냅샷이 비교 기준
+            let existingNames = new Set();
+            let existingEndpoints = {};
+            registeredDevices.forEach(function (d) {
+                if (d.name) existingNames.add(d.name);
+                if (d.transport && d.protocol && d.port !== null && d.port !== undefined
+                        && bindsEndpoint(d.protocol)) {
+                    addEndpoint(existingEndpoints, d.host, d.transport, d.port);
+                }
+            });
+
+            let seenNames = new Set();
+            let seenEndpoints = {};
+            // 템플릿의 simulation 은 '이 파일에서 새로 만들어지는 device' 만 참조할 수 있다.
+            // 기존 device 에 simulation 을 추가하는 일은 Simulations 페이지의 batch add 가 담당한다.
+            let allowedDeviceNames = new Set();
+
+            devices.forEach(function (d) {
+                d.error = validateDeviceRow(d, existingNames, seenNames, existingEndpoints, seenEndpoints);
+                if (d.error === null) {
+                    if (d.name) { seenNames.add(String(d.name)); allowedDeviceNames.add(String(d.name)); }
+                    let port = num(d.port);
+                    if (bindsEndpoint(String(d.protocol)) && port !== null) {
+                        addEndpoint(seenEndpoints, d.host, String(d.transport), Math.trunc(port));
+                    }
+                }
+            });
+
+            let seenSimKeys = new Set();
+            simulations.forEach(function (s) {
+                s.error = validateSimulationRow(s, allowedDeviceNames, existingNames, seenSimKeys);
+                if (s.error === null) {
+                    seenSimKeys.add(simKey(String(simDeviceName(s)), String(s.name)));
+                }
+            });
+        }
+
+        /** 검증 + UI 갱신. 입력마다 호출되므로 Tabulator 를 재생성하지 않고 데이터만 교체한다. */
+        function revalidate() {
+            validateAll();
+            if (devicesTable) devicesTable.replaceData(devices);
+            if (simulationsTable) simulationsTable.replaceData(currentSimRows());
+            updateSimPaneHeader();
+            updateDetailAlert();
+            updateStatus();
+        }
+
+        /**
+         * 셀 편집 '중' 검증. replaceData 는 열려 있는 에디터를 파괴하므로 쓸 수 없다.
+         * 그래서 Tabulator 의 재렌더를 거치지 않고 Error 셀과 행 배경만 직접 갱신한다.
+         */
+        function revalidateWhileEditing() {
+            validateAll();
+            if (simulationsTable) {
+                simulationsTable.getRows().forEach(function (row) {
+                    let s = row.getData();
+                    let cell = row.getCell('error');
+                    if (cell && cell.getElement()) {
+                        let v = simError(s);
+                        cell.getElement().innerHTML = v
+                            ? '<span class="error-chip">' + escapeHtml(v) + '</span>'
+                            : '<span class="ok-chip">ok</span>';
+                    }
+                    if (simError(s)) row.getElement().classList.add('row-error');
+                    else row.getElement().classList.remove('row-error');
+                });
+            }
+            if (devicesTable) devicesTable.replaceData(devices);
+            updateStatus();
+        }
+
+        function stripRow(r) {
+            let o = { ...r };
+            delete o._rid;
+            delete o.error;
+            return o;
+        }
+
+        /** simulation 은 바인딩된 device 의 '현재' 이름으로 deviceName 을 채워 보낸다. */
+        function stripSimRow(s) {
+            let o = stripRow(s);
+            delete o._deviceRid;
+            o.deviceName = simDeviceName(s);
+            return o;
+        }
+
+        function initDevicesTable() {
+            if (devicesTable) { devicesTable.destroy(); }
+            devicesTable = new Tabulator('#devicesTable', {
+                data: devices,
+                layout: 'fitColumns',
+                height: '100%',
+                index: '_rid',
+                selectableRows: 1,
+                reactiveData: true,
+                columnDefaults: { resizable: false },
+                rowFormatter: function (row) {
+                    if (row.getData().error) row.getElement().classList.add('row-error');
+                    else row.getElement().classList.remove('row-error');
+                },
+                columns: [
+                    { title:'Name', field:'name', minWidth: 120,
+                      tooltip: function (e, cell) { return cell.getRow().getData().error || cell.getValue(); }
+                    },
+                    { title:'', field:'error', width: 56, hozAlign:'center', headerSort:false,
+                      cssClass: 'status-cell',
+                      tooltip: function (e, cell) { return cell.getValue() || 'ok'; },
+                      formatter: function (cell) {
+                        return cell.getValue()
+                            ? '<i class="fas fa-exclamation-triangle text-danger"></i>'
+                            : '<i class="fas fa-check text-success"></i>';
+                    }}
+                ]
+            });
+            devicesTable.on('rowClick', function (e, row) {
+                selectDevice(row.getData()._rid);
+            });
+        }
+
+        /**
+         * 특정 device 행에 귀속되는 simulation 목록.
+         * 확정 바인딩은 행(_rid) 기준. 미해결(이름 중복)인 건은 같은 이름의 모든 행에 보여주고
+         * Error 컬럼에 Ambiguous 로 표시해서 왜 귀속이 안 되는지 드러낸다.
+         */
+        function simRowsFor(d) {
+            if (!d) return [];
+            return simulations.filter(function (s) {
+                if (deviceByRid(s._deviceRid)) return s._deviceRid === d._rid;
+                return !!d.name && s.deviceName === d.name;
+            });
+        }
+
+        /** 선택된 device 에 표시할 simulation 행 목록. */
+        function currentSimRows() {
+            return simRowsFor(selectedDevice());
+        }
+
+        function updateSimPaneHeader() {
+            let sel = selectedDevice();
+            $('#simForDevice').text(sel && sel.name ? '— ' + sel.name + ' (' + currentSimRows().length + ')' : '');
+        }
+
+        function initSimulationsTable() {
+            if (simulationsTable) { simulationsTable.destroy(); }
+            updateSimPaneHeader();
+            simulationsTable = new Tabulator('#simulationsTable', {
+                data: currentSimRows(),
+                layout: 'fitDataStretch',
+                height: '100%',
+                index: '_rid',
+                reactiveData: false,
+                // 빈 테이블임을 분명히 알린다 (simulation 이 지정되지 않은 device)
+                placeholder: '<div class="sim-empty">'
+                    + '<i class="fas fa-info-circle mr-2"></i>'
+                    + 'No simulations for this device'
+                    + '<div class="sim-empty-sub">The uploaded file defines no simulations for this device.</div>'
+                    + '</div>',
+                rowFormatter: function (row) {
+                    if (simError(row.getData())) row.getElement().classList.add('row-error');
+                    else row.getElement().classList.remove('row-error');
+                },
+                columns: [
+                    { title:'Name', field:'name', editor:'input', minWidth: 120 },
+                    { title:'Target', field:'target', editor:'input', minWidth: 140 },
+                    { title:'Policy', field:'policies.0.policy', editor:'list', editorParams:{values:['STATIC','RANDOM','ACCUMULATE']}, width: 120,
+                      mutatorData: function(value, data) { return (data.policies && data.policies[0] && data.policies[0].policy) || ''; },
+                      accessorDownload: function(value, data){ return value; }
+                    },
+                    { title:'Interval', field:'interval', editor:'number', width: 90, hozAlign:'right' },
+                    { title:'Enabled', field:'enabled', editor:'number', width: 90, hozAlign:'right' },
+                    { title:'Error', field:'error', width: 200, variableHeight: true,
+                      tooltip: function (e, cell) { return simError(cell.getRow().getData()) || 'ok'; },
+                      formatter: function (cell) {
+                        let v = simError(cell.getRow().getData());
+                        return v
+                            ? '<span class="error-chip">'+ escapeHtml(v) +'</span>'
+                            : '<span class="ok-chip">ok</span>';
+                    }}
+                ]
+            });
+            // Tabulator v6 는 cellEdited 를 생성자 옵션으로 주면 무시한다 (rowClick 과 동일).
+            // .on() 으로 등록해야 실제로 호출된다.
+            simulationsTable.on('cellEdited', function () {
+                revalidate();
+            });
+
+            // Device Detail 폼과 같은 반응성을 주기 위해 셀 편집 중에도 매 입력마다 검증한다.
+            // Tabulator 는 input 에디터에 '타이핑 중 커밋' 옵션이 없어서 에디터 DOM 에 직접 붙인다.
+            simulationsTable.on('cellEditing', function (cell) {
+                let field = cell.getField();
+                // 중첩 경로(policies.0.policy)는 d[field] 로 쓰면 엉뚱한 키가 생긴다.
+                // 해당 컬럼은 list 에디터라 선택 즉시 커밋되므로 cellEdited 로 충분하다.
+                if (field.indexOf('.') >= 0) return;
+                // cellEditing 은 에디터 DOM 이 삽입되기 '전'에 발생하므로 다음 틱에 잡는다
+                setTimeout(function () {
+                    let el = cell.getElement();
+                    let input = (el && el.querySelector) ? el.querySelector('input, textarea') : null;
+                    if (!input) return;
+                    input.addEventListener('input', function () {
+                        let d = cell.getRow().getData();
+                        d[field] = (input.type === 'number' && input.value !== '')
+                            ? Number(input.value)
+                            : input.value;
+                        revalidateWhileEditing();
+                    });
+                }, 0);
+            });
+        }
+
+        function selectDevice(rid) {
+            selectedRid = rid;
+            renderDetail();
+            initSimulationsTable();
+        }
+
+        function renderDetail() {
+            let d = selectedDevice();
+            let $f = $('#detailForm');
+            if (!d) { $f.html('<div class="text-muted">Select a device from the list.</div>'); return; }
+            let csText = typeof d.communicationSettings === 'string'
+                ? d.communicationSettings
+                : JSON.stringify(d.communicationSettings || {}, null, 2);
+            $f.html(''
+                + '<div id="detailAlert">' + detailAlertHtml(d) + '</div>'
+                + fieldInput('Name', 'd_name', d.name)
+                + fieldInput('Host', 'd_host', d.host)
+                + fieldSelect('Transport', 'd_transport', TRANSPORTS, d.transport)
+                + fieldInput('Port', 'd_port', d.port, 'number')
+                + fieldSelect('Protocol', 'd_protocol', PROTOCOLS, d.protocol)
+                + fieldInput('Enabled', 'd_enabled', d.enabled, 'number')
+                + '<div class="form-group"><label>Communication Settings (JSON)</label>'
+                + '<textarea id="d_cs" class="form-control" rows="6">'+ escapeHtml(csText) +'</textarea></div>'
+            );
+            // 이 폼이 어느 행을 편집 중인지 고정한다. 렌더 후 선택이 바뀌어도 엉뚱한 행에 쓰지 않도록.
+            $f.data('rid', d._rid);
+            // 검증이 로컬에서 끝나므로 키 입력마다 즉시 반영한다.
+            // input 은 타이핑 중 매 글자, change 는 select 선택을 잡는다.
+            $f.find('input, select, textarea').on('input change', applyDetail);
+        }
+
+        function detailAlertHtml(d) {
+            return d.error
+                ? '<div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.85rem;">'
+                    + '<i class="fas fa-exclamation-triangle mr-1"></i>' + escapeHtml(d.error) + '</div>'
+                : '<div class="alert alert-success py-2 px-3 mb-2" style="font-size:.85rem;">'
+                    + '<i class="fas fa-check mr-1"></i>Valid</div>';
+        }
+
+        function updateDetailAlert() {
+            let d = selectedDevice();
+            let $a = $('#detailAlert');
+            if (!d || $a.length === 0) return;
+            $a.html(detailAlertHtml(d));
+        }
+
+        function fieldInput(label, id, value, type) {
+            type = type || 'text';
+            return '<div class="form-group"><label>'+ label +'</label>'
+                + '<input id="'+ id +'" class="form-control" type="'+ type +'" value="'+ escapeAttr(value) +'"/></div>';
+        }
+        function fieldSelect(label, id, options, selected) {
+            let opts = options.map(o => '<option value="'+ o +'"'+ (o===selected?' selected':'') +'>'+ o +'</option>').join('');
+            return '<div class="form-group"><label>'+ label +'</label>'
+                + '<select id="'+ id +'" class="form-control">'+ opts +'</select></div>';
+        }
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+        }
+        function escapeAttr(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/"/g, '&quot;');
+        }
+
+        function applyDetail() {
+            // 선택이 아니라 '렌더 시점의 행'을 대상으로 쓴다
+            let d = deviceByRid($('#detailForm').data('rid'));
+            if (!d) return;
+            d.name = $('#d_name').val();
+            d.host = $('#d_host').val();
+            d.transport = $('#d_transport').val();
+            d.port = parseInt($('#d_port').val(), 10);
+            d.protocol = $('#d_protocol').val();
+            d.enabled = parseInt($('#d_enabled').val(), 10);
+            try {
+                d.communicationSettings = JSON.parse($('#d_cs').val());
+            } catch (e) {
+                d.communicationSettings = $('#d_cs').val(); // 문자열로 두면 검증이 Invalid JSON 으로 잡는다
+            }
+            // simulation 은 _deviceRid 로 이 행에 묶여 있으므로 이름 변경을 자동으로 따라간다.
+            // deviceName 을 직접 고쳐쓰면 동명의 다른 device 에 속한 simulation 까지 끌려가므로 하지 않는다.
+            revalidate();
+        }
+
+        function onLoadFile(e) {
+            let file = e.target.files[0];
+            if (!file) return;
+            let reader = new FileReader();
+            reader.onload = function () {
+                let wb = XLSX.read(reader.result, { type: 'binary' });
+                let deviceSheet = wb.SheetNames[0];
+                let simSheet = wb.SheetNames[1];
+                let deviceRows = deviceSheet ? XLSX.utils.sheet_to_json(wb.Sheets[deviceSheet]) : [];
+                let simRows = simSheet ? XLSX.utils.sheet_to_json(wb.Sheets[simSheet]) : [];
+
+                let normalizedDevices = deviceRows.map(r => {
+                    let cs = r.communicationSettings;
+                    if (typeof cs === 'string') {
+                        try { cs = JSON.parse(cs); } catch (e) { /* leave as string for validator */ }
+                    }
+                    return {
+                        name: r.name,
+                        host: r.host,
+                        transport: r.transport,
+                        port: r.port,
+                        protocol: r.protocol,
+                        communicationSettings: cs,
+                        enabled: r.enabled
+                    };
+                });
+
+                let normalizedSims = simRows.map(r => {
+                    let p = {};
+                    ['id','policy','data_type','value'].forEach(k => { if (k in r) p[k] = r[k]; });
+                    if (r.range !== undefined && r.range !== null && r.range !== '') {
+                        p.range = String(r.range).split(',').map(b => parseInt(b, 10));
+                    }
+                    return {
+                        deviceName: r.deviceName,
+                        name: r.name,
+                        target: r.target,
+                        interval: r.interval,
+                        enabled: r.enabled,
+                        // stopOnControl 은 Simulation 의 최상위 필드다. policies 안에 넣으면
+                        // 서버가 읽지 않아 그대로 유실된다.
+                        stopOnControl: r.stopOnControl,
+                        policies: [p]
+                    };
+                });
+
+                devices = normalizedDevices.map(d => ({ ...d, _rid: newRid(), error: null }));
+                simulations = normalizedSims.map(s => ({ ...s, _rid: newRid(), _deviceRid: null, error: null }));
+                validateAll();
+                selectedRid = devices.length ? devices[0]._rid : null;
+                initDevicesTable();
+                initSimulationsTable();
+                renderDetail();
+                updateStatus();
+            };
+            reader.readAsBinaryString(file);
+            $('#excelFile').val('');
+        }
+
+        /**
+         * Register 진행 중 플래그. 오버레이 표시와 새로고침 경고를 함께 제어한다.
+         * 주의: 브라우저는 새로고침을 '완전히' 막을 수 없다. beforeunload 로 확인 대화상자만
+         * 띄울 수 있고 문구도 브라우저 기본값으로 대체된다.
+         */
+        let inserting = false;
+
+        function setBusy(on, text) {
+            inserting = on;
+            if (text) $('#busyText').text(text);
+            $('#busyOverlay').toggleClass('show', on);
+        }
+
+        window.addEventListener('beforeunload', function (e) {
+            if (!inserting) return;
+            e.preventDefault();
+            e.returnValue = '';   // 일부 브라우저는 이 값이 있어야 대화상자를 띄운다
+            return '';
+        });
+
+        function doRegister() {
+            validateAll();   // 제출 직전 최종 확인 (서버도 insert 시점에 같은 규칙으로 다시 검사한다)
+            if (errorCount() > 0) {
+                revalidate();
+                alert('Resolve errors first.');
+                return;
+            }
+            if (!confirm('Register ' + devices.length + ' device(s) and ' + simulations.length + ' simulation(s)?')) return;
+            $('#registerBtn').prop('disabled', true);
+            setBusy(true, 'Registering ' + devices.length + ' device(s), ' + simulations.length + ' simulation(s)…');
+            $.ajax({
+                url: '/api/device/batchInsert',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    groupId: GROUP_ID,
+                    devices: devices.map(stripRow),
+                    simulations: simulations.map(stripSimRow)
+                }),
+                success: function (res) {
+                    let failures = res.failures || [];
+                    // 우리가 거는 location.href 도 beforeunload 를 트리거하므로 먼저 플래그를 내린다
+                    setBusy(false);
+                    if (failures.length > 0) {
+                        alert('Completed with ' + failures.length + ' failure(s):\n\n' + failures.join('\n'));
+                    }
+                    sessionStorage.removeItem(SESSION_KEY);
+                    location.href = '/devices?group=' + GROUP_ID;
+                },
+                error: function (xhr) {
+                    setBusy(false);
+                    alert('Insert failed: ' + xhr.status + ' ' + xhr.responseText);
+                    $('#registerBtn').prop('disabled', false);
+                }
+            });
+        }
+
+        function doCancel() {
+            if (devices.length === 0 && simulations.length === 0) {
+                location.href = '/devices?group=' + GROUP_ID;
+                return;
+            }
+            if (confirm('Discard uploaded data and go back?')) {
+                sessionStorage.removeItem(SESSION_KEY);
+                location.href = '/devices?group=' + GROUP_ID;
+            }
+        }
+
+        function batchInit() {
+            load();
+            $('#excelFile').on('change', onLoadFile);
+            $('#chooseBtn').on('click', function () { $('#excelFile').click(); });
+            $('#registerBtn').on('click', doRegister);
+            $('#cancelBtn').on('click', doCancel);
+
+            // 검증 기준(등록 device 스냅샷)을 먼저 받아온 뒤에 첫 검증을 돌린다
+            $('#statusLine').text('Loading registered devices…');
+            fetchRegisteredDevices().always(function () {
+                if (devices.length === 0 && simulations.length === 0) {
+                    $('#detailForm').html('<div class="text-muted">No data loaded. Choose an Excel file to begin.</div>');
+                    updateStatus();
+                    return;
+                }
+                validateAll();
+                selectedRid = devices.length ? devices[0]._rid : null;
+                initDevicesTable();
+                initSimulationsTable();
+                renderDetail();
+                updateStatus();
+            });
+        }
+        /*]]>*/
+    </script>
+</head>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div id="busyOverlay">
+    <div class="busy-box">
+        <div class="spinner"></div>
+        <div class="busy-text" id="busyText">Registering…</div>
+        <div class="busy-sub">Please do not close or refresh this page.</div>
+    </div>
+</div>
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
+            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link active"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper d-flex flex-column">
+        <div class="content-header flex-shrink-0">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6"><h1 class="m-0">Batch Add Devices</h1></div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="@{/devices(group=${group})}">Devices</a></li>
+                            <li class="breadcrumb-item active">Batch Add</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
+            <div class="batch-root flex-grow-1" style="min-height:0;">
+                <div class="batch-toolbar">
+                    <input type="file" id="excelFile" accept=".xlsx" style="display:none">
+                    <button type="button" id="chooseBtn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-excel"></i> Choose Excel</button>
+                    <button type="button" id="registerBtn" class="btn btn-primary btn-sm" disabled><i class="fas fa-check"></i> Register</button>
+                    <button type="button" id="cancelBtn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times"></i> Cancel</button>
+                    <span class="status-bar ml-2" id="statusLine">No data loaded.</span>
+                </div>
+
+                <div class="batch-panes">
+                    <div class="batch-pane">
+                        <div class="batch-pane-header">Devices</div>
+                        <div class="batch-pane-body no-pad"><div id="devicesTable" class="cts-tabulator"></div></div>
+                    </div>
+                    <div class="batch-pane">
+                        <div class="batch-pane-header">Device Detail</div>
+                        <div class="batch-pane-body"><form id="detailForm" class="detail-form"></form></div>
+                    </div>
+                    <div class="batch-pane">
+                        <div class="batch-pane-header">Simulations <small class="text-muted" id="simForDevice"></small></div>
+                        <div class="batch-pane-body no-pad"><div id="simulationsTable" class="cts-tabulator"></div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+    </footer>
+</div>
+
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/xlsx.full.min.js"></script>
+<script>$(function(){ batchInit(); });</script>
+</body>
+</html>

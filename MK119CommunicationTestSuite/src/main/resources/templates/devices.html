@@ -12,17 +12,130 @@
     <link rel="stylesheet" href="../../css/adminlte.min.css">
     <!-- jTree -->
     <link rel="stylesheet" href="../../css/style.min.css"/>
-    <!-- DataTables -->
-    <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/jquery-contextmenu/css/jquery.contextMenu.min.css">
+    <!-- Tabulator -->
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
+        #tree-container { height: 100%; overflow: auto; }
+
+        /* 툴바 + 테이블 + pagination을 하나로 감싸는 외곽 패널 */
+        .devices-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #fff;
+            overflow: hidden;
+            container-type: inline-size;
+            container-name: devs;
+        }
+
+        /* 툴바 버튼 텍스트: 좁아지면 숨기고 아이콘만 표시 */
+        #devicesToolbar .btn { white-space: nowrap; }
+        @container devs (max-width: 720px) {
+            #devicesToolbar .btn-text { display: none; }
+        }
+        @container devs (max-width: 520px) {
+            #devicesSearchInput { width: 100px !important; }
+        }
+
+        /* 툴바: 외곽 보더는 패널이 갖고, 아래쪽만 구분선 */
+        #devicesToolbar {
+            background-color: #fff;
+            border: none;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 0;
+            padding: 6px 10px;
+        }
+
+        /* Tabulator 자체(=#devicesTable) 보더/라운드 제거 (패널이 대신 감쌈) */
+        #devicesTable {
+            border: none !important;
+            border-radius: 0 !important;
+            font-size: 0.9rem;
+        }
+        /* 헤더: 볼드, 세로 보더 제거, 액센트 라인 */
+        #devicesTable .tabulator-header {
+            background-color: #fff;
+            border-bottom: 2px solid #007bff;
+            font-weight: 600;
+            color: #495057;
+        }
+        #devicesTable .tabulator-header .tabulator-col {
+            background-color: transparent;
+            border-right: none;
+        }
+        /* 로우: 세로 보더 제거, 얇은 가로 구분선 */
+        #devicesTable .tabulator-cell {
+            border-right: none;
+            padding: 12px 12px;
+        }
+        #devicesTable .tabulator-row {
+            border-bottom: 1px solid #f1f3f5;
+            transition: background-color 0.12s ease;
+        }
+        /* 지브라 스트라이프 */
+        #devicesTable .tabulator-row.tabulator-row-even {
+            background-color: #fbfcfd;
+        }
+        /* 호버 하이라이트 */
+        #devicesTable .tabulator-row:hover {
+            background-color: #eef5ff !important;
+        }
+        /* 선택된 로우 */
+        #devicesTable .tabulator-row.tabulator-selected {
+            background-color: #d6e8ff !important;
+        }
+        /* Footer(pagination) - 흰 배경 + 상단 구분선 (테마 회색 override) */
+        #devicesTable .tabulator-footer,
+        #devicesTable .tabulator-footer .tabulator-footer-contents {
+            background: #fff !important;
+            background-color: #fff !important;
+            background-image: none !important;
+        }
+        #devicesTable .tabulator-footer {
+            border-top: 1px solid #dee2e6 !important;
+            padding: 0;
+        }
+        #devicesTable .tabulator-footer .tabulator-footer-contents {
+            padding: 6px 10px;
+        }
+        /* 페이지 버튼 폴리시 */
+        #devicesTable .tabulator-footer .tabulator-page {
+            border-radius: 3px;
+            margin: 0 2px;
+            transition: background-color 0.12s ease;
+        }
+        #devicesTable .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover {
+            background-color: #eef5ff;
+            border-color: #b8dcff;
+        }
+        #devicesTable .tabulator-footer .tabulator-page.active {
+            background-color: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+        #devicesTable .tabulator-footer .tabulator-page.disabled {
+            opacity: 0.4;
+        }
+    
+        /* 뷰포트 방향에 따라 트리/본문 배치를 전환한다.
+           가로가 길면 좌우, 세로가 길면 상하. 인라인 flex 비율을 덮어쓰므로 !important 가 필요하다. */
+        @media (orientation: portrait) {
+            .cts-split { flex-direction: column !important; }
+            .cts-split > .cts-split-side { flex: 2 1 0 !important; }
+            .cts-split > .cts-split-main { flex: 5 1 0 !important; }
+        }
+    </style>
 
     <script>
         /*<![CDATA[*/
         let devicesTable;
         let tree;
         let _devices;
+        let _simulations;
         let currentDevices;
 
         let groupSelected = '[[${group}]]';
@@ -33,6 +146,46 @@
                 num = Number(num) + 1;
                 return typeof (args[num]) != 'undefined' ? args[num] : match;
             });
+        }
+
+        // 헤더 텍스트가 잘리지 않도록 최소치 보장 (명시 width가 있어도 헤더보다 좁으면 늘림)
+        function withHeaderMinWidth(cols) {
+            return cols.map(function (c) {
+                if (!c || !c.title) return c;
+                let needed = Math.max(80, c.title.length * 9 + 40);
+                if (c.width !== undefined && c.width < needed) c.width = needed;
+                if (c.width === undefined && (c.minWidth === undefined || c.minWidth < needed)) c.minWidth = needed;
+                return c;
+            });
+        }
+
+        function escapeHtml(s) {
+            if (s === null || typeof s === 'undefined') return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderSettingsSummary(raw) {
+            if (!raw) return '<span class="text-muted">-</span>';
+            let obj;
+            try {
+                obj = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+            } catch (e) {
+                return '<span class="text-danger">' + escapeHtml(raw) + '</span>';
+            }
+            if (!obj || typeof obj !== 'object') {
+                return escapeHtml(raw);
+            }
+            let rows = Object.keys(obj).map(function (k) {
+                let v = obj[k];
+                if (v !== null && typeof v === 'object') v = JSON.stringify(v);
+                return '<div><span class="text-muted">' + escapeHtml(k) + '</span> ' + escapeHtml(v) + '</div>';
+            });
+            return '<div style="font-size:0.85rem; line-height:1.5; text-align:left;">' + rows.join('') + '</div>';
         }
 
         function onload() {
@@ -62,125 +215,106 @@
                     }
                 },
                 "plugins": [
-                    "types", "wholerow", "contextmenu", "sort"
+                    "types", "wholerow", "contextmenu", "sort", "search"
                 ],
+                'search': {
+                    'case_insensitive': true,
+                    'show_only_matches': true,
+                    'show_only_matches_children': true
+                },
                 'contextmenu': {
                     'items': customMenu
                 },
+                'sort': function (a, b) {
+                    let n1 = this.get_node(a);
+                    let n2 = this.get_node(b);
+                    if (n1.type !== n2.type) {
+                        return n1.type === 'group' ? -1 : 1;
+                    }
+                    return String(n1.text).localeCompare(String(n2.text), undefined, {numeric: true});
+                },
             }).on("select_node.jstree", function (e, data) {
+                if (data.node.type === 'device') {
+                    // Clicking a device in the tree selects (and opens) its parent group,
+                    // so the devices table shows the group the device belongs to.
+                    const parentId = data.node.parent;
+                    if (parentId && parentId !== '#') {
+                        const $t = $('#tree-container');
+                        $t.jstree('deselect_node', data.node.id);
+                        $t.jstree('open_node', parentId);
+                        $t.jstree('select_node', parentId);
+                    }
+                    return;
+                }
                 if (data.node.type === 'group') {
                     $.jstree.reference('#tree-container').open_node(data.node.id);
                     $('#group-title').text('Devices of ' + data.node.text);
 
-                    if (devicesTable)
+                    if (devicesTable) {
                         devicesTable.destroy();
+                        devicesTable = null;
+                    }
 
                     $.ajax({
                         url: '/api/device/devices/' + data.node.id.split("_")[1],
                         type: 'GET',
                         success: function (data) {
-                            let table = $('#devicesTable');
-                            $('#devicesTable > tbody').empty();
-
-                            for (let i = 0; i < data.length; i++) {
-                                let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleDevice(" + data[i].id + "," + data[i].enabled + ", this.id)' id='" + data[i].name + "'></button>"
-                                let markup = "<tr id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + " " + data[i].host + ":" + data[i].port + "</td><td>" + data[i].protocol + "</td><td>" + data[i].name + "</td><td>" + button + "</tr>";
-                                table.append(markup);
-                            }
-
                             currentDevices = data;
 
-                            devicesTable = table.DataTable({
-                                "paging": true,
-                                "lengthChange": false,
-                                "searching": false,
-                                "ordering": true,
-                                "info": true,
-                                "autoWidth": false,
-                                "responsive": true,
-                            });
-
-                            $(function () {
-                                $('#devicesTable').contextMenu({
-                                    selector: 'td',
-                                    callback: function (key) {
-                                        let id = $(this).parent().attr('id');
-                                        if (key === 'add') {
-                                            location.href = '/addDevice';
-                                        } else if (key === 'edit') {
-                                            if (typeof (id) != 'undefined') {
-                                                location.href = '/editDevice/' + id;
-                                            }
-                                        } else if (key === 'delete') {
-                                            if (typeof (id) != 'undefined') {
-                                                if (confirm("Confirm to delete device '" + id + "'")) {
-                                                    $.ajax({
-                                                        url: '/api/device/deleteDevice/' + id,
-                                                        type: 'DELETE',
-                                                        contentType: 'application/json',
-                                                        success: function () {
-                                                            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
-                                                            location.href = '/devices?group=' + group;
-                                                        },
-                                                        error: function (request) {
-                                                            alert(request.status + request.responseText);
-                                                        }
-                                                    });
-                                                }
-                                            }
-                                        } else if (key === 'toggle') {
-                                            if (typeof (id) != 'undefined') {
-                                                let enabled;
-                                                $.ajax({
-                                                    url: '/api/device/getEnabled/' + id,
-                                                    type: 'GET',
-                                                    async: false,
-                                                    contentType: 'application/json',
-                                                    success: function (data) {
-                                                        enabled = data;
-                                                    },
-                                                    error: function (request) {
-                                                        alert(request.status + request.responseText);
-                                                    }
-                                                });
-                                                let deviceName = '';
-                                                for (let i = 0; i < devicesTable.rows().count(); i++) {
-                                                    if (devicesTable.cell(i, 0).data() === id) {
-                                                        deviceName = devicesTable.cell(i, 3).data();
-                                                    }
-                                                }
-                                                if (confirm((enabled ? 'Disable' : 'Enable') + " device '" + deviceName + "'?")) {
-                                                    $.ajax({
-                                                        url: '/api/device/setEnabled/' + id + '/' + (enabled ? 0 : 1),
-                                                        type: 'POST',
-                                                        contentType: 'application/json',
-                                                        success: function () {
-                                                            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
-                                                            location.href = '/devices?group=' + group;
-                                                        },
-                                                        error: function (request) {
-                                                            alert(request.status + request.responseText);
-                                                        }
-                                                    });
-                                                }
-                                            }
-                                        } else if (key === 'addBatch') {
-                                            $('#excel').click();
-                                        } else if (key === 'simulation') {
-                                            if (typeof (id) != 'undefined') {
-                                                location.href = '/livesimulation/' + id
-                                            }
+                            devicesTable = new Tabulator('#devicesTable', {
+                                data: data,
+                                layout: 'fitColumns',
+                                height: '100%',
+                                pagination: true,
+                                paginationSize: 10,
+                                selectableRows: true,
+                                columnDefaults: { resizable: false },
+                                placeholder: 'No devices in this group',
+                                rowContextMenu: buildDeviceRowMenu(),
+                                columns: withHeaderMinWidth([
+                                    {
+                                        formatter: 'rowSelection',
+                                        hozAlign: 'center',
+                                        headerSort: false,
+                                        width: 50
+                                    },
+                                    {title: 'Name', field: 'name'},
+                                    {
+                                        title: 'Address',
+                                        field: 'address',
+                                        formatter: function (cell) {
+                                            let d = cell.getRow().getData();
+                                            return escapeHtml(d.transport) + ' ' + escapeHtml(d.host) + ':' + escapeHtml(d.port);
                                         }
                                     },
-                                    items: {
-                                        "add": {name: "Add device", icon: "fas fa-plus"},
-                                        "addBatch": {name: "Add device(batch)", icon: "fas fa-file-excel"},
-                                        "edit": {name: "Edit device", icon: "fas fa-pen"},
-                                        "delete": {name: "Delete device", icon: "fas fa-trash"},
-                                        "toggle": {name: "Toggle device", icon: "fas fa-toggle-off"},
-                                        "simulation": {name: "Live simulation", icon: "fas fa-magic"},
+                                    {title: 'Protocol', field: 'protocol'},
+                                    {
+                                        title: 'Enabled',
+                                        field: 'enabled',
+                                        hozAlign: 'center',
+                                        width: 120,
+                                        formatter: function (cell) {
+                                            let enabled = cell.getValue() === 1;
+                                            let cls = enabled ? 'btn-success' : 'btn-danger';
+                                            return '<button class="btn ' + cls + '" style="width:60px;height:20px;padding:0"></button>';
+                                        },
+                                        cellClick: function (e, cell) {
+                                            let d = cell.getRow().getData();
+                                            toggleDevice(d.id, d.enabled, d.name);
+                                        }
                                     }
+                                ])
+                            });
+                            devicesTable.on('tableBuilt', function () {
+                                applyDevicesSearch();
+                                injectDevicesFooterButtons();
+                                requestAnimationFrame(function () {
+                                    requestAnimationFrame(fitDevicesPageSize);
                                 });
+                            });
+                            // 페이지 이동 시 Tabulator가 컨테이너 크기를 리셋하는 문제 → 재적용
+                            devicesTable.on('pageLoaded', function () {
+                                requestAnimationFrame(fitDevicesPageSize);
                             });
                         }
                     });
@@ -202,58 +336,68 @@
                 }
             });
 
+            let resizeTimer;
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(fitDevicesPageSize, 100);
+            });
+
+            bindDevicesToolbarActions();
+            bindDevicesSearch();
+            bindTreeSearch();
+
             $('#excel').change(function (e) {
                 let file = e.target.files[0];
+                if (!file) return;
+                let groupId = $.jstree.reference('#tree-container').get_selected()[0].split('_')[1];
                 let reader = new FileReader();
                 reader.onload = function () {
-                    let groupId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
-                    let devices = [];
-                    $.ajax({
-                        url: '/api/device/devices/' + groupId,
-                        type: 'GET',
-                        async: false,
-                        contentType: 'application/json',
-                        success: function (res) {
-                            devices = res;
-                        },
-                        error: function (request, status, error) {
-                            alert('HTTP ' + request.status + ' ' + request.responseText);
+                    let wb = XLSX.read(reader.result, { type: 'binary' });
+                    let deviceSheet = wb.SheetNames[0];
+                    let simSheet = wb.SheetNames[1];
+                    let deviceRows = deviceSheet ? XLSX.utils.sheet_to_json(wb.Sheets[deviceSheet]) : [];
+                    let simRows = simSheet ? XLSX.utils.sheet_to_json(wb.Sheets[simSheet]) : [];
+
+                    let normalizedDevices = deviceRows.map(function (r) {
+                        let cs = r.communicationSettings;
+                        if (typeof cs === 'string') {
+                            try { cs = JSON.parse(cs); } catch (e) { /* 서버 검증이 Invalid JSON 으로 잡음 */ }
                         }
+                        return {
+                            name: r.name,
+                            host: r.host,
+                            transport: r.transport,
+                            port: r.port,
+                            protocol: r.protocol,
+                            communicationSettings: cs,
+                            enabled: r.enabled
+                        };
                     });
 
-                    let fileData = reader.result;
-                    let wb = XLSX.read(fileData, {type: 'binary'});
-                    $('#excelTableModal').modal('show');
-                    $('#excelObjects > tbody').empty();
-
-                    let inputValid = true;
-                    _devices = [];
-
-                    wb.SheetNames.forEach(function (sheetName) {
-                        let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-                        for (let i = 0; i < rowObj.length; i++) {
-                            rowObj[i].error = getErrorMessage(devices, rowObj[i], rowObj);
-                            if (rowObj[i].error !== '') {
-                                inputValid = false;
-                            } else {
-                                _devices.push(convertObject(rowObj[i]));
-                            }
-                            let markup =
-                                String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td><td>{8}</td></tr>",
-                                    '',
-                                    rowObj[i].name ? rowObj[i].name : '',
-                                    rowObj[i].host ? rowObj[i].host.replace(/\s+/g, '') : '',
-                                    rowObj[i].transport ? rowObj[i].transport : '',
-                                    rowObj[i].port ? rowObj[i].port : '',
-                                    rowObj[i].protocol ? rowObj[i].protocol : '',
-                                    rowObj[i].communicationSettings ? rowObj[i].communicationSettings : '',
-                                    rowObj[i].enabled ? rowObj[i].enabled : '',
-                                    rowObj[i].error
-                                );
-                            $('#excelObjects').append(markup);
+                    let normalizedSims = simRows.map(function (r) {
+                        let p = {};
+                        ['id', 'policy', 'data_type', 'value', 'stopOnControl'].forEach(function (k) {
+                            if (k in r) p[k] = r[k];
+                        });
+                        if (r.range !== undefined && r.range !== null && r.range !== '') {
+                            p.range = String(r.range).split(',').map(function (b) { return parseInt(b, 10); });
                         }
-                        if (inputValid) $('#registerByExcel').prop('disabled', false);
+                        return {
+                            deviceName: r.deviceName,
+                            name: r.name,
+                            target: r.target,
+                            interval: r.interval,
+                            enabled: r.enabled,
+                            policies: [p]
+                        };
                     });
+
+                    // 검증은 batch 페이지가 클라이언트에서 수행한다. 여기서는 파싱 결과만 넘긴다.
+                    sessionStorage.setItem('batchAddValidation', JSON.stringify({
+                        devices: normalizedDevices,
+                        simulations: normalizedSims
+                    }));
+                    location.href = '/devices/batch?group=' + groupId;
                 };
                 reader.readAsBinaryString(file);
                 $('#excel').val('');
@@ -305,6 +449,31 @@
             ret.enabled = obj.enabled;
             ret.log = 0;
             return ret;
+        }
+
+        function getSimulationErrorMessage(obj, allowedDeviceNames) {
+            if (!obj.deviceName) return 'Missing deviceName.';
+            if (!allowedDeviceNames.has(obj.deviceName)) return 'Unknown device: ' + obj.deviceName;
+            if (!obj.name) return 'Missing simulation name.';
+            return '';
+        }
+
+        function convertSimulationObject(obj) {
+            let simulationPolicy = {};
+            ['id', 'policy', 'data_type', 'value', 'stopOnControl'].forEach(function (key) {
+                if (key in obj) simulationPolicy[key] = obj[key];
+            });
+            if (obj.range !== undefined && obj.range !== null && obj.range !== '') {
+                simulationPolicy.range = String(obj.range).split(',').map(function (b) { return parseInt(b); });
+            }
+            return {
+                deviceName: obj.deviceName,
+                name: obj.name,
+                target: obj.target,
+                interval: obj.interval,
+                enabled: obj.enabled,
+                policies: [simulationPolicy]
+            };
         }
 
         function customMenu(node) {
@@ -404,6 +573,265 @@
             return items;
         }
 
+        function bindDevicesToolbarActions() {
+            // 툴바 + Tabulator footer 모두 아우르는 패널에 delegation
+            let panel = document.querySelector('.devices-panel');
+            if (!panel) return;
+            panel.addEventListener('click', function (e) {
+                let btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                let action = btn.getAttribute('data-action');
+                if (action === 'add') {
+                    location.href = '/addDevice';
+                } else if (action === 'batchAdd') {
+                    $('#excel').click();
+                } else if (!devicesTable) {
+                    alert('Select a group first.');
+                } else if (action === 'selectAll') {
+                    let all = devicesTable.getRows().length;
+                    let sel = devicesTable.getSelectedRows().length;
+                    if (sel === all) {
+                        devicesTable.deselectRow();
+                    } else {
+                        devicesTable.selectRow();
+                    }
+                } else if (action === 'toggle') {
+                    toggleSelectedDevices();
+                } else if (action === 'copy') {
+                    alert('Copy device: not implemented yet.');
+                } else if (action === 'delete') {
+                    deleteSelectedDevices();
+                }
+            });
+        }
+
+        // 선택과 무관한 액션 버튼들을 Tabulator footer(pagination) 좌측에 주입
+        function injectDevicesFooterButtons() {
+            if (!devicesTable) return;
+            let footerContents = devicesTable.element.querySelector('.tabulator-footer .tabulator-footer-contents');
+            if (!footerContents) return;
+            if (footerContents.querySelector('.cts-footer-actions')) return;
+            let el = document.createElement('div');
+            el.className = 'cts-footer-actions';
+            el.style.cssText = 'display:inline-flex; gap:0.25rem;';
+            el.innerHTML =
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="add"><i class="fas fa-plus"></i> <span class="btn-text">Add</span></button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="batchAdd"><i class="fas fa-file-excel"></i> <span class="btn-text">Batch Add</span></button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="copy"><i class="fas fa-copy"></i> <span class="btn-text">Copy</span></button>';
+            footerContents.insertBefore(el, footerContents.firstChild);
+        }
+
+        function toggleSelectedDevices() {
+            let rows = devicesTable.getSelectedRows();
+            if (rows.length === 0) { alert('No devices selected.'); return; }
+            if (!confirm('Toggle ' + rows.length + ' device(s)?')) return;
+            let items = rows.map(function (r) { return {id: r.getData().id, enabled: r.getData().enabled}; });
+            let groupId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            let failures = [];
+            let i = 0;
+            let next = function () {
+                if (i >= items.length) {
+                    if (failures.length > 0) alert('Failed: ' + failures.join(', '));
+                    location.href = '/devices?group=' + groupId;
+                    return;
+                }
+                let it = items[i];
+                $.ajax({
+                    url: '/api/device/setEnabled/' + it.id + '/' + (it.enabled === 1 ? 0 : 1),
+                    type: 'POST',
+                    contentType: 'application/json',
+                    error: function (r) { failures.push(it.id + ' (' + r.status + ')'); },
+                    complete: function () { i++; next(); }
+                });
+            };
+            next();
+        }
+
+        function deleteSelectedDevices() {
+            let rows = devicesTable.getSelectedRows();
+            if (rows.length === 0) {
+                alert('No devices selected.');
+                return;
+            }
+            if (!confirm('Delete ' + rows.length + ' device(s)?')) return;
+
+            let ids = rows.map(function (r) { return r.getData().id; });
+            let groupId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            let failures = [];
+            let i = 0;
+
+            let next = function () {
+                if (i >= ids.length) {
+                    if (failures.length > 0) {
+                        alert('Failed to delete: ' + failures.join(', '));
+                    }
+                    location.href = '/devices?group=' + groupId;
+                    return;
+                }
+                let id = ids[i];
+                $.ajax({
+                    url: '/api/device/deleteDevice/' + id,
+                    type: 'DELETE',
+                    contentType: 'application/json',
+                    error: function (request) {
+                        failures.push(id + ' (' + request.status + ')');
+                    },
+                    complete: function () {
+                        i++;
+                        next();
+                    }
+                });
+            };
+            next();
+        }
+
+        function bindTreeSearch() {
+            let input = document.getElementById('treeSearchInput');
+            if (!input) return;
+            let timer;
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    $('#tree-container').jstree(true).search(input.value.trim());
+                }, 150);
+            });
+        }
+
+        function bindDevicesSearch() {
+            let fieldEl = document.getElementById('devicesSearchField');
+            let inputEl = document.getElementById('devicesSearchInput');
+            if (!fieldEl || !inputEl) return;
+            fieldEl.addEventListener('change', applyDevicesSearch);
+            inputEl.addEventListener('input', applyDevicesSearch);
+        }
+
+        function applyDevicesSearch() {
+            if (!devicesTable) return;
+            let field = document.getElementById('devicesSearchField').value;
+            let val = document.getElementById('devicesSearchInput').value.trim();
+            if (!val) {
+                devicesTable.clearFilter();
+                return;
+            }
+            let needle = val.toLowerCase();
+            if (field === 'address') {
+                devicesTable.setFilter(function (data) {
+                    let addr = (data.transport + ' ' + data.host + ':' + data.port).toLowerCase();
+                    return addr.indexOf(needle) !== -1;
+                });
+            } else {
+                devicesTable.setFilter(field, 'like', val);
+            }
+        }
+
+        // 기준 row 높이: 이걸로 pageSize 산정. CSS의 기본 셀 padding에 부합한 자연 높이.
+        const DEVICES_BASE_ROW_H = 48;
+
+        function fitDevicesPageSize() {
+            if (!devicesTable) return;
+            let root = devicesTable.element;
+            if (!root) return;
+            let panel = root.closest('.devices-panel');
+            if (!panel) return;
+
+            // 이전 shrink 방식 잔재 제거 (root 높이 리셋)
+            root.style.height = '';
+
+            let toolbar = panel.querySelector('#devicesToolbar');
+            let header = root.querySelector('.tabulator-header');
+            let footer = root.querySelector('.tabulator-footer');
+            let holder = root.querySelector('.tabulator-tableholder');
+            let toolbarH = toolbar ? toolbar.offsetHeight : 0;
+            let headerH = header ? header.offsetHeight : 0;
+            let footerH = footer ? footer.offsetHeight : 0;
+
+            let availableForHolder = panel.clientHeight - toolbarH - headerH - footerH;
+            if (availableForHolder <= 0) return;
+
+            let pageSize = Math.max(1, Math.floor(availableForHolder / DEVICES_BASE_ROW_H));
+            let actualRowH = availableForHolder / pageSize;   // 정확한 정수배(소수점 포함)
+            // 텍스트 라인 높이 ~22px + border 1px 감안한 셀 vertical padding
+            let cellVertPad = Math.max(2, (actualRowH - 22 - 1) / 2);
+
+            let styleEl = document.getElementById('devices-row-h-style');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'devices-row-h-style';
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent =
+                '#devicesTable .tabulator-row { ' +
+                    'height: ' + actualRowH + 'px !important; ' +
+                    'min-height: ' + actualRowH + 'px !important; ' +
+                '} ' +
+                '#devicesTable .tabulator-cell { ' +
+                    'padding-top: ' + cellVertPad + 'px !important; ' +
+                    'padding-bottom: ' + cellVertPad + 'px !important; ' +
+                '}';
+
+            if (pageSize !== devicesTable.getPageSize()) {
+                devicesTable.setPageSize(pageSize);
+            }
+
+            // 부분 페이지에서도 tableholder를 항상 availableForHolder로 고정 → footer(pagination)가 카드 끝에 붙음
+            if (holder) {
+                holder.style.setProperty('height', availableForHolder + 'px', 'important');
+                holder.style.setProperty('max-height', availableForHolder + 'px', 'important');
+                holder.style.setProperty('min-height', availableForHolder + 'px', 'important');
+            }
+        }
+
+        function buildDeviceRowMenu() {
+            return [
+                {
+                    label: "<i class='fas fa-plus'></i> Add device",
+                    action: function () { location.href = '/addDevice'; }
+                },
+                {
+                    label: "<i class='fas fa-file-excel'></i> Add device(batch)",
+                    action: function () { $('#excel').click(); }
+                },
+                {
+                    label: "<i class='fas fa-pen'></i> Edit device",
+                    action: function (e, row) {
+                        location.href = '/editDevice/' + row.getData().id;
+                    }
+                },
+                {
+                    label: "<i class='fas fa-trash'></i> Delete device",
+                    action: function (e, row) {
+                        let id = row.getData().id;
+                        if (!confirm("Confirm to delete device '" + id + "'")) return;
+                        $.ajax({
+                            url: '/api/device/deleteDevice/' + id,
+                            type: 'DELETE',
+                            contentType: 'application/json',
+                            success: function () {
+                                let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                location.href = '/devices?group=' + group;
+                            },
+                            error: function (request) {
+                                alert(request.status + request.responseText);
+                            }
+                        });
+                    }
+                },
+                {
+                    label: "<i class='fas fa-toggle-off'></i> Toggle device",
+                    action: function (e, row) {
+                        let d = row.getData();
+                        toggleDevice(d.id, d.enabled, d.name);
+                    }
+                },
+                {
+                    label: "<i class='fas fa-sliders-h'></i> Server Data",
+                    action: function (e, row) {
+                        location.href = '/devices/' + row.getData().id + '/serverdata';
+                    }
+                }
+            ];
+        }
+
         function toggleDevice(id, enabled, deviceName) {
             if (confirm((enabled === 1 ? 'Disable' : 'Enable') + " device '" + deviceName + "'?")) {
                 $.ajax({
@@ -422,41 +850,168 @@
         }
 
         function performUpload() {
-            for (let i = 0; i < _devices.length; i++) {
+            let totalDev = _devices.length;
+            let totalSim = _simulations.length;
+            let total = totalDev + totalSim;
+            if (total === 0) {
+                alert('Nothing to register.');
+                return;
+            }
+            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+
+            // deviceName → id 매핑 (기존 group 내 device + 새로 생성될 device)
+            let nameToId = {};
+            $.ajax({
+                url: '/api/device/devices/' + group,
+                type: 'GET',
+                async: false,
+                success: function (res) {
+                    (res || []).forEach(function (d) { nameToId[d.name] = d.id; });
+                }
+            });
+
+            let $bar = $('#uploadProgressBar');
+            let $text = $('#uploadProgressText');
+            let doneCount = 0;
+            let failures = [];
+            let setProgress = function () {
+                let pct = total ? Math.round(doneCount / total * 100) : 0;
+                $bar.css('width', pct + '%').attr('aria-valuenow', pct).text(pct + '%');
+                $text.text(doneCount + ' / ' + total + (failures.length > 0 ? ' (' + failures.length + ' failed)' : ''));
+            };
+            setProgress();
+
+            let finishUpload = function () {
+                if (failures.length > 0) {
+                    $('#uploadProgressModal').modal('hide');
+                    alert('Completed with ' + failures.length + ' failure(s):\n\n' + failures.join('\n'));
+                }
+                location.href = '/devices?group=' + group;
+            };
+
+            let j = 0;
+            let uploadNextSim = function () {
+                if (j >= totalSim) {
+                    finishUpload();
+                    return;
+                }
+                let sim = _simulations[j];
+                let devId = nameToId[sim.deviceName];
+                if (!devId) {
+                    failures.push((sim.name || ('#' + j)) + ': device "' + sim.deviceName + '" not found');
+                    j++;
+                    doneCount++;
+                    setProgress();
+                    uploadNextSim();
+                    return;
+                }
+                let payload = {
+                    name: sim.name,
+                    target: sim.target,
+                    interval: sim.interval,
+                    enabled: sim.enabled,
+                    policies: sim.policies,
+                    device: { id: devId }
+                };
+                $.ajax({
+                    url: '/api/simulation/addSimulation',
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
+                    error: function (request) {
+                        failures.push((sim.name || ('#' + j)) + ': ' + request.status + ' ' + request.responseText);
+                    },
+                    complete: function () {
+                        j++;
+                        doneCount++;
+                        setProgress();
+                        uploadNextSim();
+                    }
+                });
+            };
+
+            let i = 0;
+            let uploadNextDevice = function () {
+                if (i >= totalDev) {
+                    uploadNextSim();
+                    return;
+                }
                 let device = _devices[i];
                 $.ajax({
                     url: '/api/device/addDevice',
                     type: 'PUT',
-                    async: false,
                     contentType: 'application/json',
                     data: JSON.stringify(device),
-                    success: function (data) {
-
+                    success: function (created) {
+                        if (created && created.name && created.id) {
+                            nameToId[created.name] = created.id;
+                        }
                     },
                     error: function (request) {
-                        if (request.responseText.includes('UNIQUE')) {
-                            alert("Cannot create with the same name within a group.");
-                        } else
-                            alert(request.status + request.responseText);
+                        let msg = request.responseText && request.responseText.includes('UNIQUE')
+                            ? 'Cannot create with the same name.'
+                            : (request.status + ' ' + request.responseText);
+                        failures.push((device.name || ('#' + i)) + ': ' + msg);
+                    },
+                    complete: function () {
+                        i++;
+                        doneCount++;
+                        setProgress();
+                        uploadNextDevice();
                     }
                 });
-            }
-            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
-            location.href = '/devices?group=' + group;
+            };
+
+            // excel 모달을 닫고, 닫힘 완료 후 진행률 모달(입력 차단)을 띄운 뒤 업로드 시작
+            $('#excelTableModal').one('hidden.bs.modal', function () {
+                $('#uploadProgressModal').modal('show');
+                uploadNextDevice();
+            }).modal('hide');
         }
 
         function generateTemplate() {
-            let output = currentDevices.map(({ id, group, log, ...rest }) => rest).map(row => {
+            // Sheet 1: devices
+            let deviceRows = currentDevices.map(({ id, group, log, ...rest }) => rest).map(row => {
                 return {
                     ...row,
                     communicationSettings: JSON.stringify(row.communicationSettings)
                 };
             });
-            const headers = ['name', 'host', 'transport', 'port', 'protocol', 'communicationSettings', 'enabled'];
-            const worksheet = XLSX.utils.json_to_sheet(output, {header : headers});
+            const deviceHeaders = ['name', 'host', 'transport', 'port', 'protocol', 'communicationSettings', 'enabled'];
+
+            // Sheet 2: simulations (first column = deviceName)
+            let simulationRows = [];
+            currentDevices.forEach(function (dev) {
+                $.ajax({
+                    url: '/api/simulation/simulations/' + dev.id,
+                    type: 'GET',
+                    async: false,
+                    success: function (sims) {
+                        (sims || []).forEach(function (s) {
+                            let p = (s.policies && s.policies[0]) || {};
+                            simulationRows.push({
+                                deviceName: dev.name,
+                                name: s.name,
+                                target: s.target,
+                                id: p.id,
+                                policy: p.policy,
+                                data_type: p.data_type,
+                                range: p.range ? p.range.join(',') : null,
+                                value: p.value === null || p.value === undefined ? 'null' : p.value,
+                                stopOnControl: p.stopOnControl,
+                                interval: s.interval,
+                                enabled: s.enabled
+                            });
+                        });
+                    }
+                });
+            });
+            const simHeaders = ['deviceName', 'name', 'target', 'id', 'policy', 'data_type', 'range', 'value', 'stopOnControl', 'interval', 'enabled'];
+
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-            XLSX.writeFile(workbook, "devices_template.xlsx");
+            XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(deviceRows, { header: deviceHeaders }), 'Devices');
+            XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(simulationRows, { header: simHeaders }), 'Simulations');
+            XLSX.writeFile(workbook, 'batch_template.xlsx');
         }
 
         /*]]>*/
@@ -559,9 +1114,9 @@
     </aside>
 
     <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper">
+    <div class="content-wrapper d-flex flex-column">
         <!-- Content Header (Page header) -->
-        <div class="content-header">
+        <div class="content-header flex-shrink-0">
             <div class="container-fluid">
                 <div class="row mb-2">
                     <div class="col-sm-6">
@@ -579,49 +1134,50 @@
         <!-- /.content-header -->
 
         <!-- Main content -->
-        <section class="content">
+        <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
             <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
-            <div class="container-fluid">
-                <!-- Small boxes (Stat box) -->
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Groups and devices</h3>
-                            </div>
-                            <!-- ./card-header -->
-                            <div class="card-body p-2">
-                                <div id="tree-container"></div>
-                            </div>
-                            <!-- /.card-body -->
+            <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: 1rem; min-height:0; padding: 0 1rem 1rem 1rem;">
+                <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
+                    <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                        <div class="card-header flex-shrink-0">
+                            <h3 class="card-title">Groups and devices</h3>
                         </div>
-                        <!-- /.card -->
+                        <!-- ./card-header -->
+                        <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
+                            <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
+                            <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
+                        </div>
+                        <!-- /.card-body -->
                     </div>
-                    <div class="col-md-9">
-                        <div class="card card-primary">
-                            <div class="card-header">
-                                <h3 class="card-title" id="group-title"></h3>
-                            </div>
-                            <!-- /.card-header -->
-                            <div class="card-body p-2">
-                                <table id="devicesTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>ID</th>
-                                    <th>Address</th>
-                                    <th>Protocol</th>
-                                    <th>Name</th>
-                                    <th>Enabled</th>
-                                    </thead>
-                                    <tbody>
-
-                                    </tbody>
-                                </table>
-                            </div>
-                            <!-- /.card-body -->
+                    <!-- /.card -->
+                </div>
+                <div class="d-flex flex-column cts-split-main" style="flex: 7 1 0; min-width: 0; min-height: 0;">
+                    <div class="card card-primary mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                        <div class="card-header flex-shrink-0">
+                            <h3 class="card-title mb-0" id="group-title"></h3>
                         </div>
+                        <!-- /.card-header -->
+                        <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0.5rem 0.5rem 0 0.5rem;">
+                            <div class="devices-panel flex-grow-1 d-flex flex-column" style="min-height:0;">
+                                <div id="devicesToolbar" class="flex-shrink-0" style="display:flex; gap:0.25rem; align-items:center; flex-wrap:nowrap;">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                                    <div class="ml-auto d-flex" style="gap:0.25rem; min-width:0;">
+                                        <select id="devicesSearchField" class="form-control form-control-sm" style="width:auto;">
+                                            <option value="name">Name</option>
+                                            <option value="address">Address</option>
+                                            <option value="protocol">Protocol</option>
+                                        </select>
+                                        <input id="devicesSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:180px; min-width:0;">
+                                    </div>
+                                </div>
+                                <div id="devicesTable" class="flex-grow-1" style="min-height:0;"></div>
+                            </div>
+                        </div>
+                        <!-- /.card-body -->
                     </div>
                 </div>
-                <!-- /.row -->
             </div><!-- /.container-fluid -->
         </section>
         <!-- /.content -->
@@ -633,9 +1189,10 @@
         <div class="modal-dialog" role="document" style="max-width:fit-content">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="excelTableModalLabel">Register New Devices by Excel</h5>
+                    <h5 class="modal-title" id="excelTableModalLabel">Register New Devices and Simulations by Excel</h5>
                 </div>
                 <div class="modal-body">
+                    <h6 class="mt-1">Devices <small class="text-muted" id="excelDeviceCount"></small></h6>
                     <table class="table table-bordered" id="excelObjects" style="overflow-y: auto;">
                         <thead>
                         <tr>
@@ -645,6 +1202,23 @@
                             <th>Port</th>
                             <th>Protocol</th>
                             <th>Communication Settings</th>
+                            <th>Enabled</th>
+                            <th>Error</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+
+                        </tbody>
+                    </table>
+                    <h6 class="mt-3">Simulations <small class="text-muted" id="excelSimCount"></small></h6>
+                    <table class="table table-bordered" id="excelSimObjects" style="overflow-y: auto;">
+                        <thead>
+                        <tr>
+                            <th>Device Name</th>
+                            <th>Name</th>
+                            <th>Target</th>
+                            <th>Policy</th>
+                            <th>Interval</th>
                             <th>Enabled</th>
                             <th>Error</th>
                         </tr>
@@ -667,6 +1241,28 @@
         </div>
     </div>
     <!-- Excel modal end -->
+
+    <!-- progress modal -->
+    <div class="modal fade" id="uploadProgressModal" data-backdrop="static" data-keyboard="false"
+         tabindex="-1" role="dialog" aria-labelledby="uploadProgressModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadProgressModalLabel">Registering devices and simulations…</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="progress" style="height: 22px;">
+                        <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0"
+                             aria-valuemax="100">0%</div>
+                    </div>
+                    <div id="uploadProgressText" class="text-muted small mt-2">0 / 0</div>
+                    <div class="text-muted small mt-1">Please wait, do not close this window.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- progress modal end -->
 
     <!-- /.content-wrapper -->
     <footer class="main-footer">
@@ -692,20 +1288,9 @@
 <!-- AdminLTE App -->
 <script src="../../js/adminlte.js"></script>
 <script src="../../js/jstree.min.js"></script>
-<!-- DataTables  & Plugins -->
-<script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
-<script src="../../plugins/pdfmake/vfs_fonts.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.html5.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.print.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+<!-- Tabulator -->
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
 <script src="../../js/xlsx.full.min.js"></script>
-<script src="../../plugins/jquery-contextmenu/js/jquery.contextMenu.min.js"></script>
-<script src="../../plugins/jquery-contextmenu/js/jquery.ui.position.js"></script>
 
 </body>
 </html>

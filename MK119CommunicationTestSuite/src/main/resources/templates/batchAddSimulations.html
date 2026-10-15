@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS — Batch Add Simulations</title>
+
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <link rel="stylesheet" href="../../plugins/bootstrap-slider/css/bootstrap-slider.min.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; margin: 0; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; overflow: hidden; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+        .content-wrapper > section.content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+        .batch-root { display: flex; flex-direction: column; height: 100%; padding: 10px; gap: 10px; min-height: 0; }
+        .batch-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .batch-panes {
+            flex: 1 1 auto; min-height: 0; display: grid; gap: 10px;
+            /* 세로 긴 뷰포트 기본: 세로 2단 */
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+        /* 가로가 더 길면 가로 2단 */
+        @media (orientation: landscape) {
+            .batch-panes {
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+                grid-template-rows: 1fr;
+            }
+        }
+        .batch-pane { background:#fff; border:1px solid #dee2e6; border-radius:4px; display:flex; flex-direction:column; overflow:hidden; min-height:0; min-width:0; }
+        .batch-pane-header { padding:8px 12px; border-bottom:1px solid #dee2e6; background:#f8f9fa; font-weight:600; display:flex; align-items:center; justify-content:space-between; flex:0 0 auto; }
+        .batch-pane-body { flex:1 1 auto; min-height:0; overflow:auto; padding:10px; }
+        .batch-pane-body.no-pad { padding: 0; }
+        .cts-tabulator { height: 100%; }
+        .detail-form .form-group { margin-bottom: .65rem; }
+        .detail-form label { font-weight: 600; margin-bottom: .15rem; font-size: .85rem; color:#495057; }
+        .detail-form input, .detail-form select, .detail-form textarea { font-size: .9rem; }
+        /* 슬라이더: 값 표시를 라벨 우측에 붙인다 */
+        .detail-form .slider-row { display: flex; align-items: baseline; justify-content: space-between; }
+        .detail-form .slider-val { font-weight: 600; font-size: .85rem; color: #007bff; }
+        .detail-form .slider-wrap { padding: 2px 6px 0 6px; }
+        .detail-form .slider-wrap .slider { width: 100% !important; }
+        .detail-form .hint { font-size: .75rem; color: #6c757d; }
+        .error-chip { color:#dc3545; font-size:.8rem; white-space: normal; word-break: break-word; }
+        .ok-chip { color:#28a745; font-size:.8rem; }
+        .row-error { background-color: #fdecea !important; }
+        .status-bar { font-size: .85rem; color:#6c757d; }
+        .tabulator .tabulator-cell.status-cell { padding-left:2px; padding-right:2px; text-overflow:clip; overflow:visible; }
+
+        /* Register 중 입력 차단 오버레이 */
+        #busyOverlay { display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.45); align-items:center; justify-content:center; }
+        #busyOverlay.show { display:flex; }
+        #busyOverlay .busy-box { background:#fff; border-radius:6px; padding:24px 32px; display:flex; flex-direction:column; align-items:center; gap:12px; box-shadow:0 4px 24px rgba(0,0,0,.3); min-width:260px; }
+        #busyOverlay .spinner { width:42px; height:42px; border-radius:50%; border:4px solid #e9ecef; border-top-color:#007bff; animation: busySpin .8s linear infinite; }
+        @keyframes busySpin { to { transform: rotate(360deg); } }
+        #busyOverlay .busy-text { font-weight:600; color:#495057; }
+        #busyOverlay .busy-sub { font-size:.8rem; color:#6c757d; }
+    </style>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        const DEVICE_ID   = /*[[${device.id}]]*/ 0;
+        const DEVICE_NAME = /*[[${device.name}]]*/ '';
+        const SESSION_KEY = 'batchAddSimulations';
+
+        const POLICIES = ['STATIC','RANDOM','ACCUMULATE','SEQUENCE'];
+        const DATA_TYPES = [
+            'UI8','SI8','UI16AB','UI16BA','SI16AB','SI16BA',
+            'UI32AD','UI32CB','UI32BC','UI32DA','SI32AD','SI32CB','SI32BC','SI32DA',
+            'SI64AH','SI64GB','SI64BG','SI64HA',
+            'FP32AD','FP32CB','FP32BC','FP32DA','FP64AH','FP64GB','FP64BG','FP64HA'
+        ];
+
+        let simsTable;
+        let simulations = [];        // [{name, target, interval, enabled, stopOnControl, policies:[{...}], error, _rid}]
+        let existingNames = [];      // 이 device 에 이미 등록된 simulation 이름 (중복 검사 기준)
+        let selectedRid = null;
+        let ridSeq = 1;
+
+        function newRid() { return 'r' + (ridSeq++); }
+        function simByRid(rid) { return rid ? simulations.find(s => s._rid === rid) : null; }
+        function selectedSim() { return simByRid(selectedRid); }
+
+        // ── 검증 (ApiController.validateSimulationBatchRow 와 같은 규칙) ──────────
+        function blank(v) { return v === null || v === undefined || String(v).trim() === ''; }
+        function num(v) {
+            if (typeof v === 'number') return isFinite(v) ? v : null;
+            if (typeof v === 'string' && v.trim() !== '' && isFinite(Number(v))) return Number(v);
+            return null;
+        }
+        function policyOf(s) {
+            return (s.policies && s.policies.length > 0 && s.policies[0]) ? s.policies[0] : {};
+        }
+
+        function validateRow(s, existing, seen) {
+            if (blank(s.name)) return 'Missing name.';
+            let name = String(s.name);
+            if (existing.has(name)) return 'Duplicated simulation name (already on this device).';
+            if (seen.has(name)) return 'Duplicated simulation name in file.';
+
+            if (blank(s.target)) return 'Missing target.';
+
+            let interval = num(s.interval);
+            if (interval === null) return 'interval must be a number.';
+            if (interval < 1) return 'interval must be >= 1.';
+
+            let p = policyOf(s);
+            if (blank(p.policy)) return 'Missing policy.';
+            if (POLICIES.indexOf(String(p.policy)) < 0) return 'Invalid policy: ' + p.policy;
+            if (!blank(p.data_type) && DATA_TYPES.indexOf(String(p.data_type)) < 0) {
+                return 'Invalid data_type: ' + p.data_type;
+            }
+
+            if (String(p.policy) === 'STATIC') {
+                if (num(p.value) === null) return "STATIC policy requires a numeric 'value'.";
+            } else if (String(p.policy) === 'SEQUENCE') {
+                // value 에 숫자 배열이 들어온다
+                if (!Array.isArray(p.value) || p.value.length === 0
+                        || !p.value.every(function (v) { return num(v) !== null; })) {
+                    return "SEQUENCE policy requires 'value' as a non-empty array of numbers.";
+                }
+            } else {
+                if (!Array.isArray(p.range) || p.range.length < 2) {
+                    return p.policy + " policy requires 'range' with 2 numbers.";
+                }
+                let lo = num(p.range[0]), hi = num(p.range[1]);
+                if (lo === null || hi === null) return p.policy + " policy 'range' must be numeric.";
+                if (String(p.policy) === 'RANDOM') {
+                    if (lo > hi) return "RANDOM policy 'range' low must be <= high.";
+                    if (blank(p.data_type)) return "RANDOM policy requires 'data_type'.";
+                }
+            }
+            return null;
+        }
+
+        function validateAll() {
+            let existing = new Set(existingNames);
+            let seen = new Set();
+            simulations.forEach(function (s) {
+                s.error = validateRow(s, existing, seen);
+                if (s.error === null && s.name) seen.add(String(s.name));
+            });
+        }
+
+        function errorCount() {
+            let n = 0;
+            simulations.forEach(s => { if (s.error) n++; });
+            return n;
+        }
+
+        function updateStatus() {
+            let ok = simulations.filter(s => !s.error).length;
+            let errs = errorCount();
+            let txt = 'Simulations: ' + ok + '/' + simulations.length + '   (device: ' + DEVICE_NAME + ')';
+            if (errs > 0) {
+                $('#statusLine').html('<span class="text-danger font-weight-bold">' + errs + ' error(s)</span> &nbsp; ' + txt);
+            } else {
+                $('#statusLine').text(txt);
+            }
+            $('#registerBtn').prop('disabled', errs > 0 || simulations.length === 0);
+        }
+
+        /** 검증 + UI 갱신. 입력마다 호출되므로 Tabulator 를 재생성하지 않고 데이터만 교체한다. */
+        function revalidate() {
+            validateAll();
+            if (simsTable) simsTable.replaceData(simulations);
+            updateDetailAlert();
+            updateStatus();
+        }
+
+        /** 셀 편집 '중' 검증. replaceData 는 열린 에디터를 파괴하므로 Error 셀만 직접 갱신한다. */
+        function revalidateWhileEditing() {
+            validateAll();
+            if (simsTable) {
+                simsTable.getRows().forEach(function (row) {
+                    let s = row.getData();
+                    let cell = row.getCell('error');
+                    if (cell && cell.getElement()) {
+                        cell.getElement().innerHTML = s.error
+                            ? '<span class="error-chip">' + escapeHtml(s.error) + '</span>'
+                            : '<span class="ok-chip">ok</span>';
+                    }
+                    if (s.error) row.getElement().classList.add('row-error');
+                    else row.getElement().classList.remove('row-error');
+                });
+            }
+            updateStatus();
+        }
+
+        function stripRow(s) {
+            let o = { ...s };
+            delete o._rid;
+            delete o.error;
+            return o;
+        }
+
+        // ── 테이블 / 상세 ────────────────────────────────────────────────────
+        function initSimsTable() {
+            if (simsTable) { simsTable.destroy(); }
+            simsTable = new Tabulator('#simsTable', {
+                data: simulations,
+                layout: 'fitColumns',
+                height: '100%',
+                index: '_rid',
+                selectableRows: 1,
+                columnDefaults: { resizable: false },
+                rowFormatter: function (row) {
+                    if (row.getData().error) row.getElement().classList.add('row-error');
+                    else row.getElement().classList.remove('row-error');
+                },
+                columns: [
+                    { title:'Name', field:'name', minWidth: 140,
+                      tooltip: function (e, cell) { return cell.getRow().getData().error || cell.getValue(); } },
+                    { title:'Target', field:'target', width: 110 },
+                    { title:'', field:'error', width: 56, hozAlign:'center', headerSort:false,
+                      cssClass:'status-cell',
+                      tooltip: function (e, cell) { return cell.getValue() || 'ok'; },
+                      formatter: function (cell) {
+                        return cell.getValue()
+                            ? '<i class="fas fa-exclamation-triangle text-danger"></i>'
+                            : '<i class="fas fa-check text-success"></i>';
+                      } }
+                ]
+            });
+            // Tabulator v6 는 rowClick 을 생성자 옵션으로 주면 무시한다 — .on() 으로 등록해야 한다
+            simsTable.on('rowClick', function (e, row) {
+                selectedRid = row.getData()._rid;
+                renderDetail();
+            });
+        }
+
+        const INTERVAL_MIN = 1, INTERVAL_MAX = 3600;
+        const STOP_MIN = -1, STOP_MAX = 3600;
+
+        function renderDetail() {
+            let s = selectedSim();
+            let $f = $('#detailForm');
+            if (!s) { $f.html('<div class="text-muted">Select a simulation from the list.</div>'); return; }
+            let p = policyOf(s);
+            let range = Array.isArray(p.range) ? p.range : [];
+            let interval = clamp(num(s.interval), INTERVAL_MIN, INTERVAL_MAX, 10);
+            let stop = clamp(num(s.stopOnControl), STOP_MIN, STOP_MAX, 0);
+
+            $f.html(''
+                + '<div id="detailAlert">' + detailAlertHtml(s) + '</div>'
+                + fieldInput('Name', 'd_name', s.name)
+                // simulation_editor 의 'Initial state' 와 동일한 select
+                + fieldSelect('Initial state', 'd_enabled',
+                        [{v:'1', t:'Enabled'}, {v:'0', t:'Disabled'}], String(s.enabled === 1 ? 1 : 0))
+                + fieldInput('Target', 'd_target', s.target)
+                + fieldSlider('Interval', 'd_interval', INTERVAL_MIN, INTERVAL_MAX, 1, interval, 's')
+                + fieldSlider('Stop on control', 'd_stop', STOP_MIN, STOP_MAX, 1, stop, 's',
+                        '0: off · N&gt;0: pause N sec · -1: permanent')
+                + fieldInput('ID', 'd_pid', p.id)
+                + fieldSelect('Policy', 'd_policy', POLICIES.map(x => ({v:x, t:x})), p.policy || 'STATIC')
+                + fieldSelect('Datatype', 'd_dtype',
+                        [{v:'', t:'(none)'}].concat(DATA_TYPES.map(x => ({v:x, t:x}))), p.data_type || '')
+                // Policy 에 따라 Value / Range 중 하나만 보인다 (simulation_editor.changePolicy 와 동일)
+                + '<div class="form-group" id="d_value_wrap">'
+                +   '<label>Value</label>'
+                +   '<input id="d_value" class="form-control" type="number" value="' + escapeAttr(p.value) + '"'
+                +   ' placeholder="Simulation designated value"/>'
+                + '</div>'
+                + '<div class="form-group" id="d_range_wrap">'
+                +   '<label>Range</label>'
+                +   '<div class="form-row">'
+                +     '<div class="col-6"><input id="d_range_min" class="form-control" type="number" value="'
+                +       escapeAttr(range[0]) + '"/></div>'
+                +     '<div class="col-6"><input id="d_range_max" class="form-control" type="number" value="'
+                +       escapeAttr(range[1]) + '"/></div>'
+                +   '</div>'
+                + '</div>'
+            );
+            // 폼이 어느 행을 편집 중인지 고정한다 (렌더 후 선택이 바뀌어도 엉뚱한 행에 쓰지 않도록)
+            $f.data('rid', s._rid);
+
+            // 슬라이더 초기화 — 드래그 중에도 값 표시와 검증이 따라오게 한다
+            bindSlider('d_interval', applyDetail);
+            bindSlider('d_stop', applyDetail);
+
+            applyPolicyVisibility();
+            // 검증이 로컬에서 끝나므로 키 입력마다 즉시 반영한다
+            $f.find('input, select').on('input change', applyDetail);
+            $('#d_policy').on('change', applyPolicyVisibility);
+        }
+
+        function clamp(v, lo, hi, fallback) {
+            if (v === null || v === undefined) return fallback;
+            return Math.min(hi, Math.max(lo, Math.round(v)));
+        }
+
+        function bindSlider(id, onChange) {
+            let $el = $('#' + id);
+            $el.bootstrapSlider({ tooltip: 'hide' });
+            let paint = function (v) { $('#' + id + '_val').text(v); };
+            paint($el.bootstrapSlider('getValue'));
+            $el.on('slide change', function (e) {
+                let v = (e.value && e.value.newValue !== undefined) ? e.value.newValue : e.value;
+                if (v === undefined) v = $el.bootstrapSlider('getValue');
+                paint(v);
+                onChange();
+            });
+        }
+
+        function sliderValue(id, fallback) {
+            let $el = $('#' + id);
+            let v;
+            try { v = $el.bootstrapSlider('getValue'); }   // 초기화 전이면 throw 할 수 있다
+            catch (e) { v = num($el.val()); }
+            if (v === null || v === undefined || (typeof v === 'number' && !isFinite(v))) return fallback;
+            return Math.round(v);
+        }
+
+        /** Policy 에 따라 Value / Range 표시를 전환하고 Range placeholder 를 바꾼다. */
+        function applyPolicyVisibility() {
+            let policy = $('#d_policy').val();
+            if (policy === 'STATIC') {
+                $('#d_value_wrap').show();
+                $('#d_range_wrap').hide();
+            } else {
+                $('#d_value_wrap').hide();
+                $('#d_range_wrap').show();
+                if (policy === 'RANDOM') {
+                    $('#d_range_min').prop('placeholder', 'Minimum for simulation value');
+                    $('#d_range_max').prop('placeholder', 'Maximum for simulation value');
+                } else {
+                    $('#d_range_min').prop('placeholder', 'Initial simulation value');
+                    $('#d_range_max').prop('placeholder', 'Accumulate per interval');
+                }
+            }
+        }
+
+        function detailAlertHtml(s) {
+            return s.error
+                ? '<div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.85rem;">'
+                    + '<i class="fas fa-exclamation-triangle mr-1"></i>' + escapeHtml(s.error) + '</div>'
+                : '<div class="alert alert-success py-2 px-3 mb-2" style="font-size:.85rem;">'
+                    + '<i class="fas fa-check mr-1"></i>Valid</div>';
+        }
+
+        function updateDetailAlert() {
+            let s = selectedSim();
+            let $a = $('#detailAlert');
+            if (!s || $a.length === 0) return;
+            $a.html(detailAlertHtml(s));
+        }
+
+        function applyDetail() {
+            let s = simByRid($('#detailForm').data('rid'));
+            if (!s) return;
+            s.name = $('#d_name').val();
+            s.target = $('#d_target').val();
+            s.enabled = parseInt($('#d_enabled').val(), 10);
+            s.interval = sliderValue('d_interval', s.interval);
+            s.stopOnControl = sliderValue('d_stop', s.stopOnControl);
+            if (!s.policies || s.policies.length === 0) s.policies = [{}];
+            let p = s.policies[0];
+            p.policy = $('#d_policy').val();
+            let dt = $('#d_dtype').val();
+            if (dt) p.data_type = dt; else delete p.data_type;
+            let pid = $('#d_pid').val();
+            if (pid === '') delete p.id; else p.id = pid;
+
+            // Policy 에 해당하는 필드만 남긴다 (숨겨진 쪽 값이 payload 에 섞이지 않게)
+            if (p.policy === 'STATIC') {
+                let v = $('#d_value').val();
+                if (v === '') delete p.value; else p.value = Number(v);
+                delete p.range;
+            } else {
+                let lo = $('#d_range_min').val(), hi = $('#d_range_max').val();
+                if (lo === '' && hi === '') {
+                    delete p.range;
+                } else {
+                    p.range = [lo === '' ? null : Number(lo), hi === '' ? null : Number(hi)];
+                }
+                delete p.value;
+            }
+            revalidate();
+        }
+
+        function fieldInput(label, id, value, type) {
+            type = type || 'text';
+            return '<div class="form-group"><label>' + label + '</label>'
+                + '<input id="' + id + '" class="form-control" type="' + type + '" value="' + escapeAttr(value) + '"/></div>';
+        }
+
+        /** options: [{v, t}] */
+        function fieldSelect(label, id, options, selected) {
+            let opts = options.map(o =>
+                '<option value="' + escapeAttr(o.v) + '"'
+                + (String(o.v) === String(selected === undefined || selected === null ? '' : selected) ? ' selected' : '')
+                + '>' + escapeHtml(o.t) + '</option>').join('');
+            return '<div class="form-group"><label>' + label + '</label>'
+                + '<select id="' + id + '" class="custom-select form-control">' + opts + '</select></div>';
+        }
+
+        function fieldSlider(label, id, min, max, step, value, unit, hint) {
+            return '<div class="form-group">'
+                + '<div class="slider-row">'
+                +   '<label>' + label + '</label>'
+                +   '<span class="slider-val"><span id="' + id + '_val">' + value + '</span>' + (unit || '') + '</span>'
+                + '</div>'
+                + (hint ? '<div class="hint mb-1">' + hint + '</div>' : '')
+                + '<div class="slider-wrap slider-green">'
+                +   '<input id="' + id + '" type="text" data-slider-id="' + id + '_ui"'
+                +   ' data-slider-min="' + min + '" data-slider-max="' + max + '"'
+                +   ' data-slider-step="' + step + '" data-slider-value="' + value + '"/>'
+                + '</div></div>';
+        }
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+        }
+        function escapeAttr(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/"/g, '&quot;');
+        }
+
+        // ── 로드 / 업로드 / 등록 ─────────────────────────────────────────────
+        function load() {
+            let raw = sessionStorage.getItem(SESSION_KEY);
+            if (!raw) return;
+            try {
+                let parsed = JSON.parse(raw);
+                simulations = (parsed.simulations || []).map(s => ({ ...s, _rid: newRid(), error: null }));
+            } catch (e) {
+                console.error(e);
+                alert('Failed to load batch data.');
+            }
+        }
+
+        /** 중복 검사 기준이 되는 기존 simulation 이름. 진입 시 1회만 받아온다. */
+        function fetchExistingNames() {
+            return $.ajax({ url: '/api/simulation/simulations/' + DEVICE_ID, type: 'GET' })
+                .done(function (res) {
+                    existingNames = (res || []).map(s => s.name).filter(n => n);
+                })
+                .fail(function (xhr) {
+                    alert('Failed to load existing simulations (' + xhr.status + '). '
+                        + 'Duplicate name checks against this device will not work.');
+                });
+        }
+
+        function normalizeSheetRow(r) {
+            let p = {};
+            ['id','policy','data_type','value'].forEach(k => { if (k in r && r[k] !== null) p[k] = r[k]; });
+            if (r.range !== undefined && r.range !== null && r.range !== '') {
+                p.range = String(r.range).split(',').map(b => Number(String(b).trim()));
+            }
+            return {
+                name: r.name,
+                target: r.target,
+                interval: r.interval,
+                enabled: r.enabled,
+                // stopOnControl 은 Simulation 의 최상위 필드다 (기존 템플릿은 policies 안에 넣어 유실됐다)
+                stopOnControl: r.stopOnControl,
+                policies: [p]
+            };
+        }
+
+        function onLoadFile(e) {
+            let file = e.target.files[0];
+            if (!file) return;
+            let reader = new FileReader();
+            reader.onload = function () {
+                let wb = XLSX.read(reader.result, { type: 'binary' });
+                let sheet = wb.SheetNames[0];
+                let rows = sheet ? XLSX.utils.sheet_to_json(wb.Sheets[sheet]) : [];
+                simulations = rows.map(r => ({ ...normalizeSheetRow(r), _rid: newRid(), error: null }));
+                validateAll();
+                selectedRid = simulations.length ? simulations[0]._rid : null;
+                initSimsTable();
+                renderDetail();
+                updateStatus();
+            };
+            reader.readAsBinaryString(file);
+            $('#excelFile').val('');
+        }
+
+        let inserting = false;
+        function setBusy(on, text) {
+            inserting = on;
+            if (text) $('#busyText').text(text);
+            $('#busyOverlay').toggleClass('show', on);
+        }
+        window.addEventListener('beforeunload', function (e) {
+            if (!inserting) return;
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        });
+
+        function doRegister() {
+            validateAll();
+            if (errorCount() > 0) {
+                revalidate();
+                alert('Resolve errors first.');
+                return;
+            }
+            if (!confirm('Register ' + simulations.length + ' simulation(s) to ' + DEVICE_NAME + '?')) return;
+            $('#registerBtn').prop('disabled', true);
+            setBusy(true, 'Registering ' + simulations.length + ' simulation(s)…');
+            $.ajax({
+                url: '/api/simulation/batchInsert',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ deviceId: DEVICE_ID, simulations: simulations.map(stripRow) }),
+                success: function (res) {
+                    let failures = res.failures || [];
+                    setBusy(false);   // 우리가 거는 location.href 도 beforeunload 를 트리거하므로 먼저 내린다
+                    if (failures.length > 0) {
+                        alert('Completed with ' + failures.length + ' failure(s):\n\n' + failures.slice(0, 30).join('\n'));
+                    }
+                    sessionStorage.removeItem(SESSION_KEY);
+                    location.href = '/simulations?device=' + DEVICE_ID;
+                },
+                error: function (xhr) {
+                    setBusy(false);
+                    alert('Insert failed: ' + xhr.status + ' ' + xhr.responseText);
+                    $('#registerBtn').prop('disabled', false);
+                }
+            });
+        }
+
+        function doCancel() {
+            if (simulations.length === 0 || confirm('Discard uploaded data and go back?')) {
+                sessionStorage.removeItem(SESSION_KEY);
+                location.href = '/simulations?device=' + DEVICE_ID;
+            }
+        }
+
+        function batchInit() {
+            load();
+            $('#excelFile').on('change', onLoadFile);
+            $('#chooseBtn').on('click', function () { $('#excelFile').click(); });
+            $('#registerBtn').on('click', doRegister);
+            $('#cancelBtn').on('click', doCancel);
+
+            // 검증 기준(기존 simulation 이름)을 먼저 받아온 뒤 첫 검증을 돌린다
+            $('#statusLine').text('Loading existing simulations…');
+            fetchExistingNames().always(function () {
+                if (simulations.length === 0) {
+                    $('#detailForm').html('<div class="text-muted">No data loaded. Choose an Excel file to begin.</div>');
+                    updateStatus();
+                    return;
+                }
+                validateAll();
+                selectedRid = simulations[0]._rid;
+                initSimsTable();
+                renderDetail();
+                updateStatus();
+            });
+        }
+        /*]]>*/
+    </script>
+</head>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div id="busyOverlay">
+    <div class="busy-box">
+        <div class="spinner"></div>
+        <div class="busy-text" id="busyText">Registering…</div>
+        <div class="busy-sub">Please do not close or refresh this page.</div>
+    </div>
+</div>
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
+            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link active"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper d-flex flex-column">
+        <div class="content-header flex-shrink-0">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6"><h1 class="m-0">Batch Add Simulations</h1></div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="@{/simulations(device=${device.id})}">Simulations</a></li>
+                            <li class="breadcrumb-item active" th:text="${device.name}">device</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
+            <div class="batch-root flex-grow-1" style="min-height:0;">
+                <div class="batch-toolbar">
+                    <input type="file" id="excelFile" accept=".xlsx" style="display:none">
+                    <button type="button" id="chooseBtn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-excel"></i> Choose Excel</button>
+                    <button type="button" id="registerBtn" class="btn btn-primary btn-sm" disabled><i class="fas fa-check"></i> Register</button>
+                    <button type="button" id="cancelBtn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-times"></i> Cancel</button>
+                    <span class="status-bar ml-2" id="statusLine">No data loaded.</span>
+                </div>
+
+                <div class="batch-panes">
+                    <div class="batch-pane">
+                        <div class="batch-pane-header">Simulations</div>
+                        <div class="batch-pane-body no-pad"><div id="simsTable" class="cts-tabulator"></div></div>
+                    </div>
+                    <div class="batch-pane">
+                        <div class="batch-pane-header">Simulation Detail</div>
+                        <div class="batch-pane-body"><form id="detailForm" class="detail-form"></form></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+    </footer>
+</div>
+
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
+<script src="../../js/xlsx.full.min.js"></script>
+<script>$(function(){ batchInit(); });</script>
+</body>
+</html>
