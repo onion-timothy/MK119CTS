@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS - Server Data</title>
+
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: auto; }
+
+        .sd-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: #fff;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .sd-panel-header {
+            padding: 8px 12px;
+            border-bottom: 1px solid #dee2e6;
+            background: #f8f9fa;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .sd-panel-header .fc-title { font-size: 0.95rem; }
+        .sd-panel-body { padding: 0; }
+
+        .sd-status-bar {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+        .sd-status-bar.status-granted { background: #d4edda; color: #155724; }
+        .sd-status-bar.status-denied  { background: #f8d7da; color: #721c24; }
+        .sd-status-bar.status-connecting { background: #fff3cd; color: #856404; }
+        .sd-status-bar.status-lost    { background: #f8d7da; color: #721c24; }
+
+        .sd-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .sd-badge.src-VALUE_SIMULATION { background: #e7f5ff; color: #1971c2; }
+        .sd-badge.src-ERROR_SIMULATION { background: #ffe3e3; color: #c92a2a; }
+        .sd-badge.src-PROTOCOL_WRITE   { background: #fff9db; color: #b58900; }
+        .sd-badge.src-API_WRITE        { background: #d3f9d8; color: #2b8a3e; }
+
+        .sd-table { font-size: 0.9rem; }
+        .sd-table .tabulator-cell { padding: 6px 10px; }
+        .sd-locked-cell { background: #d3f9d8 !important; position: relative; }
+        /* Highlight the moment of a change: uses outline so background color is not overridden */
+        .sd-flash { animation: sdFlash 0.9s ease-out; }
+        @keyframes sdFlash {
+            0%   { outline: 2px solid #f59f00; outline-offset: -2px; }
+            100% { outline: 2px solid transparent; outline-offset: -2px; }
+        }
+        .sd-lock-icon { color: #2b8a3e; margin-right: 4px; }
+
+        /* ── Compact grid (hex-dump style) ─────────────────── */
+        .sd-grid .tabulator-header .tabulator-col {
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+        }
+        .sd-grid .tabulator-header .tabulator-col-title {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #495057;
+        }
+        .sd-grid .tabulator-cell {
+            padding: 3px 4px !important;
+            border-right: 1px solid #f1f3f5;
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.82rem;
+            line-height: 1;
+        }
+        .sd-grid .sd-cell-addr {
+            background: #f8f9fa;
+            color: #6c757d;
+            font-weight: 600;
+            border-right: 2px solid #dee2e6;
+        }
+        .sd-grid .sd-cell-zero    { color: #ced4da; }
+        .sd-grid .sd-cell-nonzero { color: #212529; font-weight: 600; }
+        .sd-grid .sd-cell-empty   { color: #dee2e6; }
+
+        /* Nibble group separator: thicker right border on every 4th value column (v3/v7/v11). */
+        .sd-grid .tabulator-cell.sd-quad-end { border-right: 1px solid #ced4da !important; }
+
+        /* Zebra stripe every 8 rows to help scanning long dumps. */
+        .sd-grid .tabulator-row.sd-row-band .tabulator-cell:not(.sd-cell-src-VALUE_SIMULATION):not(.sd-cell-src-ERROR_SIMULATION):not(.sd-cell-src-PROTOCOL_WRITE):not(.sd-cell-src-API_WRITE):not(.sd-cell-locked):not(.sd-cell-addr) {
+            background-color: #fafbfc;
+        }
+        .sd-grid .tabulator-row.sd-row-band .sd-cell-addr {
+            background-color: #f1f3f5;
+        }
+
+        /* Hover row: soft highlight across the whole row (non-colored cells only). */
+        .sd-grid .tabulator-row:hover .tabulator-cell:not(.sd-cell-src-VALUE_SIMULATION):not(.sd-cell-src-ERROR_SIMULATION):not(.sd-cell-src-PROTOCOL_WRITE):not(.sd-cell-src-API_WRITE):not(.sd-cell-locked) {
+            background-color: #eef5ff !important;
+        }
+
+        /* Byte-split spacing for register hex (e.g. "40 49"). */
+        .sd-grid .sd-hex-hi { display: inline-block; }
+        .sd-grid .sd-hex-lo { display: inline-block; margin-left: 3px; }
+
+        /* Bit cell dot for zero (visually quieter than "0"). */
+        .sd-grid .sd-bit-zero { color: #ced4da; }
+        .sd-grid .sd-bit-one  { color: #1c7ed6; font-weight: 700; }
+
+        /* Compact color legend under the toolbar. */
+        .sd-legend {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            font-size: 0.78rem; color: #6c757d;
+            padding: 4px 12px; margin-bottom: 12px;
+        }
+        .sd-legend .item { display: inline-flex; align-items: center; gap: 4px; }
+        .sd-legend .swatch {
+            display: inline-block; width: 14px; height: 12px; border-radius: 2px;
+            border: 1px solid #dee2e6; vertical-align: middle;
+        }
+
+        /* Persistent background per source (last writer). Specificity via .tabulator-row .tabulator-cell */
+        .sd-grid .tabulator-row .tabulator-cell.sd-cell-src-VALUE_SIMULATION,
+        .sd-grid .tabulator-row.tabulator-row-even .tabulator-cell.sd-cell-src-VALUE_SIMULATION,
+        .sd-grid .tabulator-row.tabulator-row-odd  .tabulator-cell.sd-cell-src-VALUE_SIMULATION {
+            background-color: #d0ebff !important;
+            background-image: none !important;
+        }
+        .sd-grid .tabulator-row .tabulator-cell.sd-cell-src-ERROR_SIMULATION,
+        .sd-grid .tabulator-row.tabulator-row-even .tabulator-cell.sd-cell-src-ERROR_SIMULATION,
+        .sd-grid .tabulator-row.tabulator-row-odd  .tabulator-cell.sd-cell-src-ERROR_SIMULATION {
+            background-color: #ffe3e3 !important;
+            background-image: none !important;
+        }
+        .sd-grid .tabulator-row .tabulator-cell.sd-cell-src-PROTOCOL_WRITE,
+        .sd-grid .tabulator-row.tabulator-row-even .tabulator-cell.sd-cell-src-PROTOCOL_WRITE,
+        .sd-grid .tabulator-row.tabulator-row-odd  .tabulator-cell.sd-cell-src-PROTOCOL_WRITE {
+            background-color: #fff3bf !important;
+            background-image: none !important;
+        }
+        .sd-grid .tabulator-row .tabulator-cell.sd-cell-src-API_WRITE,
+        .sd-grid .tabulator-row.tabulator-row-even .tabulator-cell.sd-cell-src-API_WRITE,
+        .sd-grid .tabulator-row.tabulator-row-odd  .tabulator-cell.sd-cell-src-API_WRITE {
+            background-color: #d3f9d8 !important;
+            background-image: none !important;
+        }
+        /* Locked cell (color-only, no icon). Deep green border wins over simulation backgrounds. */
+        .sd-grid .tabulator-row .tabulator-cell.sd-cell-locked,
+        .sd-grid .tabulator-row.tabulator-row-even .tabulator-cell.sd-cell-locked,
+        .sd-grid .tabulator-row.tabulator-row-odd  .tabulator-cell.sd-cell-locked {
+            background-color: #b2f2bb !important;
+            background-image: none !important;
+            box-shadow: inset 0 0 0 2px #2f9e44;
+        }
+        .sd-cell-highlight { animation: sdHighlight 2s ease-out; }
+        @keyframes sdHighlight {
+            0%, 40% { outline: 2px solid #f59f00; outline-offset: -2px; }
+            100%    { outline: 2px solid transparent; outline-offset: -2px; }
+        }
+        .sd-grid-legend {
+            display: flex; gap: 12px; padding: 6px 12px; font-size: 0.75rem;
+            color: #6c757d; border-top: 1px solid #f1f3f5; background: #fafbfc;
+        }
+        .sd-grid-legend .item { display: flex; align-items: center; gap: 4px; }
+        .sd-grid-legend .swatch { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+
+        .sd-device-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 10px 12px;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+        .sd-device-info .item span:first-child { color: #6c757d; margin-right: 6px; }
+
+        /* ── View mode tabs (Focus / Raw) ── */
+        .sd-viewtabs {
+            display: flex; align-items: flex-end; gap: 4px;
+            margin: 6px 0 0; padding: 0 4px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .sd-viewtab {
+            background: transparent; border: 1px solid transparent; border-bottom: none;
+            padding: 6px 16px; margin-bottom: -1px;
+            font-size: 0.88rem; font-weight: 600; color: #6c757d;
+            cursor: pointer; transition: color 0.12s, background 0.12s;
+            border-radius: 4px 4px 0 0;
+        }
+        .sd-viewtab:hover { color: #495057; background: #f8f9fa; }
+        .sd-viewtab.active {
+            color: #007bff; background: #fff;
+            border-color: #dee2e6; border-bottom-color: #fff;
+        }
+        .sd-viewtab:focus { outline: none; }
+        /* Protocols without a Focus adapter: the tab stays visible but inert. */
+        .sd-viewtab:disabled,
+        .sd-viewtab.disabled {
+            color: #adb5bd; cursor: not-allowed; opacity: 0.65;
+        }
+        .sd-viewtab:disabled:hover,
+        .sd-viewtab.disabled:hover { color: #adb5bd; background: transparent; }
+        .sd-viewtabs-spacer { flex: 1 1 auto; }
+        .sd-viewtabs-inline {
+            margin: 0 6px 0 0; padding-bottom: 6px;
+            font-size: 0.78rem; color: #6c757d; font-weight: 600;
+        }
+        .sd-viewtabs-select {
+            padding: 3px 6px; margin-bottom: 4px;
+            border: 1px solid #ced4da; border-radius: 3px; background: #fff;
+            font-size: 0.82rem;
+        }
+
+        /* ── Square-grid row (shared by Focus & Raw) ── */
+        .sd-grid-row {
+            display: flex; align-items: center; gap: 4px;
+            padding: 3px 6px; margin: 2px 0;
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+        }
+        .sd-grid-row-addr {
+            flex: 0 0 auto; min-width: 68px;
+            color: #6c757d; font-weight: 600; font-size: 0.78rem;
+        }
+        .sd-grid-row-cells {
+            flex: 1 1 auto; display: grid;
+            grid-template-columns: repeat(var(--cols, 16), minmax(0, 1fr));
+            gap: 3px;
+        }
+        /* Between every 4th column, a slightly larger gap for nibble grouping */
+        .sd-grid-row-cells > .sd-fcell.sd-quad-end { margin-right: 6px; }
+        .sd-empty-row {
+            padding: 4px 10px; margin: 2px 0;
+            color: #adb5bd; font-size: 0.75rem;
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+            text-align: center;
+            border-top: 1px dashed #e9ecef;
+            border-bottom: 1px dashed #e9ecef;
+        }
+
+        /* ── Raw virtual scroller ────────────────────────────────
+           Two-layer structure:
+             .sd-focus-panel-body.sd-raw-body  ← outer wrapper: animates max-height
+                                                 (overflow:hidden clips during collapse)
+               .sd-raw-scroller                ← inner element: overflow-y:auto scrolls
+                 .sd-raw-sizer                 ← full-height spacer (totalRows × rowH)
+                   .sd-raw-viewport            ← absolutely positioned, holds visible rows
+        */
+        .sd-raw-body {
+            padding: 0 !important;
+            overflow: hidden;
+            /* JS sets an explicit `height` on the open body so the inner scroller's
+               height: 100% resolves to a definite value (enables real scrolling). */
+            transition: height 0.22s ease, opacity 0.15s ease;
+        }
+        .sd-raw-scroller {
+            position: relative;
+            height: 100%;
+            width: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .sd-raw-sizer { position: relative; width: 100%; }
+        .sd-raw-viewport {
+            position: absolute; top: 0; left: 0; right: 0;
+            will-change: transform;
+        }
+
+        /* ── Collapsible panel (Raw) ── */
+        .sd-focus-panel-header.collapsible { cursor: pointer; user-select: none; }
+        .sd-focus-panel-header.collapsible:hover { background: #eef5ff; }
+        .sd-focus-panel-header .sd-collapse-caret {
+            display: inline-block; width: 16px; text-align: center;
+            color: #6c757d; margin-right: 4px;
+            transition: transform 0.22s ease;
+        }
+        .sd-focus-panel.collapsed .sd-collapse-caret { transform: rotate(-90deg); }
+        .sd-focus-panel.collapsed .sd-raw-body {
+            height: 0 !important;
+            opacity: 0;
+        }
+
+        /* ── Main layout split: focus/raw area + inspection sidebar ── */
+        .sd-main-layout { display: flex; gap: 12px; align-items: flex-start; }
+        .sd-main       { flex: 1 1 auto; min-width: 0; }
+        .sd-inspection {
+            flex: 0 0 340px; max-width: 340px;
+            border: 1px solid #dee2e6; border-radius: 4px; background: #fff;
+            position: sticky; top: 12px; max-height: calc(100vh - 120px);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .sd-inspection-section { display: flex; flex-direction: column; min-height: 0; }
+        .sd-inspection-section + .sd-inspection-section { border-top: 1px solid #dee2e6; }
+        .sd-inspection-section:first-child { max-height: 50%; }
+        .sd-inspection-section:last-child  { flex: 1 1 auto; min-height: 0; }
+        .sd-inspection-section-header {
+            padding: 6px 12px; background: #f8f9fa; border-bottom: 1px solid #e9ecef;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .sd-inspection-section-title {
+            font-weight: 600; font-size: 0.78rem; color: #495057;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .sd-inspection-empty {
+            padding: 14px; text-align: center;
+            color: #adb5bd; font-size: 0.8rem;
+        }
+        .sd-watch-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 8px; }
+        .sd-inspection-body { padding: 10px 12px; overflow-y: auto; font-size: 0.85rem; flex: 1 1 auto; min-height: 0; }
+        .sd-inspection-body h6 { font-size: 0.8rem; color: #6c757d; margin: 12px 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+        .sd-inspection-body h6:first-child { margin-top: 0; }
+        .sd-inspection-body .kv-row {
+            display: flex; justify-content: space-between; padding: 3px 0;
+            font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.82rem;
+            border-bottom: 1px dashed #f1f3f5;
+        }
+        .sd-inspection-body .kv-row .k { color: #6c757d; }
+        .sd-inspection-body .kv-row .v { color: #212529; font-weight: 600; text-align: right; word-break: break-all; }
+        .sd-inspection-body .actions { display: flex; gap: 6px; margin-top: 14px; }
+        .sd-inspection-body .actions .btn { flex: 1; }
+        .sd-inspection-neighbors {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 2px;
+            font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.75rem;
+        }
+        .sd-inspection-neighbors .nb {
+            padding: 4px; text-align: center; border-radius: 2px;
+            background: #f8f9fa; border: 1px solid #e9ecef;
+        }
+        .sd-inspection-neighbors .nb.current { background: #ffe066; border-color: #f59f00; font-weight: 700; }
+        .sd-inspection-neighbors .nb .nb-addr { display: block; color: #6c757d; font-size: 0.68rem; }
+
+        /* ── Watch cards (inside inspection panel) ── */
+        .sd-watch-card {
+            border: 1px solid #dee2e6; border-radius: 4px; background: #fbfcfd;
+            padding: 6px 8px 6px 10px; margin-bottom: 6px;
+            position: relative;
+            cursor: pointer; transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .sd-watch-card:last-child { margin-bottom: 0; }
+        .sd-watch-card:hover { background: #eef5ff; border-color: #b8dcff; }
+        .sd-watch-card.active { border-color: #4dabf7; box-shadow: 0 0 0 2px rgba(77,171,247,0.15); }
+        .sd-watch-card .label { font-weight: 600; font-size: 0.82rem; color: #212529; padding-right: 40px; }
+        .sd-watch-card .target {
+            font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.7rem; color: #6c757d;
+            margin-left: 6px;
+        }
+        .sd-watch-card .value {
+            display: block; margin-top: 2px;
+            font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.95rem; color: #212529;
+            font-weight: 700; word-break: break-all;
+        }
+        .sd-watch-card .meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 0.7rem; color: #868e96; }
+        .sd-watch-card .actions { position: absolute; top: 3px; right: 3px; display: flex; gap: 0; }
+        .sd-watch-card .actions .btn { padding: 0 4px; font-size: 0.7rem; line-height: 1.2; }
+        .sd-watch-card.locked { background: #ebfbee; border-color: #8ce99a; }
+        .sd-watch-card.src-VALUE_SIMULATION { border-left: 4px solid #4dabf7; }
+        .sd-watch-card.src-ERROR_SIMULATION { border-left: 4px solid #fa5252; }
+        .sd-watch-card.src-PROTOCOL_WRITE   { border-left: 4px solid #fab005; }
+        .sd-watch-card.src-API_WRITE        { border-left: 4px solid #40c057; }
+
+        /* ── Focus panel: chunk-based rendering ── */
+        .sd-focus-panel {
+            border: 1px solid #dee2e6; border-radius: 4px; background: #fff;
+            margin-bottom: 12px; overflow: hidden;
+        }
+        .sd-focus-panel-header {
+            padding: 8px 12px; border-bottom: 1px solid #dee2e6; background: #f8f9fa;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .sd-focus-panel-header .fc-title { font-weight: 600; font-size: 0.95rem; }
+        .sd-focus-panel-body { padding: 6px 10px; }
+        .sd-focus-empty {
+            padding: 18px 14px; text-align: center; color: #adb5bd; font-size: 0.85rem;
+        }
+        .sd-empty-banner {
+            display: block; width: 100%;
+            padding: 5px 10px; margin: 4px 0;
+            border: 1px dashed #dee2e6; border-radius: 3px;
+            background: #fafbfc; color: #868e96;
+            font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.75rem;
+            text-align: center; cursor: pointer;
+            transition: background 0.12s;
+        }
+        .sd-empty-banner:hover { background: #f1f3f5; color: #495057; }
+        .sd-empty-banner .caret { margin-right: 6px; }
+
+        .sd-chunk {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+            padding: 4px 6px; margin: 3px 0;
+            border-radius: 3px;
+            background: #fff;
+            font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.86rem;
+        }
+        .sd-chunk-addr {
+            display: inline-block; min-width: 68px;
+            color: #6c757d; font-weight: 600; margin-right: 4px;
+        }
+        .sd-fcell {
+            display: block; min-width: 0;
+            padding: 3px 4px; text-align: center;
+            border: 1px solid #e9ecef; border-radius: 3px; background: #fff;
+            cursor: pointer; user-select: none;
+            transition: transform 0.05s ease, box-shadow 0.12s ease;
+            font-size: 0.82rem; line-height: 1.1;
+        }
+        .sd-fcell:hover { border-color: #b8dcff; box-shadow: 0 0 0 2px rgba(77,171,247,0.15); }
+        .sd-fcell.selected { border-color: #f59f00; box-shadow: 0 0 0 2px rgba(245,159,0,0.4); }
+        .sd-fcell.src-VALUE_SIMULATION { background: #d0ebff; }
+        .sd-fcell.src-ERROR_SIMULATION { background: #ffe3e3; }
+        .sd-fcell.src-PROTOCOL_WRITE   { background: #fff3bf; }
+        .sd-fcell.src-API_WRITE        { background: #d3f9d8; }
+        .sd-fcell.locked               { background: #b2f2bb; box-shadow: inset 0 0 0 2px #2f9e44; }
+        .sd-fcell .fc-offset {
+            display: block; color: #adb5bd; font-size: 0.68rem;
+            margin-bottom: 1px;
+        }
+        .sd-fcell .fc-val { color: #212529; font-weight: 700; }
+        .sd-fcell.sd-flash { animation: sdFlash 0.9s ease-out; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li>
+            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link active"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6"><h1 class="m-0" id="title">Server Data</h1></div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item active">Server Data</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="content">
+            <div class="container-fluid">
+                <div id="sdStatusBar" class="sd-status-bar status-connecting">
+                    <span id="sdStatusText"><i class="fas fa-spinner fa-spin"></i> Connecting…</span>
+                    <span id="sdSeqInfo" class="text-muted" style="font-size:0.8rem"></span>
+                </div>
+
+                <div class="sd-device-info">
+                    <div class="item"><span>Name</span><span id="devName"></span></div>
+                    <div class="item"><span>Protocol</span><span id="devProtocol"></span></div>
+                    <div class="item"><span>Address</span><span id="devAddr"></span></div>
+                </div>
+
+                <div class="sd-viewtabs" role="tablist">
+                    <button type="button" class="sd-viewtab active" id="sdViewFocus" role="tab" aria-selected="true">Focus</button>
+                    <button type="button" class="sd-viewtab" id="sdViewRaw" role="tab" aria-selected="false">Raw</button>
+                    <span class="sd-viewtabs-spacer"></span>
+                    <label class="sd-viewtabs-inline" for="sdRowWidth">Row size</label>
+                    <select class="sd-viewtabs-select" id="sdRowWidth">
+                        <option value="auto" selected>Auto</option>
+                        <option value="8">8</option>
+                        <option value="16">16</option>
+                        <option value="32">32</option>
+                    </select>
+                </div>
+
+                <div class="sd-legend">
+                    <span class="item"><span class="swatch" style="background:#d0ebff"></span>VALUE_SIMULATION</span>
+                    <span class="item"><span class="swatch" style="background:#ffe3e3"></span>ERROR_SIMULATION</span>
+                    <span class="item"><span class="swatch" style="background:#fff3bf"></span>PROTOCOL_WRITE</span>
+                    <span class="item"><span class="swatch" style="background:#d3f9d8"></span>API_WRITE</span>
+                    <span class="item"><span class="swatch" style="background:#b2f2bb;box-shadow:inset 0 0 0 2px #2f9e44"></span>Locked</span>
+                </div>
+
+                <div class="sd-main-layout">
+                    <div id="sdContainer" class="sd-main"></div>
+                    <aside id="sdInspection" class="sd-inspection">
+                        <div class="sd-inspection-section">
+                            <div class="sd-inspection-section-header">
+                                <span class="sd-inspection-section-title">Watch</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="sdAddWatchBtn"
+                                        title="Add a watch item"><i class="fas fa-plus"></i></button>
+                            </div>
+                            <div id="sdWatchList" class="sd-watch-list">
+                                <div class="sd-inspection-empty">No watches yet. Add one to keep an eye on a target.</div>
+                            </div>
+                        </div>
+                        <div class="sd-inspection-section">
+                            <div class="sd-inspection-section-header">
+                                <span class="sd-inspection-section-title">Inspection</span>
+                            </div>
+                            <div id="sdInspectionBody" class="sd-inspection-body">
+                                <div class="sd-inspection-empty">Click any cell or watch to inspect.</div>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong> All rights reserved.
+    </footer>
+</div>
+
+<div class="modal fade" id="watchModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add watch</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Target</label>
+                    <input type="text" class="form-control" id="watchTarget" placeholder="e.g. 3_18, %DW200, myOID">
+                    <small class="text-muted" style="font-size:0.8rem">Protocol-specific address of the value to watch.</small>
+                </div>
+                <div class="form-group">
+                    <label>Label</label>
+                    <input type="text" class="form-control" id="watchLabel" placeholder="e.g. Pressure sensor">
+                </div>
+                <div class="form-group">
+                    <label>Format</label>
+                    <select class="form-control" id="watchFormat">
+                        <option value="auto">auto</option>
+                        <option value="hex">hex</option>
+                        <option value="dec">dec (unsigned)</option>
+                        <option value="signed">signed</option>
+                        <option value="bin">binary</option>
+                        <option value="bool">bool</option>
+                        <option value="ascii">ascii</option>
+                        <option value="float">float (needs data type)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="watchDataTypeGroup" style="display:none">
+                    <label>Data type</label>
+                    <select class="form-control" id="watchDataType"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="watchAddBtn">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit value</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Target</label>
+                    <input type="text" class="form-control" id="editTarget" readonly>
+                </div>
+                <div class="form-group" id="editDataTypeGroup" style="display:none">
+                    <label>Data type</label>
+                    <select class="form-control" id="editDataType"></select>
+                </div>
+                <div class="form-group">
+                    <label>Value</label>
+                    <input type="text" class="form-control" id="editValue" placeholder="New value">
+                    <small id="editHint" class="text-muted" style="font-size:0.8rem"></small>
+                </div>
+                <div class="text-muted" style="font-size:0.85rem">Saving will automatically lock this target so simulations cannot overwrite it.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="editCancelBtn" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="editSaveBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../plugins/sockjs/sockjs.min.js"></script>
+<script src="../../plugins/stomp/stomp.umd.min.js"></script>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const device = /*[[${device}]]*/ {};
+    const deviceId = device.id;
+
+    const MODBUS_INT_DATATYPES = [
+        'UI16AB','UI16BA','SI16AB','SI16BA',
+        'UI32AD','UI32CB','UI32BC','UI32DA',
+        'SI32AD','SI32CB','SI32BC','SI32DA',
+        'SI64AH','SI64GB','SI64BG','SI64HA',
+        'FP32AD','FP32CB','FP32BC','FP32DA',
+        'FP64AH','FP64GB','FP64BG','FP64HA'
+    ];
+
+    let stompClient = null;
+    let statusSubscription = null;
+    let eventsSubscription = null;
+    let latestSnapshot = null;
+    let currentEditContext = null;
+    let tables = {};          // key -> Tabulator instance (used by Raw view)
+    let allRows = {};         // key -> array of row records (Raw view)
+    let displayFormatters = {}; // key -> function(value) -> string (Raw view row-per-target)
+    let tableMeta = {};       // key -> { kind: 'modbusGrid' | 'rowPerTarget', ... }
+
+    // ── 3-tier UX state (Focus + Watch + Inspection) ─────────────
+    // 'focus' | 'raw'. The device protocol is known at page load, so protocols without a
+    // Focus adapter start on Raw instead of flashing the "not available" placeholder.
+    let viewMode = (device.protocol === 'MODBUS') ? 'focus' : 'raw';
+    let watchItems = [];                      // session-scoped watch list
+    let inspectionOpen = false;               // inspection sidebar visibility
+    let inspectionTarget = null;              // currently inspected target string
+    let rowWidthMode = 'auto';                // 'auto' | 8 | 16 | 32 — selected in the toolbar
+    let rawScrollers = {};                    // panel.key -> { $panel, refresh(panel, locks) } — persists across snapshots so scroll position survives
+    let panelExpandedState = {};              // panel.key -> true|false (only set once user has explicitly toggled)
+    let rowWidth = 16;                        // effective cells per row (derived from mode + container width)
+    // Break at ~900px container width: below → 8, at/above → 16. 32 remains manual-only.
+    const ROW_WIDTH_AUTO_THRESHOLD = 900;
+
+    /** Compute the row width to use based on mode and current container width. Returns the new value. */
+    function computeRowWidth() {
+        if (rowWidthMode === 'auto') {
+            const w = document.getElementById('sdContainer');
+            const cw = w ? w.clientWidth : window.innerWidth;
+            return cw >= ROW_WIDTH_AUTO_THRESHOLD ? 16 : 8;
+        }
+        return rowWidthMode;
+    }
+    let lastChangeMeta = {};                  // target -> { source, ts } (last change per target)
+    /** Emit change metadata whenever we apply a value; drives Inspection "last change" and card badges. */
+    function recordChange(target, source, ts) {
+        if (!target) return;
+        if (source === undefined) return;
+        lastChangeMeta[target] = { source: source || null, ts: ts || Date.now() };
+    }
+
+    // ── UI init ────────────────────────────────────────────────
+    function initInfoBar() {
+        $('#devName').text(device.name || '');
+        $('#devProtocol').text(device.protocol || '');
+        $('#devAddr').text((device.transport || '') + ' ' + (device.host || '') + ':' + (device.port || ''));
+    }
+
+    function setStatus(cls, text) {
+        const $bar = $('#sdStatusBar');
+        $bar.removeClass('status-connecting status-granted status-denied status-lost').addClass(cls);
+        $('#sdStatusText').html(text);
+    }
+
+    // ── WebSocket connect ──────────────────────────────────────
+    function connect() {
+        const sock = new SockJS('/ws');
+        stompClient = StompJs.Stomp.over(function () { return sock; });
+        stompClient.reconnectDelay = 0;  // Reject policy: do not auto-reconnect (user must refresh to retry)
+        stompClient.debug = function () {};
+        stompClient.onConnect = function () {
+            statusSubscription = stompClient.subscribe('/user/queue/serverdata/status', function (msg) {
+                handleStatusMessage(JSON.parse(msg.body));
+            });
+            eventsSubscription = stompClient.subscribe('/topic/devices/' + deviceId + '/serverdata/events', function (msg) {
+                handleEventMessage(JSON.parse(msg.body));
+            });
+            stompClient.publish({
+                destination: '/app/devices/' + deviceId + '/serverdata/enter',
+                headers: { 'content-type': 'application/json' },
+                body: '{}'
+            });
+        };
+        stompClient.onStompError = function (frame) {
+            setStatus('status-lost', '<i class="fas fa-exclamation-circle"></i> STOMP error: ' + (frame.headers && frame.headers.message));
+        };
+        stompClient.onWebSocketClose = function () {
+            setStatus('status-lost', '<i class="fas fa-plug"></i> Disconnected. <a href="#" onclick="location.reload()">Retry</a>');
+        };
+        stompClient.activate();
+    }
+
+    function handleStatusMessage(msg) {
+        if (msg.type === 'status' && msg.status === 'granted') {
+            setStatus('status-granted', '<i class="fas fa-check-circle"></i> Editing session active');
+        } else if (msg.type === 'status' && msg.status === 'denied') {
+            let reason = msg.reason === 'another_session_active'
+                ? 'Another editor is active on this device.'
+                : (msg.reason === 'device_not_available' ? 'Device is not running.' : msg.reason);
+            setStatus('status-denied', '<i class="fas fa-ban"></i> ' + reason + ' <a href="#" onclick="location.reload()">Retry</a>');
+            try { stompClient.deactivate(); } catch (e) {}
+        } else if (msg.type === 'invalidated') {
+            setStatus('status-lost', '<i class="fas fa-clock"></i> Session invalidated: ' + msg.reason + ' <a href="#" onclick="location.reload()">Retry</a>');
+        // write_ack no longer used — writes go through REST POST and apply on 200 OK.
+        } else if (msg.seq !== undefined && msg.payload !== undefined) {
+            // Snapshot payload — send ack first so a render error doesn't kill the session.
+            try {
+                stompClient.publish({
+                    destination: '/app/devices/' + deviceId + '/serverdata/ack',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ seq: msg.seq })
+                });
+            } catch (e) { console.error('ack publish failed', e); }
+            $('#sdSeqInfo').text('seq=' + msg.seq + ' · ' + new Date(msg.ts).toLocaleTimeString());
+            latestSnapshot = msg;
+            try {
+                renderSnapshot(msg);
+            } catch (e) { console.error('renderSnapshot failed', e); }
+        }
+    }
+
+    function handleEventMessage(ev) {
+        // API_WRITE events are applied only via our own write_ack (sender).
+        // Prevents topic broadcast arriving first and looking like an optimistic update.
+        if (ev.source === 'API_WRITE') return;
+        applyEventDelta(ev);
+    }
+
+    function applyEventDelta(ev) {
+        const affected = (ev.affectedTargets && ev.affectedTargets.length > 0) ? ev.affectedTargets : [ev.target];
+        const isLockingSource = (ev.source === 'API_WRITE');
+        const tv = ev.targetValues || {};
+        // 1) Update latestSnapshot payload in-place so Focus/Watch/Inspection always render fresh values.
+        if (latestSnapshot) {
+            affected.forEach(function (t) {
+                const v = (t in tv) ? tv[t] : (t === ev.target ? ev.value : undefined);
+                if (v !== undefined) writeSnapshotValue(latestSnapshot, t, v);
+            });
+            // Update locks in snapshot for immediate lock visualization.
+            if (isLockingSource) {
+                if (!latestSnapshot.locks) latestSnapshot.locks = [];
+                affected.forEach(function (t) {
+                    if (latestSnapshot.locks.indexOf(t) < 0) latestSnapshot.locks.push(t);
+                });
+            }
+            // Record change metadata for Inspection / card badges.
+            affected.forEach(function (t) { recordChange(t, ev.source, ev.ts); });
+        }
+        // 2) Route DOM updates by current view mode.
+        if (viewMode === 'raw' && !isGridProtocol(latestSnapshot && latestSnapshot.protocol)) {
+            // Legacy Tabulator-based Raw (non-grid protocols).
+            affected.forEach(function (t) {
+                const isBase = (t === ev.target);
+                const perTargetValue = (t in tv) ? tv[t] : (isBase ? ev.value : undefined);
+                Object.keys(tables).forEach(function (key) {
+                    applyDeltaToRowTable(key, t, ev, isBase, isLockingSource, perTargetValue);
+                });
+            });
+        } else if (latestSnapshot) {
+            // Focus or grid-protocol Raw: re-render the shared square-grid view.
+            renderSquareGrid(latestSnapshot, viewMode);
+            const $base = $('#sdContainer .sd-fcell[data-target="' + cssEscape(ev.target) + '"]');
+            if ($base.length) {
+                $base[0].classList.add('sd-flash');
+                setTimeout(function () { $base[0].classList.remove('sd-flash'); }, 900);
+            }
+        }
+        // 3) Always refresh Watch cards and Inspection panel (they read from latestSnapshot).
+        if (latestSnapshot) {
+            renderWatchRow(latestSnapshot);
+            if (inspectionOpen && inspectionTarget && affected.indexOf(inspectionTarget) >= 0) {
+                renderInspection(inspectionTarget, latestSnapshot);
+            }
+        }
+    }
+
+    /** Write a value into the appropriate slot of a snapshot in-place (Modbus/XGT/OPC/etc.). */
+    function writeSnapshotValue(snap, target, value) {
+        const p = snap.payload; if (!p) return;
+        if (snap.protocol === 'MODBUS') {
+            const tk = target.split('_');
+            const fc = parseInt(tk[0], 10);
+            const i = parseInt(tk[1], 10);
+            if (fc === 1 && p.coilStatus)        p.coilStatus[i]        = value ? 1 : 0;
+            else if (fc === 2 && p.inputStatus)  p.inputStatus[i]       = value ? 1 : 0;
+            else if (fc === 3 && p.holdingRegisters) p.holdingRegisters[i] = value & 0xFFFF;
+            else if (fc === 4 && p.inputRegisters)   p.inputRegisters[i]   = value & 0xFFFF;
+        } else if (snap.protocol === 'BACNET' && p.objects) {
+            for (let i = 0; i < p.objects.length; i++) {
+                if (p.objects[i].target === target) { p.objects[i].value = value; break; }
+            }
+        }
+        // Other protocols will be handled once their Focus adapters are added.
+    }
+
+    function applyDeltaToRowTable(key, target, ev, isBase, isLockingSource, perTargetValue) {
+        const table = tables[key];
+        const row = table.getRow(target);
+        if (!row) return;
+        const data = row.getData();
+        if (perTargetValue !== undefined) {
+            data.value = perTargetValue;
+            const fmt = displayFormatters[key];
+            if (fmt) data.display = fmt(perTargetValue);
+        }
+        data.source = ev.source;
+        if (isLockingSource) data.locked = true;
+        const rows = allRows[key];
+        if (rows) {
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i] && rows[i].target === target) { rows[i] = Object.assign({}, data); break; }
+            }
+        }
+        row.update(data);
+        if (isBase) {
+            row.getCells().forEach(function (c) {
+                c.getElement().classList.add('sd-flash');
+                setTimeout(function () { c.getElement().classList.remove('sd-flash'); }, 1000);
+            });
+        }
+    }
+
+    // ── Snapshot render ────────────────────────────────────────
+    /** Top-level dispatch: Focus vs Raw. Both consume the same snapshot. */
+    function renderSnapshot(snap) {
+        // The protocol is only known once a snapshot arrives, so settle the tabs here.
+        syncViewTabs(snap.protocol);
+        renderWatchRow(snap);
+        if (viewMode === 'raw') {
+            renderRaw(snap);
+        } else {
+            renderFocus(snap);
+        }
+        if (inspectionOpen && inspectionTarget) {
+            renderInspection(inspectionTarget, snap);
+        }
+    }
+
+    function renderRaw(snap) {
+        // For grid-shaped protocols (Modbus), use the same square-cell renderer as Focus.
+        // Other protocols still use the legacy Tabulator renderers until their adapters land.
+        if (isGridProtocol(snap.protocol)) { renderSquareGrid(snap, 'raw'); return; }
+        renderRawLegacy(snap);
+    }
+
+    function renderRawLegacy(snap) {
+        const container = $('#sdContainer');
+        if (!container.hasClass('sd-raw-active')) {
+            container.empty().addClass('sd-raw-active');
+            tables = {}; allRows = {}; tableMeta = {}; displayFormatters = {};
+        }
+        const firstRender = container.children().length === 0;
+        const protocol = snap.protocol;
+        const p = snap.payload;
+        const locks = new Set(snap.locks || []);
+        if (protocol === 'XGT_PLC') {
+            renderXGT(p, locks, firstRender);
+        } else if (protocol === 'OPC_AGENT') {
+            renderOpcAgent(p, locks, firstRender);
+        } else if (protocol === 'DAEYUN_RCU') {
+            renderDaeyun(p, locks, firstRender);
+        } else if (protocol === 'SNMP') {
+            renderKeyValue('SNMP OIDs', p.oids, locks, firstRender, 'snmp', 'OID');
+        } else if (protocol === 'ETHERNET_IP') {
+            renderKeyValue('EtherNet/IP Tags', p.tags, locks, firstRender, 'eip', 'Tag');
+        } else if (protocol === 'GENERIC') {
+            renderKeyValue('Generic Fields', p.fields, locks, firstRender, 'generic', 'Field');
+        } else if (protocol === 'BACNET') {
+            renderBACnet(p, locks, firstRender);
+        } else {
+            container.html('<div class="alert alert-warning">Unsupported protocol: ' + protocol + '</div>');
+        }
+    }
+
+    // ── Protocol adapters ─────────────────────────────────────
+    // Each adapter provides Focus / Watch / Inspection support for one protocol.
+    // Only MODBUS is implemented in this pass; others fall back to Raw view.
+    const adapters = {
+        MODBUS: {
+            /** Returns focus panels: [{ key, title, kind:'dense'|'sparse', arr, fc?, cellType, size }] */
+            panels: function (snap) {
+                const p = snap.payload || {};
+                return [
+                    { key: 'fc1', title: 'Coil Status (FC01)',     kind: 'dense', fc: 1, cellType: 'bit', arr: p.coilStatus || [] },
+                    { key: 'fc2', title: 'Input Status (FC02)',    kind: 'dense', fc: 2, cellType: 'bit', arr: p.inputStatus || [] },
+                    { key: 'fc3', title: 'Holding Register (FC03)',kind: 'dense', fc: 3, cellType: 'reg', arr: p.holdingRegisters || [] },
+                    { key: 'fc4', title: 'Input Register (FC04)',  kind: 'dense', fc: 4, cellType: 'reg', arr: p.inputRegisters || [] }
+                ];
+            },
+            /** For a dense panel, is index i "active"? */
+            isActive: function (panel, i, locks) {
+                const v = panel.arr[i];
+                if (v === undefined || v === null) return false;
+                const t = panel.fc + '_' + i;
+                if (v !== 0) return true;
+                if (locks.has(t)) return true;
+                if (lastChangeMeta[t] && lastChangeMeta[t].source) return true;
+                return false;
+            },
+            targetOf: function (panel, i) { return panel.fc + '_' + i; },
+            /** Parse a target string like "3_10" → { panelKey, index, fc, cellType } or null. */
+            parseTarget: function (snap, target) {
+                if (!target || typeof target !== 'string' || !target.includes('_')) return null;
+                const tk = target.split('_');
+                if (tk.length !== 2) return null;
+                const fc = parseInt(tk[0], 10);
+                const idx = parseInt(tk[1], 10);
+                if (isNaN(fc) || isNaN(idx)) return null;
+                const panels = this.panels(snap);
+                const panel = panels.find(function (p) { return p.fc === fc; });
+                if (!panel) return null;
+                return { panelKey: panel.key, panel: panel, index: idx };
+            },
+            /** Return short-form display string for a single cell in Focus/Watch. */
+            cellDisplay: function (panel, i, format) {
+                const v = panel.arr[i];
+                if (v === undefined || v === null) return '';
+                return interpretPrimitive(v, panel.cellType, format || 'auto');
+            },
+            /** Compose a value from multiple registers for interpret table (Modbus register only). */
+            neighbors: function (snap, target, count) {
+                const parsed = this.parseTarget(snap, target);
+                if (!parsed) return [];
+                const half = Math.floor(count / 2);
+                const start = Math.max(0, parsed.index - half);
+                const end = Math.min(parsed.panel.arr.length, start + count);
+                const out = [];
+                for (let i = start; i < end; i++) {
+                    out.push({
+                        target: parsed.panel.fc + '_' + i,
+                        index: i,
+                        value: parsed.panel.arr[i],
+                        current: i === parsed.index
+                    });
+                }
+                return out;
+            },
+            /** Full multi-format interpretation for Inspection panel. */
+            interpretations: function (snap, target) {
+                const parsed = this.parseTarget(snap, target);
+                if (!parsed) return [];
+                const v = parsed.panel.arr[parsed.index];
+                if (v === undefined || v === null) return [{ label: 'value', text: '(no data)' }];
+                const rows = [];
+                if (parsed.panel.cellType === 'bit') {
+                    rows.push({ label: 'bit', text: (v ? '1' : '0') });
+                    return rows;
+                }
+                // Register (16-bit)
+                const u16 = v & 0xFFFF;
+                const s16 = (u16 & 0x8000) ? u16 - 0x10000 : u16;
+                rows.push({ label: 'hex',    text: '0x' + u16.toString(16).padStart(4, '0').toUpperCase() });
+                rows.push({ label: 'dec',    text: String(u16) });
+                rows.push({ label: 'signed', text: String(s16) });
+                rows.push({ label: 'bin',    text: u16.toString(2).padStart(16, '0').replace(/(.{4})(?=.)/g, '$1 ') });
+                rows.push({ label: 'ascii',  text: printableAscii([ (u16 >> 8) & 0xFF, u16 & 0xFF ]) });
+                // Multi-register interpretations (only when neighbors exist)
+                const arr = parsed.panel.arr;
+                const i = parsed.index;
+                if (i + 1 < arr.length) {
+                    const r0 = arr[i] & 0xFFFF;
+                    const r1 = arr[i + 1] & 0xFFFF;
+                    ['UI32AD','UI32CB','UI32BC','UI32DA'].forEach(function (dt) {
+                        rows.push({ label: dt, text: String(combineU32(r0, r1, dt)) });
+                    });
+                    ['SI32AD','SI32CB','SI32BC','SI32DA'].forEach(function (dt) {
+                        const u = combineU32(r0, r1, dt);
+                        const s = (u & 0x80000000) ? (u - 0x100000000) : u;
+                        rows.push({ label: dt, text: String(s) });
+                    });
+                    ['FP32AD','FP32CB','FP32BC','FP32DA'].forEach(function (dt) {
+                        const u = combineU32(r0, r1, dt);
+                        rows.push({ label: dt, text: u32ToFloat32(u).toPrecision(8) });
+                    });
+                }
+                if (i + 3 < arr.length) {
+                    const rr = [arr[i] & 0xFFFF, arr[i+1] & 0xFFFF, arr[i+2] & 0xFFFF, arr[i+3] & 0xFFFF];
+                    ['SI64AH','SI64GB','SI64BG','SI64HA'].forEach(function (dt) {
+                        rows.push({ label: dt, text: combineS64(rr, dt).toString() });
+                    });
+                    ['FP64AH','FP64GB','FP64BG','FP64HA'].forEach(function (dt) {
+                        rows.push({ label: dt, text: combineF64(rr, dt).toPrecision(10) });
+                    });
+                }
+                return rows;
+            },
+            /** Edit modal config for a target. */
+            editConfig: function (snap, target) {
+                const parsed = this.parseTarget(snap, target);
+                if (!parsed) return null;
+                if (parsed.panel.cellType === 'bit') {
+                    return {
+                        target: target,
+                        dataTypeOptions: null,
+                        defaultDataType: null,
+                        value: parsed.panel.arr[parsed.index],
+                        mode: 'bit',
+                        hint: '0 or 1'
+                    };
+                }
+                return {
+                    target: target,
+                    dataTypeOptions: MODBUS_INT_DATATYPES,
+                    defaultDataType: 'UI16AB',
+                    value: parsed.panel.arr[parsed.index],
+                    mode: 'datatype',
+                    hint: 'Value per selected data type'
+                };
+            },
+            contextLabel: function (snap, target) {
+                const parsed = this.parseTarget(snap, target);
+                if (!parsed) return target;
+                return 'Modbus ' + parsed.panel.title + ' · index ' + parsed.index;
+            },
+            /** Sensible default label for Add-to-Watch. */
+            defaultLabel: function (snap, target) {
+                const parsed = this.parseTarget(snap, target);
+                if (!parsed) return target;
+                const name = parsed.panel.title.replace(/\s.*/, '');
+                return name + ' ' + parsed.index;
+            },
+            /** Which formats are meaningful for this target (used by Add-Watch form). */
+            supportedFormats: function (snap, target) {
+                const parsed = this.parseTarget(snap, target);
+                if (!parsed) return ['auto'];
+                if (parsed.panel.cellType === 'bit') return ['auto','bool','dec','hex'];
+                return ['auto','hex','dec','signed','bin','ascii','float'];
+            }
+        }
+    };
+
+    function getAdapter(protocol) { return adapters[protocol] || null; }
+
+    // ── Value interpretation utility ───────────────────────────
+    /** Format one primitive value (bit or 16-bit register) for compact display. */
+    function interpretPrimitive(v, cellType, format) {
+        if (v === undefined || v === null) return '';
+        if (cellType === 'bit') {
+            if (format === 'hex') return '0x' + (v & 1).toString(16);
+            if (format === 'bin') return String(v & 1);
+            return v ? '1' : '0';
+        }
+        const u = v & 0xFFFF;
+        switch (format) {
+            case 'hex':    return '0x' + u.toString(16).padStart(4, '0').toUpperCase();
+            case 'dec':    return String(u);
+            case 'signed': return String((u & 0x8000) ? u - 0x10000 : u);
+            case 'bin':    return u.toString(2).padStart(16, '0');
+            case 'ascii':  return printableAscii([(u >> 8) & 0xFF, u & 0xFF]);
+            case 'bool':   return u ? '1' : '0';
+            default:       return u.toString(16).padStart(4, '0').toUpperCase();
+        }
+    }
+
+    /** Combine 2 registers (r0=lower addr, r1=higher addr) into a 32-bit unsigned int per Modbus endian. */
+    function combineU32(r0, r1, dt) {
+        // r0 = bytes A,B ; r1 = bytes C,D  (each register is big-endian AB, CD in wire form)
+        const A = (r0 >> 8) & 0xFF, B = r0 & 0xFF, C = (r1 >> 8) & 0xFF, D = r1 & 0xFF;
+        let bytes;
+        switch (dt) {
+            case 'UI32AD': case 'SI32AD': case 'FP32AD': bytes = [A,B,C,D]; break;
+            case 'UI32CB': case 'SI32CB': case 'FP32CB': bytes = [C,D,A,B]; break;
+            case 'UI32BC': case 'SI32BC': case 'FP32BC': bytes = [B,A,D,C]; break;
+            case 'UI32DA': case 'SI32DA': case 'FP32DA': bytes = [D,C,B,A]; break;
+            default: bytes = [A,B,C,D];
+        }
+        // Return as unsigned 32-bit (JS >>> 0)
+        return ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
+    }
+
+    function u32ToFloat32(u) {
+        const buf = new ArrayBuffer(4);
+        new DataView(buf).setUint32(0, u >>> 0, false);
+        return new DataView(buf).getFloat32(0, false);
+    }
+
+    /** Combine 4 registers (r0..r3) into a signed 64-bit BigInt per Modbus endian. */
+    function combineS64(rr, dt) {
+        // r0=AB, r1=CD, r2=EF, r3=GH
+        const A=(rr[0]>>8)&0xFF, B=rr[0]&0xFF, C=(rr[1]>>8)&0xFF, D=rr[1]&0xFF;
+        const E=(rr[2]>>8)&0xFF, F=rr[2]&0xFF, G=(rr[3]>>8)&0xFF, H=rr[3]&0xFF;
+        let b;
+        switch (dt) {
+            case 'SI64AH': case 'FP64AH': b = [A,B,C,D,E,F,G,H]; break;
+            case 'SI64GB': case 'FP64GB': b = [G,H,E,F,C,D,A,B]; break;
+            case 'SI64BG': case 'FP64BG': b = [B,A,D,C,F,E,H,G]; break;
+            case 'SI64HA': case 'FP64HA': b = [H,G,F,E,D,C,B,A]; break;
+            default: b = [A,B,C,D,E,F,G,H];
+        }
+        let u = 0n;
+        for (let i = 0; i < 8; i++) u = (u << 8n) | BigInt(b[i]);
+        // sign extend
+        return (u & 0x8000000000000000n) ? (u - 0x10000000000000000n) : u;
+    }
+
+    function combineF64(rr, dt) {
+        const A=(rr[0]>>8)&0xFF, B=rr[0]&0xFF, C=(rr[1]>>8)&0xFF, D=rr[1]&0xFF;
+        const E=(rr[2]>>8)&0xFF, F=rr[2]&0xFF, G=(rr[3]>>8)&0xFF, H=rr[3]&0xFF;
+        let b;
+        switch (dt) {
+            case 'FP64AH': b = [A,B,C,D,E,F,G,H]; break;
+            case 'FP64GB': b = [G,H,E,F,C,D,A,B]; break;
+            case 'FP64BG': b = [B,A,D,C,F,E,H,G]; break;
+            case 'FP64HA': b = [H,G,F,E,D,C,B,A]; break;
+            default: b = [A,B,C,D,E,F,G,H];
+        }
+        const buf = new ArrayBuffer(8);
+        const dv = new DataView(buf);
+        for (let i = 0; i < 8; i++) dv.setUint8(i, b[i]);
+        return dv.getFloat64(0, false);
+    }
+
+    function printableAscii(bytes) {
+        return bytes.map(function (b) {
+            return (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '·';
+        }).join('');
+    }
+
+    // ── Watch tier (session-scoped) ────────────────────────────
+    function renderWatchRow(snap) {
+        const $list = $('#sdWatchList');
+        $list.empty();
+        if (watchItems.length === 0) {
+            $list.append('<div class="sd-inspection-empty">No watches yet. Add one to keep an eye on a target.</div>');
+            return;
+        }
+        watchItems.forEach(function (w) {
+            const $card = $(renderWatchCardHtml(w, snap));
+            $card.data('watchId', w.id);
+            $list.append($card);
+        });
+    }
+
+    function renderWatchCardHtml(w, snap) {
+        const ad = getAdapter(snap.protocol);
+        const parsed = ad ? ad.parseTarget(snap, w.target) : null;
+        let valueText = '(unknown)';
+        let srcClass = '';
+        let locked = false;
+        if (parsed && ad) {
+            valueText = watchValueText(w, ad, parsed, snap);
+            const meta = lastChangeMeta[w.target];
+            if (meta && meta.source) srcClass = 'src-' + meta.source;
+            locked = (snap.locks || []).indexOf(w.target) >= 0;
+        }
+        const cardClasses = ['sd-watch-card', srcClass, locked ? 'locked' : ''].join(' ');
+        return '' +
+            '<div class="' + cardClasses + '" data-target="' + escapeHtml(w.target) + '">' +
+            '  <div class="actions">' +
+            '    <button class="btn btn-sm btn-link watch-edit" title="Edit"><i class="fas fa-pen"></i></button>' +
+            '    <button class="btn btn-sm btn-link watch-remove" title="Remove"><i class="fas fa-times"></i></button>' +
+            '  </div>' +
+            '  <div class="label">' + escapeHtml(w.label || w.target) +
+            '    <span class="target">' + escapeHtml(w.target) + (w.dataType ? ' · ' + escapeHtml(w.dataType) : '') + '</span>' +
+            '  </div>' +
+            '  <div class="value">' + escapeHtml(valueText) + '</div>' +
+            '  <div class="meta">' +
+                (srcClass ? '<span class="sd-badge ' + srcClass + '">' + srcClass.replace('src-', '') + '</span>' : '') +
+                (locked ? ' <i class="fas fa-lock" style="color:#2f9e44"></i>' : '') +
+            '  </div>' +
+            '</div>';
+    }
+
+    function watchValueText(w, ad, parsed, snap) {
+        const panel = parsed.panel;
+        // For 'float' format on Modbus register, need dataType to combine registers.
+        if (w.format === 'float' && w.dataType) {
+            const i = parsed.index, arr = panel.arr;
+            const dt = w.dataType;
+            const bits = parseInt(dt.replace(/\D/g, ''), 10);
+            if (bits === 32 && i + 1 < arr.length) {
+                const u = combineU32(arr[i] & 0xFFFF, arr[i+1] & 0xFFFF, dt);
+                return u32ToFloat32(u).toPrecision(8);
+            }
+            if (bits === 64 && i + 3 < arr.length) {
+                return combineF64([arr[i]&0xFFFF, arr[i+1]&0xFFFF, arr[i+2]&0xFFFF, arr[i+3]&0xFFFF], dt).toPrecision(10);
+            }
+            return '(need more registers for ' + dt + ')';
+        }
+        // For multi-register integer formats
+        if ((w.format === 'dec' || w.format === 'signed' || w.format === 'hex') && w.dataType && panel.cellType === 'reg') {
+            const i = parsed.index, arr = panel.arr;
+            const dt = w.dataType;
+            const bits = parseInt(dt.replace(/\D/g, ''), 10);
+            if (bits === 32 && i + 1 < arr.length) {
+                const u = combineU32(arr[i] & 0xFFFF, arr[i+1] & 0xFFFF, dt);
+                if (w.format === 'hex') return '0x' + u.toString(16).padStart(8, '0').toUpperCase();
+                if (w.format === 'signed') return String((u & 0x80000000) ? u - 0x100000000 : u);
+                return String(u);
+            }
+        }
+        // Single-cell display
+        return ad.cellDisplay(panel, parsed.index, w.format);
+    }
+
+    function addWatch(target, label, format, dataType) {
+        watchItems.push({
+            id: 'w-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            target: target, label: label || target,
+            format: format || 'auto', dataType: dataType || null
+        });
+        if (latestSnapshot) renderWatchRow(latestSnapshot);
+    }
+    function removeWatch(id) {
+        watchItems = watchItems.filter(function (w) { return w.id !== id; });
+        if (latestSnapshot) renderWatchRow(latestSnapshot);
+    }
+    function watchForTarget(target) {
+        return watchItems.filter(function (w) { return w.target === target; });
+    }
+
+    // Watch card interactions
+    $(document).on('click', '#sdWatchList .sd-watch-card', function (e) {
+        if ($(e.target).closest('.actions').length) return; // let button handlers fire
+        const target = $(this).attr('data-target');
+        openInspection(target);
+    });
+    $(document).on('click', '#sdWatchList .watch-remove', function (e) {
+        e.stopPropagation();
+        const id = $(this).closest('.sd-watch-card').data('watchId');
+        removeWatch(id);
+    });
+    $(document).on('click', '#sdWatchList .watch-edit', function (e) {
+        e.stopPropagation();
+        const target = $(this).closest('.sd-watch-card').attr('data-target');
+        openEditForTarget(target);
+    });
+
+    function openEditForTarget(target) {
+        if (!latestSnapshot) return;
+        const ad = getAdapter(latestSnapshot.protocol);
+        if (!ad || !ad.editConfig) return;
+        const cfg = ad.editConfig(latestSnapshot, target);
+        if (cfg) openEditModal(cfg);
+    }
+
+    // ── Focus / Raw tiers (shared row-based renderer) ──────────
+    //
+    // Both Focus and Raw render the same "square-grid rows": each row shows
+    // `rowWidth` cells aligned to a rowWidth boundary, with a hex address label.
+    //   - Raw: shows every row.
+    //   - Focus: shows only rows containing an active cell, replacing runs
+    //     of empty rows with a compact "⋯ N empty rows ⋯" separator.
+    //
+    // No expand-on-click: to browse zero regions the user switches to Raw.
+
+    /** Which panels to render for a snapshot. Only Modbus is grid-shaped right now. */
+    function isGridProtocol(protocol) { return protocol === 'MODBUS'; }
+
+    function renderFocus(snap) { renderSquareGrid(snap, 'focus'); }
+
+    function renderSquareGrid(snap, mode) {
+        const container = $('#sdContainer').removeClass('sd-raw-active');
+        if (!isGridProtocol(snap.protocol)) {
+            if (mode === 'raw') { renderRawLegacy(snap); return; }
+            container.html('<div class="alert alert-info">' + mode + ' view not yet available for ' + escapeHtml(snap.protocol) + '. Switch to Raw.</div>');
+            return;
+        }
+        const ad = getAdapter(snap.protocol);
+        const locks = new Set(snap.locks || []);
+        const panels = ad.panels(snap);
+        if (mode === 'raw') {
+            // Preserve existing scrollers if the panel set is unchanged (avoids scroll reset on snapshot).
+            const existingKeys = Object.keys(rawScrollers);
+            const newKeys = panels.map(function (p) { return p.key; });
+            const canReuse = existingKeys.length === newKeys.length &&
+                             existingKeys.every(function (k, i) { return k === newKeys[i]; });
+            if (canReuse) {
+                panels.forEach(function (panel) { rawScrollers[panel.key].refresh(panel, locks); });
+            } else {
+                container.empty();
+                rawScrollers = {};
+                // Enforce single-open: pick which panel starts open (respects prior user choice).
+                const openKey = chooseInitialOpenPanel(panels, locks);
+                panelExpandedState = {};
+                panels.forEach(function (p) { panelExpandedState[p.key] = (p.key === openKey); });
+                panels.forEach(function (panel) { container.append(renderRawPanelVirtual(panel, locks)); });
+                // Fit the open panel's body height into remaining viewport, after DOM insertion.
+                requestAnimationFrame(function () { fitOpenPanelHeight(); });
+            }
+        } else {
+            rawScrollers = {}; // leaving Raw
+            container.empty();
+            panels.forEach(function (panel) { container.append(renderGridPanel(snap, panel, locks, mode)); });
+        }
+    }
+
+    function renderPanelHeaderHtml(panel, locks, opts) {
+        opts = opts || {};
+        const total = panel.arr.length;
+        const activeCount = countActive(panel, locks);
+        const lockedCount = Array.from(locks).filter(function (t) {
+            return typeof t === 'string' && t.startsWith(panel.fc + '_');
+        }).length;
+        const collapsible = !!opts.collapsible;
+        const caret = collapsible
+            ? '<span class="sd-collapse-caret"><i class="fas fa-chevron-down"></i></span>'
+            : '';
+        return '' +
+            '<div class="sd-focus-panel-header' + (collapsible ? ' collapsible' : '') + '" data-panel-key="' + escapeHtml(panel.key) + '">' +
+            '  <span class="fc-title">' + caret + escapeHtml(panel.title) + '</span>' +
+            '  <span class="text-muted" style="font-size:0.8rem">' +
+                'total ' + total + ' · active ' + activeCount + ' · locked ' + lockedCount +
+            '</span>' +
+            '</div>';
+    }
+
+    function renderGridPanel(snap, panel, locks, mode) {
+        const $panel = $('<div class="sd-focus-panel">' + renderPanelHeaderHtml(panel, locks) + '<div class="sd-focus-panel-body"></div></div>');
+        const $body = $panel.find('.sd-focus-panel-body');
+        const activeCount = countActive(panel, locks);
+        if (mode === 'focus' && activeCount === 0) {
+            $body.append('<div class="sd-focus-empty">No active data. Switch to Raw view to browse.</div>');
+            return $panel;
+        }
+        const rows = buildRowPlan(panel, locks, mode);
+        const parts = [];
+        rows.forEach(function (r) {
+            if (r.type === 'row') parts.push(renderGridRowHtml(panel, r.start, locks));
+            else parts.push(renderEmptyRowHtml(r.rows, r.startAddr, r.endAddr));
+        });
+        $body[0].innerHTML = parts.join('');
+        return $panel;
+    }
+
+    /**
+     * Raw view virtual scroller.
+     * Renders only visible rows + a small buffer inside a fixed-height scroll container.
+     * DOM size stays constant (~visible rows × N cells) regardless of register count.
+     * Registers itself in {@link rawScrollers} so subsequent snapshots refresh in place
+     * (preserving scrollTop) rather than rebuilding the DOM.
+     */
+    function isPanelExpanded(panelKey) {
+        return !!panelExpandedState[panelKey];
+    }
+
+    /** Which panel should be initially open (single-open policy). null = all closed. */
+    function chooseInitialOpenPanel(panels, locks) {
+        // Respect previous user choice if it still refers to a known panel.
+        for (const k of Object.keys(panelExpandedState)) {
+            if (panelExpandedState[k] && panels.some(function (p) { return p.key === k; })) return k;
+        }
+        // Otherwise: first panel with active data.
+        for (const p of panels) {
+            if (countActive(p, locks) > 0) return p.key;
+        }
+        return null;
+    }
+
+    /**
+     * Size the currently-open Raw panel's scroller so all panels + toolbars fit in the
+     * viewport (no page/content-wrapper scroll). Uses the "shrink-to-measure" trick:
+     * temporarily collapse the scroller to 1px, then measure the slack between the last
+     * panel's bottom edge and the footer's top edge. Grow the scroller by that slack so
+     * the last panel bottom touches (but does not overrun) the footer.
+     */
+    // CSS-defined panel chrome that is invariant of body state / animations.
+    const PANEL_BORDER_V = 2;   // .sd-focus-panel { border: 1px solid } → 1 top + 1 bottom
+    const PANEL_MARGIN_B = 12;  // .sd-focus-panel { margin-bottom: 12px }
+
+    /**
+     * Compute the open scroller's target height without touching the scroller itself.
+     * Sums the invariants (each panel's header + border + margin) and subtracts from the
+     * remaining space in .content-wrapper. This is animation-safe — the header heights
+     * do not change while bodies are transitioning.
+     */
+    function fitOpenPanelHeight() {
+        const container = document.getElementById('sdContainer');
+        if (!container) return;
+        const openPanel = container.querySelector('.sd-focus-panel:not(.collapsed)');
+        if (!openPanel) return;
+        const body = openPanel.querySelector('.sd-raw-body');
+        if (!body) return;
+        const cw = document.querySelector('.content-wrapper');
+        if (!cw) return;
+
+        // Container's top position within content-wrapper (stable regardless of body sizes).
+        const cwRect = cw.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const containerTop = containerRect.top - cwRect.top + cw.scrollTop;
+        const safety = 8;
+        const availForContainer = cw.clientHeight - containerTop - safety;
+
+        // Sum animation-invariant chrome (header + border + margin) across all panels.
+        const panels = container.querySelectorAll('.sd-focus-panel');
+        let sumChrome = 0;
+        panels.forEach(function (p) {
+            const header = p.querySelector('.sd-focus-panel-header');
+            if (header) sumChrome += header.getBoundingClientRect().height;
+            sumChrome += PANEL_BORDER_V + PANEL_MARGIN_B;
+        });
+
+        const avail = availForContainer - sumChrome;
+        const finalH = avail > 120 ? avail : 200;
+        body.style.height = finalH + 'px';
+    }
+    function clearAllScrollerHeights() {
+        const list = document.querySelectorAll('#sdContainer .sd-raw-body');
+        list.forEach(function (el) {
+            el.style.height = '';
+        });
+    }
+
+    function renderRawPanelVirtual(panel, locks) {
+        // Two-layer body: outer .sd-raw-body animates max-height (collapse anim, overflow:hidden);
+        //                 inner .sd-raw-scroller does the actual scrolling (overflow-y:auto).
+        const $panel = $(
+            '<div class="sd-focus-panel">' +
+            renderPanelHeaderHtml(panel, locks, { collapsible: true }) +
+            '<div class="sd-focus-panel-body sd-raw-body">' +
+            '  <div class="sd-raw-scroller"></div>' +
+            '</div>' +
+            '</div>'
+        );
+        if (!isPanelExpanded(panel.key)) $panel.addClass('collapsed');
+        const $body = $panel.find('.sd-raw-body');           // outer: animation target
+        const $scroller = $panel.find('.sd-raw-scroller');   // inner: scroll target
+        const $sizer = $('<div class="sd-raw-sizer"></div>');
+        const $viewport = $('<div class="sd-raw-viewport"></div>');
+        $sizer.append($viewport);
+        $scroller.append($sizer);
+
+        // Mutable state
+        let currentPanel = panel;
+        let currentLocks = locks;
+        let rowHeight = 32;
+        let totalRows = Math.ceil(currentPanel.arr.length / rowWidth);
+        let lastStart = -1, lastEnd = -1;
+        let measured = false;
+        $sizer.css('height', (totalRows * rowHeight) + 'px');
+
+        function renderVisible() {
+            if ($panel.hasClass('collapsed')) return;
+            const el = $scroller[0];
+            if (!el) return;
+            const viewH = el.clientHeight;
+            if (viewH <= 0) return; // still transitioning open
+            const scrollTop = el.scrollTop;
+            const buffer = 8;
+            const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+            const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewH) / rowHeight) + buffer);
+            if (startRow === lastStart && endRow === lastEnd) return;
+            lastStart = startRow; lastEnd = endRow;
+            $viewport[0].style.transform = 'translateY(' + (startRow * rowHeight) + 'px)';
+            const parts = [];
+            for (let r = startRow; r < endRow; r++) {
+                parts.push(renderGridRowHtml(currentPanel, r * rowWidth, currentLocks));
+            }
+            $viewport[0].innerHTML = parts.join('');
+            if (!measured && $viewport[0].firstElementChild) {
+                const h = $viewport[0].firstElementChild.getBoundingClientRect().height;
+                if (h > 0 && Math.abs(h - rowHeight) > 1) {
+                    rowHeight = h;
+                    $sizer.css('height', (totalRows * rowHeight) + 'px');
+                    measured = true;
+                    lastStart = -1; lastEnd = -1;
+                    renderVisible();
+                    return;
+                }
+                measured = true;
+            }
+        }
+
+        function refresh(newPanel, newLocks) {
+            currentPanel = newPanel;
+            currentLocks = newLocks;
+            $panel.find('.sd-focus-panel-header').replaceWith(renderPanelHeaderHtml(newPanel, newLocks, { collapsible: true }));
+            const newTotal = Math.ceil(newPanel.arr.length / rowWidth);
+            if (newTotal !== totalRows) {
+                totalRows = newTotal;
+                $sizer.css('height', (totalRows * rowHeight) + 'px');
+            }
+            if (!$panel.hasClass('collapsed')) {
+                lastStart = -1; lastEnd = -1;
+                renderVisible();
+            }
+        }
+
+        $scroller.on('scroll', renderVisible);
+        // Header click → single-open accordion (with animation).
+        $panel.on('click', '.sd-focus-panel-header.collapsible', function () {
+            // Single-open policy: at least one card must remain open. Clicking the
+            // currently-open card does nothing (user must open another card to switch).
+            if (!$panel.hasClass('collapsed')) return;
+            // Close all others: pin body height so the CSS transition to `height:0` has a start.
+            Object.keys(rawScrollers).forEach(function (k) {
+                if (k === panel.key) return;
+                const rs = rawScrollers[k];
+                if (!rs || rs.$panel.hasClass('collapsed')) return;
+                const b = rs.$panel.find('.sd-raw-body')[0];
+                if (b) b.style.height = b.getBoundingClientRect().height + 'px';
+                rs.$panel.addClass('collapsed');
+                panelExpandedState[k] = false;
+            });
+            // Open this panel and animate from 0 to target height.
+            $panel.removeClass('collapsed');
+            panelExpandedState[panel.key] = true;
+            $body[0].style.transition = 'none';
+            $body[0].style.height = '0px';
+            void $body[0].offsetHeight;
+            $body[0].style.transition = ''; // revert to CSS
+            requestAnimationFrame(function () { fitOpenPanelHeight(); });
+            lastStart = -1; lastEnd = -1;
+            setTimeout(renderVisible, 60);
+            setTimeout(renderVisible, 260);
+        });
+        setTimeout(renderVisible, 0);
+
+        rawScrollers[panel.key] = { $panel: $panel, refresh: refresh };
+        return $panel;
+    }
+
+    function countActive(panel, locks) {
+        const ad = getAdapter('MODBUS');
+        let n = 0;
+        const arr = panel.arr;
+        for (let i = 0; i < arr.length; i++) if (ad.isActive(panel, i, locks)) n++;
+        return n;
+    }
+
+    /** Produce ordered [{type:'row', start} | {type:'empty', rows, startAddr, endAddr}] entries. */
+    function buildRowPlan(panel, locks, mode) {
+        const ad = getAdapter('MODBUS');
+        const arr = panel.arr;
+        const N = rowWidth;
+        const plan = [];
+        let emptyFrom = -1, emptyCount = 0;
+        for (let start = 0; start < arr.length; start += N) {
+            let hasActive = false;
+            const end = Math.min(arr.length, start + N);
+            if (mode === 'focus') {
+                for (let i = start; i < end; i++) {
+                    if (ad.isActive(panel, i, locks)) { hasActive = true; break; }
+                }
+            } else {
+                hasActive = true; // Raw: every row rendered
+            }
+            if (hasActive) {
+                if (emptyCount > 0) {
+                    plan.push({ type: 'empty', rows: emptyCount, startAddr: emptyFrom, endAddr: start - 1 });
+                    emptyCount = 0; emptyFrom = -1;
+                }
+                plan.push({ type: 'row', start: start });
+            } else {
+                if (emptyCount === 0) emptyFrom = start;
+                emptyCount++;
+            }
+        }
+        if (emptyCount > 0) {
+            plan.push({ type: 'empty', rows: emptyCount, startAddr: emptyFrom, endAddr: arr.length - 1 });
+        }
+        return plan;
+    }
+
+    function renderGridRowHtml(panel, start, locks) {
+        const N = rowWidth;
+        let html = '<div class="sd-grid-row">';
+        html += '<span class="sd-grid-row-addr">0x' + start.toString(16).padStart(4, '0').toUpperCase() + '</span>';
+        html += '<span class="sd-grid-row-cells" style="--cols:' + N + '">';
+        for (let k = 0; k < N; k++) {
+            const i = start + k;
+            if (i >= panel.arr.length) {
+                html += '<span class="sd-fcell sd-cell-empty"><span class="fc-offset">' + k.toString(16).toUpperCase() + '</span><span class="fc-val">·</span></span>';
+                continue;
+            }
+            html += renderFocusCellHtml(panel, i, locks, k);
+        }
+        html += '</span></div>';
+        return html;
+    }
+
+    function renderFocusCellHtml(panel, i, locks, colInRow) {
+        const t = panel.fc + '_' + i;
+        const v = panel.arr[i];
+        const isLocked = locks.has(t);
+        const meta = lastChangeMeta[t] || {};
+        const src = meta.source;
+        const classes = ['sd-fcell'];
+        if (src) classes.push('src-' + src);
+        if (isLocked) classes.push('locked');
+        if (inspectionTarget === t) classes.push('selected');
+        // Nibble-group visual separator (every 4th col), except the last cell of the row.
+        if (colInRow !== undefined && (colInRow % 4 === 3) && (colInRow !== rowWidth - 1)) classes.push('sd-quad-end');
+        const display = interpretPrimitive(v, panel.cellType, 'auto');
+        const offsetLabel = (colInRow !== undefined ? colInRow : (i % rowWidth)).toString(16).toUpperCase();
+        return '' +
+            '<span class="' + classes.join(' ') + '" data-target="' + t + '" title="' + t + '">' +
+            '  <span class="fc-offset">' + offsetLabel + '</span>' +
+            '  <span class="fc-val">' + display + '</span>' +
+            '</span>';
+    }
+
+    function renderEmptyRowHtml(rowCount, startAddr, endAddr) {
+        const registers = endAddr - startAddr + 1;
+        const hex = '0x' + startAddr.toString(16).padStart(4, '0').toUpperCase() +
+                    '–0x' + endAddr.toString(16).padStart(4, '0').toUpperCase();
+        return '<div class="sd-empty-row">⋯ ' + rowCount + ' empty rows · ' + registers + ' registers (' + hex + ') ⋯</div>';
+    }
+
+    // Interactions (Focus & Raw share the same cell class)
+    $(document).on('click', '#sdContainer .sd-fcell', function () {
+        const target = $(this).attr('data-target');
+        if (target) openInspection(target);
+    });
+    $(document).on('dblclick', '#sdContainer .sd-fcell', function () {
+        const target = $(this).attr('data-target');
+        if (target) openEditForTarget(target);
+    });
+
+    // ── Inspection tier ────────────────────────────────────────
+    // The panel is always mounted; "open" only tracks whether a target is selected for detail render.
+    function openInspection(target) {
+        inspectionTarget = target;
+        inspectionOpen = true;
+        if (latestSnapshot) {
+            renderInspection(target, latestSnapshot);
+            $('#sdContainer .sd-fcell.selected').removeClass('selected');
+            $('#sdContainer .sd-fcell[data-target="' + cssEscape(target) + '"]').addClass('selected');
+            $('#sdWatchList .sd-watch-card').removeClass('active');
+            $('#sdWatchList .sd-watch-card[data-target="' + cssEscape(target) + '"]').addClass('active');
+        }
+    }
+
+    function renderInspection(target, snap) {
+        const ad = getAdapter(snap.protocol);
+        if (!ad || !ad.parseTarget) {
+            $('#sdInspectionBody').html('<div class="text-muted">Inspection not available for this protocol yet.</div>');
+            return;
+        }
+        const parsed = ad.parseTarget(snap, target);
+        if (!parsed) {
+            $('#sdInspectionBody').html('<div class="text-muted">Target not found in current snapshot.</div>');
+            return;
+        }
+        const meta = lastChangeMeta[target] || {};
+        const isLocked = (snap.locks || []).indexOf(target) >= 0;
+        const interps = ad.interpretations(snap, target);
+        const neighbors = ad.neighbors(snap, target, 8);
+
+        let html = '';
+        html += '<h6>Target</h6>';
+        html += '<div class="kv-row"><span class="k">target</span><span class="v">' + escapeHtml(target) + '</span></div>';
+        html += '<div class="kv-row"><span class="k">context</span><span class="v">' + escapeHtml(ad.contextLabel(snap, target)) + '</span></div>';
+        html += '<div class="kv-row"><span class="k">source</span><span class="v">' + (meta.source ? '<span class="sd-badge src-' + meta.source + '">' + meta.source + '</span>' : '—') + '</span></div>';
+        html += '<div class="kv-row"><span class="k">locked</span><span class="v">' + (isLocked ? '<i class="fas fa-lock" style="color:#2f9e44"></i> yes' : 'no') + '</span></div>';
+        html += '<div class="kv-row"><span class="k">last change</span><span class="v">' + (meta.ts ? new Date(meta.ts).toLocaleTimeString() : '—') + '</span></div>';
+
+        html += '<h6>Interpretations</h6>';
+        interps.forEach(function (r) {
+            html += '<div class="kv-row"><span class="k">' + escapeHtml(r.label) + '</span><span class="v">' + escapeHtml(r.text) + '</span></div>';
+        });
+
+        if (neighbors && neighbors.length > 0) {
+            html += '<h6>Neighbors</h6>';
+            html += '<div class="sd-inspection-neighbors">';
+            neighbors.forEach(function (n) {
+                const disp = interpretPrimitive(n.value, parsed.panel.cellType, 'auto');
+                html += '<div class="nb' + (n.current ? ' current' : '') + '" data-target="' + escapeHtml(n.target) + '">' +
+                        '<span class="nb-addr">' + n.index + '</span>' + disp + '</div>';
+            });
+            html += '</div>';
+        }
+
+        html += '<div class="actions">';
+        html += '  <button class="btn btn-sm btn-outline-primary" id="sdInspectAddWatch"><i class="fas fa-plus"></i> Watch</button>';
+        html += '  <button class="btn btn-sm btn-outline-secondary" id="sdInspectEdit"><i class="fas fa-pen"></i> Edit</button>';
+        html += '</div>';
+
+        $('#sdInspectionBody').html(html);
+    }
+
+    $(document).on('click', '#sdInspectAddWatch', function () {
+        if (!inspectionTarget || !latestSnapshot) return;
+        openWatchModal(inspectionTarget);
+    });
+    $(document).on('click', '#sdInspectEdit', function () {
+        if (!inspectionTarget) return;
+        openEditForTarget(inspectionTarget);
+    });
+    $(document).on('click', '#sdInspectionBody .sd-inspection-neighbors .nb', function () {
+        openInspection($(this).attr('data-target'));
+    });
+
+    // ── Add Watch modal ────────────────────────────────────────
+    function openWatchModal(prefillTarget) {
+        $('#watchTarget').val(prefillTarget || '');
+        $('#watchLabel').val('');
+        $('#watchFormat').val('auto');
+        $('#watchDataTypeGroup').hide();
+        if (prefillTarget && latestSnapshot) {
+            const ad = getAdapter(latestSnapshot.protocol);
+            if (ad && ad.defaultLabel) $('#watchLabel').val(ad.defaultLabel(latestSnapshot, prefillTarget));
+        }
+        $('#watchModal').modal('show');
+    }
+    $(document).on('click', '#sdAddWatchBtn', function () { openWatchModal(null); });
+    $(document).on('change', '#watchFormat', function () {
+        const need = ($(this).val() === 'float' || $(this).val() === 'dec' || $(this).val() === 'signed' || $(this).val() === 'hex');
+        if (need) {
+            const $sel = $('#watchDataType').empty();
+            MODBUS_INT_DATATYPES.forEach(function (dt) { $sel.append('<option value="' + dt + '">' + dt + '</option>'); });
+            $sel.val('UI16AB');
+            $('#watchDataTypeGroup').show();
+        } else {
+            $('#watchDataTypeGroup').hide();
+        }
+    });
+    $(document).on('click', '#watchAddBtn', function () {
+        const t = $('#watchTarget').val().trim();
+        const l = $('#watchLabel').val().trim();
+        const f = $('#watchFormat').val();
+        const dt = $('#watchDataTypeGroup').is(':visible') ? $('#watchDataType').val() : null;
+        if (!t) { alert('Target is required.'); return; }
+        addWatch(t, l, f, dt);
+        $('#watchModal').modal('hide');
+    });
+
+    // ── View mode tabs (Focus / Raw) ──────────────────────────
+    /** Focus needs a protocol adapter; only grid-shaped protocols have one. */
+    function focusAvailable(protocol) { return isGridProtocol(protocol); }
+
+    /**
+     * Lock the view to Raw when the protocol has no Focus adapter, and disable the Focus tab.
+     * Without this the page opened on an empty "Focus view not yet available" placeholder and
+     * made the user click Raw every time.
+     */
+    function syncViewTabs(protocol) {
+        const canFocus = focusAvailable(protocol);
+        $('#sdViewFocus')
+            .prop('disabled', !canFocus)
+            .toggleClass('disabled', !canFocus)
+            .attr('aria-disabled', canFocus ? 'false' : 'true')
+            .attr('title', canFocus ? '' : 'Focus view is not available for ' + protocol);
+        if (!canFocus && viewMode !== 'raw') {
+            viewMode = 'raw';
+            $('#sdViewFocus').removeClass('active').attr('aria-selected', 'false');
+            $('#sdViewRaw').addClass('active').attr('aria-selected', 'true');
+        }
+    }
+
+    function setViewMode(mode) {
+        if (mode !== 'focus' && mode !== 'raw') return;
+        // Ignore a Focus request the current protocol cannot serve.
+        if (mode === 'focus' && !focusAvailable(latestSnapshot && latestSnapshot.protocol)) return;
+        if (viewMode === mode) return;
+        viewMode = mode;
+        $('#sdViewFocus').toggleClass('active', mode === 'focus').attr('aria-selected', mode === 'focus');
+        $('#sdViewRaw').toggleClass('active',   mode === 'raw').attr('aria-selected',   mode === 'raw');
+        if (latestSnapshot) renderSnapshot(latestSnapshot);
+    }
+    $(document).on('click', '#sdViewFocus', function () { setViewMode('focus'); });
+    $(document).on('click', '#sdViewRaw',   function () { setViewMode('raw'); });
+
+    // Row size (cells per row) selector — affects both Focus and Raw grid.
+    // Auto: switches between 8 and 16 based on container width.
+    $(document).on('change', '#sdRowWidth', function () {
+        const v = $(this).val();
+        rowWidthMode = (v === 'auto') ? 'auto' : parseInt(v, 10);
+        maybeReflowRowWidth(true);
+    });
+
+    /** Recompute rowWidth; if it changed (or forceRender), re-render the current view. */
+    function maybeReflowRowWidth(forceRender) {
+        const next = computeRowWidth();
+        if (next !== rowWidth) {
+            rowWidth = next;
+            // Row layout is different — force Raw scrollers to rebuild so sizer/viewport reset cleanly.
+            rawScrollers = {};
+            if (latestSnapshot) renderSnapshot(latestSnapshot);
+        } else if (forceRender && latestSnapshot) {
+            renderSnapshot(latestSnapshot);
+        }
+    }
+
+    // Keep the open Raw panel sized to viewport on window resize.
+    (function () {
+        let t = 0;
+        window.addEventListener('resize', function () {
+            clearTimeout(t);
+            t = setTimeout(function () { fitOpenPanelHeight(); }, 80);
+        });
+    })();
+
+    // Observe container width so Auto mode reflows on window/sidebar resize.
+    (function () {
+        function attach() {
+            const el = document.getElementById('sdContainer');
+            if (!el) return;
+            if (typeof ResizeObserver === 'function') {
+                let raf = 0;
+                const ro = new ResizeObserver(function () {
+                    if (raf) cancelAnimationFrame(raf);
+                    raf = requestAnimationFrame(function () {
+                        raf = 0;
+                        if (rowWidthMode === 'auto') maybeReflowRowWidth(false);
+                    });
+                });
+                ro.observe(el);
+            } else {
+                // Fallback: window resize
+                let t = 0;
+                window.addEventListener('resize', function () {
+                    clearTimeout(t);
+                    t = setTimeout(function () {
+                        if (rowWidthMode === 'auto') maybeReflowRowWidth(false);
+                    }, 120);
+                });
+            }
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', attach);
+        } else {
+            attach();
+        }
+    })();
+
+    // ── Small utilities ───────────────────────────────────────
+    function escapeHtml(s) {
+        if (s === null || typeof s === 'undefined') return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function cssEscape(s) {
+        // Escape characters that break attribute selectors (%, _ are fine in CSS3 attr eq)
+        return String(s).replace(/([\\"\'])/g, '\\$1');
+    }
+
+    // (Old Tabulator-based Modbus grid was removed — Focus/Raw now share renderSquareGrid.)
+
+    /** Compare newRows[] with oldRows[]; apply only changed via table.updateData. Assumes index=target. */
+    function diffUpdate(key, newRows) {
+        const table = tables[key];
+        if (!table) return;
+        const oldMap = {};
+        (allRows[key] || []).forEach(function (r) { oldMap[r.target] = r; });
+        const updates = [];
+        newRows.forEach(function (r) {
+            const o = oldMap[r.target];
+            if (!o || o.value !== r.value || o.locked !== r.locked || o.display !== r.display) {
+                updates.push(r);
+            }
+        });
+        allRows[key] = newRows;
+        if (updates.length > 0) table.updateData(updates);
+    }
+
+    // ── XGT renderer (per-block hex dump; editing exemplified on D block) ─────
+    function renderXGT(p, locks, firstRender) {
+        const container = $('#sdContainer');
+        if (firstRender) container.empty();
+        Object.keys(p.blocks).forEach(function (blockName) {
+            const key = 'xgt_' + blockName;
+            const arr = p.blocks[blockName];
+            const fmt = function (v) { return '0x' + (v & 0xFF).toString(16).padStart(2, '0').toUpperCase(); };
+            displayFormatters[key] = fmt;
+            const rows = arr.map(function (v, i) {
+                const target = '%' + blockName + 'B' + i;
+                return {
+                    target: target,
+                    address: i,
+                    value: v,
+                    display: fmt(v),
+                    locked: locks.has(target),
+                    source: null
+                };
+            });
+            allRows[key] = rows;
+            if (firstRender) {
+                container.append(
+                    '<div class="sd-panel">' +
+                    '  <div class="sd-panel-header"><span class="fc-title">' + blockName + ' Block</span></div>' +
+                    '  <div class="sd-panel-body"><div id="tbl_' + key + '"></div></div>' +
+                    '</div>'
+                );
+                const table = new Tabulator('#tbl_' + key, {
+                    data: rows, index: 'target', layout: 'fitColumns', height: '360px', virtualDom: true, cssClass: 'sd-table',
+                    columns: xgtColumns(),
+                    rowFormatter: rowLockFormatter
+                });
+                tables[key] = table;
+                table.on('rowDblClick', function (e, row) {
+                    openEditModal({
+                        target: row.getData().target,
+                        dataTypeOptions: ['UI8', 'SI8'],
+                        defaultDataType: 'UI8',
+                        value: row.getData().value,
+                        mode: 'byte',
+                        hint: 'UI8: 0..255, SI8: -128..127'
+                    });
+                });
+            } else {
+                diffUpdate(key, rows);
+            }
+        });
+    }
+    function xgtColumns() {
+        return [
+            { title: 'Byte addr', field: 'address', width: 120, minWidth: 120, hozAlign: 'center', headerHozAlign: 'center', headerSort: false },
+            { title: 'Value', field: 'display', hozAlign: 'center', headerHozAlign: 'center', minWidth: 140, headerSort: false,
+              formatter: function (cell) {
+                  const d = cell.getRow().getData();
+                  return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
+              }
+            },
+            { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
+              formatter: function (cell) {
+                  const v = cell.getValue();
+                  return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
+              }
+            }
+        ];
+    }
+    function rowLockFormatter(row) {
+        if (row.getData().locked) row.getElement().classList.add('sd-locked-cell');
+        else row.getElement().classList.remove('sd-locked-cell');
+    }
+
+    // ── OPC Agent renderer ─────────────────────────────────────
+    function renderOpcAgent(p, locks, firstRender) {
+        const container = $('#sdContainer');
+        const key = 'opc_values';
+        const fmt = function (v) { return v; };
+        displayFormatters[key] = fmt;
+        const rows = (p.values || []).map(function (v, i) {
+            const target = String(i);
+            return { target: target, address: i, value: v, display: fmt(v), locked: locks.has(target), source: null };
+        });
+        allRows[key] = rows;
+        if (firstRender) {
+            container.empty();
+            container.append(
+                '<div class="sd-panel">' +
+                '  <div class="sd-panel-header"><span class="fc-title">OPC Agent Values</span></div>' +
+                '  <div class="sd-panel-body"><div id="tbl_' + key + '"></div></div>' +
+                '</div>'
+            );
+            const table = new Tabulator('#tbl_' + key, {
+                data: rows, index: 'target', layout: 'fitColumns', height: '500px', virtualDom: true, cssClass: 'sd-table',
+                columns: [
+                    { title: 'Index', field: 'address', width: 120, minWidth: 120, hozAlign: 'center', headerHozAlign: 'center', headerSort: false },
+                    { title: 'Value', field: 'display', hozAlign: 'center', headerHozAlign: 'center', minWidth: 160, headerSort: false,
+                      formatter: function (cell) {
+                          const d = cell.getRow().getData();
+                          return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
+                      }
+                    },
+                    { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
+                      formatter: function (cell) {
+                          const v = cell.getValue();
+                          return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
+                      }
+                    }
+                ],
+                rowFormatter: rowLockFormatter
+            });
+            tables[key] = table;
+            table.on('rowDblClick', function (e, row) {
+                openEditModal({
+                    target: row.getData().target,
+                    dataTypeOptions: null,
+                    defaultDataType: null,
+                    value: row.getData().value,
+                    mode: 'free',
+                    hint: 'Numeric value'
+                });
+            });
+        } else {
+            diffUpdate(key, rows);
+        }
+    }
+
+    // ── Daeyun renderer ────────────────────────────────────────
+    function renderDaeyun(p, locks, firstRender) {
+        const container = $('#sdContainer');
+        if (firstRender) container.empty();
+        const groups = [
+            { key: 'dae_ai', title: 'Analog channels (@RCUAI_)', prefix: '@RCUAI_', arr: p.analogChannels, base: 1 },
+            { key: 'dae_di', title: 'Digital channels (@RCUDI_)', prefix: '@RCUDI_', arr: p.digitalChannels, base: 1 }
+        ];
+        groups.forEach(function (g) {
+            const fmt = function (v) { return v; };
+            displayFormatters[g.key] = fmt;
+            const rows = g.arr.map(function (v, i) {
+                const target = g.prefix + (i + g.base);
+                return { target: target, address: (i + g.base), value: v, display: fmt(v), locked: locks.has(target), source: null };
+            });
+            allRows[g.key] = rows;
+            if (firstRender) {
+                container.append(
+                    '<div class="sd-panel">' +
+                    '  <div class="sd-panel-header"><span class="fc-title">' + g.title + '</span></div>' +
+                    '  <div class="sd-panel-body"><div id="tbl_' + g.key + '"></div></div>' +
+                    '</div>'
+                );
+                const table = new Tabulator('#tbl_' + g.key, {
+                    data: rows, index: 'target', layout: 'fitColumns', height: '340px', virtualDom: true, cssClass: 'sd-table',
+                    columns: xgtColumns(),
+                    rowFormatter: rowLockFormatter
+                });
+                tables[g.key] = table;
+                table.on('rowDblClick', function (e, row) {
+                    openEditModal({
+                        target: row.getData().target,
+                        dataTypeOptions: null,
+                        defaultDataType: null,
+                        value: row.getData().value,
+                        mode: 'free',
+                        hint: 'Numeric value'
+                    });
+                });
+            } else {
+                diffUpdate(g.key, rows);
+            }
+        });
+    }
+
+    // ── Key/Value renderer (SNMP/EIP/Generic) ─────────────────
+    function renderKeyValue(title, obj, locks, firstRender, key, keyLabel) {
+        const container = $('#sdContainer');
+        const fmt = function (v) { return v; };
+        displayFormatters[key] = fmt;
+        const rows = Object.keys(obj || {}).map(function (k) {
+            return { target: k, key: k, value: obj[k], display: fmt(obj[k]), locked: locks.has(k), source: null };
+        });
+        allRows[key] = rows;
+        if (firstRender) {
+            container.empty();
+            container.append(
+                '<div class="sd-panel">' +
+                '  <div class="sd-panel-header"><span class="fc-title">' + title + '</span></div>' +
+                '  <div class="sd-panel-body"><div id="tbl_' + key + '"></div></div>' +
+                '</div>'
+            );
+            const table = new Tabulator('#tbl_' + key, {
+                data: rows, index: 'target', layout: 'fitColumns', height: '500px', virtualDom: true, cssClass: 'sd-table',
+                columns: [
+                    { title: keyLabel, field: 'key', minWidth: 180, headerSort: false },
+                    { title: 'Value', field: 'display', hozAlign: 'right', headerHozAlign: 'right', minWidth: 160, headerSort: false,
+                      formatter: function (cell) {
+                          const d = cell.getRow().getData();
+                          return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
+                      }
+                    },
+                    { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
+                      formatter: function (cell) {
+                          const v = cell.getValue();
+                          return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
+                      }
+                    }
+                ],
+                rowFormatter: rowLockFormatter,
+                placeholder: 'No data yet. Waiting for simulation or write…'
+            });
+            tables[key] = table;
+            table.on('rowDblClick', function (e, row) {
+                openEditModal({
+                    target: row.getData().target,
+                    dataTypeOptions: null,
+                    defaultDataType: null,
+                    value: row.getData().value,
+                    mode: 'free',
+                    hint: 'Numeric value'
+                });
+            });
+        } else {
+            diffUpdate(key, rows);
+        }
+    }
+
+    // ── BACnet renderer ────────────────────────────────────────
+    /**
+     * BACnet stores values per simulation id, so an "object" here IS a simulation:
+     * its target ("<object_type> <instance>") is the object identifier. The snapshot
+     * ships payload.objects = [{ target, object, name, simulationId, value }].
+     * Writing to a target with no simulation is rejected by the server, so the rows
+     * shown here are exactly the writable set.
+     */
+    function renderBACnet(p, locks, firstRender) {
+        const container = $('#sdContainer');
+        const fmt = function (v) { return (v === null || v === undefined) ? '' : v; };
+        displayFormatters['bacnet'] = fmt;
+        const rows = (p.objects || []).map(function (o) {
+            return {
+                target: o.target,
+                object: o.object || o.target,
+                simName: o.name,
+                simulationId: o.simulationId,
+                value: o.value,
+                display: fmt(o.value),
+                locked: locks.has(o.target),
+                source: null
+            };
+        });
+        allRows['bacnet'] = rows;
+        if (firstRender) {
+            container.empty();
+            container.append(
+                '<div class="sd-panel">' +
+                '  <div class="sd-panel-header"><span class="fc-title">BACnet Objects</span></div>' +
+                '  <div class="sd-panel-body"><div id="tbl_bacnet"></div></div>' +
+                '</div>'
+            );
+            const table = new Tabulator('#tbl_bacnet', {
+                data: rows, index: 'target', layout: 'fitColumns', height: '500px',
+                virtualDom: true, cssClass: 'sd-table',
+                columns: [
+                    { title: 'Object', field: 'object', minWidth: 200, headerSort: false },
+                    { title: 'Target', field: 'target', minWidth: 180, headerSort: false,
+                      formatter: function (cell) {
+                          return '<span style="font-family:monospace">' + cell.getValue() + '</span>';
+                      }
+                    },
+                    { title: 'Value', field: 'display', hozAlign: 'right', headerHozAlign: 'right',
+                      minWidth: 140, headerSort: false,
+                      formatter: function (cell) {
+                          const d = cell.getRow().getData();
+                          return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
+                      }
+                    },
+                    { title: 'Simulation', field: 'simName', minWidth: 160, headerSort: false },
+                    { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center',
+                      headerHozAlign: 'center', headerSort: false,
+                      formatter: function (cell) {
+                          const v = cell.getValue();
+                          return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
+                      }
+                    }
+                ],
+                rowFormatter: rowLockFormatter,
+                placeholder: 'No BACnet objects. Add a simulation to this device first.'
+            });
+            tables['bacnet'] = table;
+            table.on('rowDblClick', function (e, row) {
+                openEditModal({
+                    target: row.getData().target,
+                    dataTypeOptions: null,
+                    defaultDataType: null,
+                    value: row.getData().value,
+                    mode: 'free',
+                    hint: 'BACnet present value (numeric)'
+                });
+            });
+        } else {
+            diffUpdate('bacnet', rows);
+        }
+    }
+
+    // ── Value validation ───────────────────────────────────────
+    /**
+     * Validate the input string by ctx.mode. Returns { ok:true, value } or { ok:false, error }.
+     * mode: 'bit' | 'byte' | 'datatype' | 'free'
+     */
+    function validateEditValue(ctx, raw) {
+        if (raw === '' || raw === null || raw === undefined) return { ok: false, error: 'Value is empty.' };
+
+        if (ctx.mode === 'bit') {
+            if (raw !== '0' && raw !== '1') return { ok: false, error: 'Bit value must be 0 or 1.' };
+            return { ok: true, value: parseInt(raw, 10) };
+        }
+
+        if (ctx.mode === 'byte') {
+            // 'UI8' | 'SI8'
+            const dt = $('#editDataType').val();
+            if (!/^-?\d+$/.test(raw)) return { ok: false, error: 'Integer required.' };
+            const v = parseInt(raw, 10);
+            if (dt === 'UI8'  && (v < 0 || v > 255))    return { ok: false, error: 'UI8 range: 0..255.' };
+            if (dt === 'SI8'  && (v < -128 || v > 127)) return { ok: false, error: 'SI8 range: -128..127.' };
+            return { ok: true, value: v };
+        }
+
+        if (ctx.mode === 'datatype') {
+            const dt = $('#editDataType').val();
+            const bits = parseInt(dt.replace(/\D/g, ''), 10);
+            const isFP = dt.startsWith('FP');
+            const isUI = dt.startsWith('UI');
+            const isSI = dt.startsWith('SI');
+            if (!isFP && !/^-?\d+$/.test(raw)) return { ok: false, error: 'Integer required for ' + dt + '.' };
+            if (isFP && !/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(raw))
+                return { ok: false, error: 'Floating-point required for ' + dt + '.' };
+            if (isUI) {
+                if (raw.startsWith('-')) return { ok: false, error: dt + ' cannot be negative.' };
+                if (bits === 16 && parseInt(raw,10) > 65535)        return { ok: false, error: 'UI16 max: 65535.' };
+                if (bits === 32 && parseInt(raw,10) > 4294967295)   return { ok: false, error: 'UI32 max: 4,294,967,295.' };
+                return { ok: true, value: parseInt(raw, 10) };
+            }
+            if (isSI) {
+                if (bits === 16) {
+                    const v = parseInt(raw,10);
+                    if (v < -32768 || v > 32767) return { ok: false, error: 'SI16 range: -32,768..32,767.' };
+                    return { ok: true, value: v };
+                }
+                if (bits === 32) {
+                    const v = parseInt(raw,10);
+                    if (v < -2147483648 || v > 2147483647) return { ok: false, error: 'SI32 range.' };
+                    return { ok: true, value: v };
+                }
+                if (bits === 64) {
+                    try {
+                        const bv = BigInt(raw);
+                        if (bv < -9223372036854775808n || bv > 9223372036854775807n)
+                            return { ok: false, error: 'SI64 range.' };
+                        // Note: server accepts double, so precision may drop for very large SI64.
+                        return { ok: true, value: Number(bv) };
+                    } catch (e) { return { ok: false, error: 'Invalid SI64.' }; }
+                }
+            }
+            if (isFP) {
+                const v = parseFloat(raw);
+                if (bits === 32 && (v > 3.4028235e38 || v < -3.4028235e38))
+                    return { ok: false, error: 'FP32 range.' };
+                return { ok: true, value: v };
+            }
+        }
+
+        // mode: free
+        const v = parseFloat(raw);
+        if (isNaN(v)) return { ok: false, error: 'Numeric value required.' };
+        return { ok: true, value: v };
+    }
+
+    // ── Edit modal ─────────────────────────────────────────────
+    function openEditModal(ctx) {
+        currentEditContext = ctx;
+        $('#editTarget').val(ctx.target);
+        $('#editValue').val(ctx.value);
+        $('#editHint').text(ctx.hint || '');
+        if (ctx.dataTypeOptions) {
+            const $sel = $('#editDataType').empty();
+            ctx.dataTypeOptions.forEach(function (dt) {
+                $sel.append('<option value="' + dt + '">' + dt + '</option>');
+            });
+            $sel.val(ctx.defaultDataType);
+            $('#editDataTypeGroup').show();
+        } else {
+            $('#editDataTypeGroup').hide();
+        }
+        $('#editModal').modal('show');
+        setTimeout(function () { $('#editValue').trigger('focus').trigger('select'); }, 200);
+    }
+
+    // Block ESC / backdrop click while a REST write is in flight.
+    let writeInFlight = false;
+    $(document).on('hide.bs.modal', '#editModal', function (e) {
+        if (writeInFlight) e.preventDefault();
+    });
+
+    function setModalBusy(busy) {
+        const $btn = $('#editSaveBtn');
+        if (busy) {
+            $btn.prop('disabled', true).data('orig', $btn.html())
+                .html('<span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>Saving…');
+            $('#editCancelBtn, #editModal .close').prop('disabled', true).addClass('disabled');
+            $('#editModal input, #editModal select').prop('disabled', true);
+        } else {
+            $btn.prop('disabled', false).html($btn.data('orig') || 'Save');
+            $('#editCancelBtn, #editModal .close').prop('disabled', false).removeClass('disabled');
+            $('#editModal input, #editModal select').prop('disabled', false);
+            $('#editTarget').prop('readonly', true);
+        }
+    }
+
+    /**
+     * ServerData write → REST POST. WebSocket is subscribe-only.
+     * On 200 the server also broadcasts to /topic/…/events (which our own client ignores
+     * for API_WRITE — see handleEventMessage), so we apply the response payload directly.
+     */
+    $(document).on('click', '#editSaveBtn', function () {
+        if (!currentEditContext) return;
+        if (writeInFlight) return;
+        const raw = String($('#editValue').val()).trim();
+        const validated = validateEditValue(currentEditContext, raw);
+        if (!validated.ok) { alert(validated.error); return; }
+        const payload = {
+            target: $('#editTarget').val(),
+            value: validated.value,
+            // -1 = permanent lock: simulations must not overwrite what the editor just wrote.
+            // Released when this editing session ends (disconnect or ack timeout → clearAllLocks).
+            lockSeconds: -1
+        };
+        if ($('#editDataTypeGroup').is(':visible')) {
+            payload.dataType = $('#editDataType').val();
+        }
+        writeInFlight = true;
+        setModalBusy(true);
+        $.ajax({
+            url: '/api/devices/' + deviceId + '/serverdata',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            timeout: 8000
+        }).done(function (resp) {
+            writeInFlight = false;
+            setModalBusy(false);
+            if (resp && resp.ok) {
+                applyEventDelta({
+                    target: resp.target,
+                    value: resp.value,
+                    source: resp.source || 'API_WRITE',
+                    affectedTargets: resp.affectedTargets || [resp.target],
+                    targetValues: resp.targetValues || {},
+                    ts: resp.ts
+                });
+                $('#editModal').modal('hide');
+            } else {
+                alert('Write failed: ' + ((resp && resp.error) || 'unknown'));
+            }
+        }).fail(function (xhr, status) {
+            writeInFlight = false;
+            setModalBusy(false);
+            let msg = 'Write failed';
+            try {
+                const body = JSON.parse(xhr.responseText || '{}');
+                if (body && body.error) msg = 'Write failed: ' + body.error;
+            } catch (e) { msg = 'Write failed: ' + (status || xhr.status); }
+            alert(msg);
+        });
+    });
+
+    // ── Startup ────────────────────────────────────────────────
+    $(function () {
+        initInfoBar();
+        // Reflect the starting view mode on the tabs (the markup hardcodes Focus as active).
+        $('#sdViewFocus').toggleClass('active', viewMode === 'focus')
+                         .attr('aria-selected', viewMode === 'focus');
+        $('#sdViewRaw').toggleClass('active', viewMode === 'raw')
+                       .attr('aria-selected', viewMode === 'raw');
+        syncViewTabs(device.protocol);
+        // Seed rowWidth from initial container width so the first render matches viewport.
+        rowWidth = computeRowWidth();
+        connect();
+    });
+    /*]]>*/
+</script>
+</body>
+</html>
