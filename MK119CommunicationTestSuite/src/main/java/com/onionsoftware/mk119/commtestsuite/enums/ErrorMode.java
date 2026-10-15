@@ -6,6 +6,7 @@ public enum ErrorMode {
     GARBAGE(2),
     DISCONNECT(3),
     SIMULATION(4);
+
     final private int value;
 
     ErrorMode(int value) {

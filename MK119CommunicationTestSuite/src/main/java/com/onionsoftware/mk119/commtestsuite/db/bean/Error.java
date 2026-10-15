@@ -1,18 +1,13 @@
 package com.onionsoftware.mk119.commtestsuite.db.bean;
 
-import com.google.common.primitives.UnsignedBytes;
 import com.onionsoftware.mk119.commtestsuite.db.bean.converter.ErrorModeIntegerConverter;
 import com.onionsoftware.mk119.commtestsuite.enums.ErrorMode;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
 
 import javax.persistence.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 @Getter
@@ -42,64 +37,30 @@ public class Error {
     private Double errorValue;
     private Integer simulation_stop;
 
+    /**
+     * 에러 시뮬레이션의 확률 판정 주기 (초).
+     * 이 간격마다 주사위를 굴려 에러 발생 여부를 판정한다.
+     */
+    @Column(name = "`interval`")
+    private int interval;
+
+    /**
+     * 시스템 에러(DISCARD, TIMEOUT, GARBAGE, DISCONNECT)의 유지 시간 (초).
+     * 에러가 활성화되면 이 시간 동안 해당 에러 동작이 유지된다.
+     */
+    @Column(name = "error_duration")
+    private int errorDuration;
+
     public static final int ERROR_DISABLED = 0;
     public static final int ERROR_ENABLED = 1;
 
-    static Random random = new Random();
-
-    public static Error getOccuredError(List<Error> errors) {
-        int[] cumulativeFrequencies = new int[errors.size()];
-        int freqTotal = 0;
-        for (int i = 0; i < errors.size(); i++) {
-            freqTotal += errors.get(i).getFrequency();
-            cumulativeFrequencies[i] = freqTotal;
-        }
-
-        int flag = random.nextInt(100);
-        for (int i = 0; i < cumulativeFrequencies.length; i++) {
-            if(flag < cumulativeFrequencies[i] && errors.get(i).getEnabled() == ERROR_ENABLED) {
-                return errors.get(i);
-            }
-        }
-
-        return null;
-    }
-
     /**
-     * 에러의 빈도 설정과 발생 모드를 참조하여 에러 동작을 수행한다.
-     * Random으로 빈도 미만의 숫자일 때 동작한다.
-     * Mode에 따라 아래의 정의대로 리턴한다.
-     *
-     * @return 동일 인스턴스를 반환할 경우 에러 없음, null일 경우 Discard, 길이가 0일 경우 Timeout, 길이가 있을 경우 Garbage
+     * frequency(0~100 percent)를 기반으로 이번 tick에 에러가 발동할지 확률 판정한다.
+     * frequency ≤ 0 이면 항상 false, ≥ 100 이면 항상 true.
      */
-    public ErrorResult performErrorSimulation(ByteBuf out) {
-        ErrorResult errorResult = new ErrorResult();
-        if (random.nextInt(100) < this.getFrequency() && this.getEnabled() == Error.ERROR_ENABLED) {
-            if (mode == ErrorMode.DISCARD) {
-                errorResult.setResultType(ErrorResult.RESULT_TYPE_DISCARD);
-                return errorResult;
-            } else if (mode == ErrorMode.TIMEOUT) {
-                try {
-                    Thread.sleep(getTimeout() * 1000L);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                errorResult.setResultType(ErrorResult.RESULT_TYPE_TIMEOUT);
-                errorResult.setBufToWrite(out);
-                return errorResult;
-            } else if (mode == ErrorMode.GARBAGE) {
-                ByteBuf ret = Unpooled.buffer();
-                for (int i = 0; i < getGarbageLength(); i++) {
-                    ret.writeByte(random.nextInt(255));
-                }
-                errorResult.setResultType(ErrorResult.RESULT_TYPE_GARBAGE);
-                errorResult.setBufToWrite(ret);
-                return errorResult;
-            } else {
-                errorResult.setResultType(ErrorResult.RESULT_TYPE_DISCONNECT);
-                return errorResult;
-            }
-        }
-        return null;
+    public boolean shouldFire() {
+        if (frequency <= 0) return false;
+        if (frequency >= 100) return true;
+        return ThreadLocalRandom.current().nextInt(100) < frequency;
     }
 }

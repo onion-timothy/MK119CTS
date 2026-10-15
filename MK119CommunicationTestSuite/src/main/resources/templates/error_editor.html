@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,17 +23,19 @@
         let garbageLength;
         let modes = ['DISCARD', 'TIMEOUT', 'GARBAGE', 'DISCONNECT', 'SIMULATION'];
         let simulation_stop;
+        let error_duration;
 
         let system_frequency_occupied = 0;
         let simulation_frequency_occupied = 0;
 
         function onload() {
-            device = [[${device}]];
-            error = [[${simulation}]] == null ? undefined : [[${simulation}]];
+            device = [[${ device }]];
+            error = [[${ simulation }]] == null ? undefined : [[${ simulation }]];
             frequency = $('#frequency').bootstrapSlider();
             timeout = $('#timeout').bootstrapSlider();
             garbageLength = $('#garbage-length').bootstrapSlider();
             simulation_stop = $('#simulation-stop').bootstrapSlider();
+            error_duration = $('#error-duration').bootstrapSlider();
 
             if (!error) {
                 $('#title').text("Add simulation to '" + device.name + "'");
@@ -50,6 +53,7 @@
                 modeSelector.val(modeIndex)
                 $('#enabled').val(error.enabled)
                 frequency.bootstrapSlider('setValue', error.frequency)
+                $('#error-interval').val(error.interval || 10)
                 if (modeIndex === 1) {
                     timeout.bootstrapSlider('setValue', error.timeout)
                 } else if (modeIndex === 2) {
@@ -58,6 +62,9 @@
                     $('#simulation').val(error.simulation.id).change()
                     $('#value').val(error.errorValue)
                     simulation_stop.bootstrapSlider('setValue', error.simulation_stop)
+                }
+                if (modeIndex !== 4) {
+                    error_duration.bootstrapSlider('setValue', error.errorDuration || 30)
                 }
             }
 
@@ -80,7 +87,7 @@
                         let errorMode = $('#errorMode').val()
                         let frequency_remain = 100 - (errorMode === '4' ? simulation_frequency_occupied : system_frequency_occupied)
 
-                        if(error) {
+                        if (error) {
                             frequency_remain += error.frequency;
                         }
 
@@ -112,6 +119,12 @@
                 _error.simulation = simulation;
                 _error.errorValue = parseFloat($('#value').val())
                 _error.simulation_stop = simulation_stop.bootstrapSlider('getValue');
+            }
+
+            // 1초 미만이면 ErrorService.startErrorSchedule 이 스케줄을 걸지 않고 조용히 넘어간다
+            _error.interval = Math.max(1, parseInt($('#error-interval').val(), 10) || 1);
+            if (_error.mode !== 4) {
+                _error.errorDuration = error_duration.bootstrapSlider('getValue');
             }
 
             _error.id = error ? error.id : null;
@@ -149,18 +162,30 @@
                 formTimeout.hide();
                 formGarbageLength.hide();
                 formSimulation.hide();
+                $('#duration-from-group').show();
+                $('#interval-form-group').show();
             } else if (mode === 1) {
                 formTimeout.show();
                 formGarbageLength.hide();
                 formSimulation.hide();
+                $('#duration-from-group').show();
+                $('#interval-form-group').show();
             } else if (mode === 2) {
                 formTimeout.hide();
                 formGarbageLength.show();
                 formSimulation.hide();
+                $('#duration-from-group').show();
+                $('#interval-form-group').show();
             } else if (mode === 4) {
                 formTimeout.hide();
                 formGarbageLength.hide();
                 formSimulation.show();
+                $('#duration-from-group').hide();
+                // Simulation stop 은 target 을 쓰기 보호해서 멈춘다. DB 장비는 ServerData 없이
+                // SQL 로 바로 쓰므로 걸 대상이 없다 — 입력칸을 보여 주지 않는다.
+                $('#simulation-stop-group').toggle(device.protocol !== 'DB');
+                // SIMULATION 모드도 자기 자신의 interval로 독립 스케줄링됨. interval은 확률 판정 주기.
+                $('#interval-form-group').show();
                 simulationSelect.empty();
 
                 $.ajax({
@@ -179,240 +204,259 @@
         /*]]>*/
     </script>
 </head>
+
 <body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <!-- Left navbar links -->
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
-        </ul>
+    <div class="wrapper">
+        <!-- Navbar -->
+        <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+            <!-- Left navbar links -->
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+                </li>
+                <li class="nav-item d-none d-sm-inline-block">
+                    <a href="/" class="nav-link">Home</a>
+                </li>
+                <li class="nav-item d-none d-sm-inline-block">
+                    <a href="#" class="nav-link">Contact</a>
+                </li>
+            </ul>
 
-        <!-- Right navbar links -->
-        <ul class="navbar-nav ml-auto">
-            <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
-                </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
-                                </button>
+            <!-- Right navbar links -->
+            <ul class="navbar-nav ml-auto">
+                <!-- Navbar Search -->
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="navbar-search" href="#" role="button">
+                        <i class="fas fa-search"></i>
+                    </a>
+                    <div class="navbar-search-block">
+                        <form class="form-inline">
+                            <div class="input-group input-group-sm">
+                                <input class="form-control form-control-navbar" type="search" placeholder="Search"
+                                    aria-label="Search">
+                                <div class="input-group-append">
+                                    <button class="btn btn-navbar" type="submit">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                    <button class="btn btn-navbar" type="button" data-widget="navbar-search">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </form>
-                </div>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <!-- /.navbar -->
+                        </form>
+                    </div>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="fullscreen" href="#" role="button">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <!-- /.navbar -->
 
-    <!-- Main Sidebar Container -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <!-- Brand Logo -->
-        <a href="#" class="brand-link">
-            <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <!-- Sidebar Menu -->
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <!-- Add icons to the links using the .nav-icon class
+        <!-- Main Sidebar Container -->
+        <aside class="main-sidebar sidebar-dark-primary elevation-4">
+            <!-- Brand Logo -->
+            <a href="#" class="brand-link">
+                <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
+                    style="opacity: .8">
+                <span class="brand-text font-weight-light">MK119 CTS</span>
+            </a>
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Sidebar Menu -->
+                <nav class="mt-2">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
+                        data-accordion="false">
+                        <!-- Add icons to the links using the .nav-icon class
                          with font-awesome or any other icon font library -->
 
-                    <li class="nav-item">
-                        <a href="/" class="nav-link">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>
-                                Devices
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>
-                                Value Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>
-                                Error Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Settings
-                            </p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <!-- /.sidebar-menu -->
-        </div>
-        <!-- /.sidebar -->
-    </aside>
+                        <li class="nav-item">
+                            <a href="/" class="nav-link">
+                                <i class="nav-icon fas fa-table"></i>
+                                <p>
+                                    Devices
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/simulations" class="nav-link">
+                                <i class="nav-icon fas fa-chart-area"></i>
+                                <p>
+                                    Value Simulations
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/errors" class="nav-link">
+                                <i class="nav-icon fas fa-bomb"></i>
+                                <p>
+                                    Error Simulations
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/settings" class="nav-link">
+                                <i class="nav-icon fas fa-sliders-h"></i>
+                                <p>
+                                    Settings
+                                </p>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <!-- /.sidebar-menu -->
+            </div>
+            <!-- /.sidebar -->
+        </aside>
 
-    <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper">
-        <!-- Content Header (Page header) -->
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0" id="title"></h1>
-                    </div><!-- /.col -->
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active" id="menuText"></li>
-                        </ol>
-                    </div><!-- /.col -->
-                </div><!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </div>
-        <!-- /.content-header -->
+        <!-- Content Wrapper. Contains page content -->
+        <div class="content-wrapper">
+            <!-- Content Header (Page header) -->
+            <div class="content-header">
+                <div class="container-fluid">
+                    <div class="row mb-2">
+                        <div class="col-sm-6">
+                            <h1 class="m-0" id="title"></h1>
+                        </div><!-- /.col -->
+                        <div class="col-sm-6">
+                            <ol class="breadcrumb float-sm-right">
+                                <li class="breadcrumb-item"><a href="#">Home</a></li>
+                                <li class="breadcrumb-item active" id="menuText"></li>
+                            </ol>
+                        </div><!-- /.col -->
+                    </div><!-- /.row -->
+                </div><!-- /.container-fluid -->
+            </div>
+            <!-- /.content-header -->
 
-        <!-- Main content -->
-        <section class="content">
-            <div class="container-fluid">
-                <!-- Small boxes (Stat box) -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card card-default">
-                            <div class="card-header">
-                                <h3 class="card-title">Information of simulation</h3>
-                            </div>
-                            <div class="card-body p-2">
-                                <div class="form-group">
-                                    <label for="errorMode">Error mode</label>
-                                    <select class="custom-select form-control-border" id="errorMode"
+            <!-- Main content -->
+            <section class="content">
+                <div class="container-fluid">
+                    <!-- Small boxes (Stat box) -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card card-default">
+                                <div class="card-header">
+                                    <h3 class="card-title">Information of simulation</h3>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="form-group">
+                                        <label for="errorMode">Error mode</label>
+                                        <select class="custom-select form-control-border" id="errorMode"
                                             onchange="displayForms(this.value)">
-                                        <option value="0">Discard</option>
-                                        <option value="1">Timeout</option>
-                                        <option value="2">Garbage</option>
-                                        <option value="3">Disconnect</option>
-                                        <option value="4">Simulation</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="frequency">Frequency(%)</label>
-                                    <div class="slider-green">
-                                        <input id="frequency" data-slider-id='frequency' type="range"
-                                               data-slider-min="0" data-slider-max="100"
-                                               data-slider-step="1" data-slider-value="10" onchange=""/>
+                                            <option value="0">Discard</option>
+                                            <option value="1">Timeout</option>
+                                            <option value="2">Garbage</option>
+                                            <option value="3">Disconnect</option>
+                                            <option value="4">Simulation</option>
+                                        </select>
                                     </div>
-                                </div>
-                                <div class="form-group" id="timeout-from-group">
-                                    <label for="timeout">Timeout(s)</label>
-                                    <div class="slider-red">
-                                        <input id="timeout" data-slider-id='timeout' type="range"
-                                               data-slider-min="0" data-slider-max="10"
-                                               data-slider-step="1" data-slider-value="4"/>
+                                    <div class="form-group">
+                                        <label for="frequency">Frequency(%)</label>
+                                        <div class="slider-green">
+                                            <input id="frequency" data-slider-id='frequency' type="range"
+                                                data-slider-min="0" data-slider-max="100" data-slider-step="1"
+                                                data-slider-value="10" onchange="" />
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="form-group" id="garbage-length-from-group">
-                                    <label for="garbage-length">Length of garbage packet</label>
-                                    <div class="slider-blue">
-                                        <input id="garbage-length" data-slider-id='garbage-length' type="range"
-                                               data-slider-min="1" data-slider-max="1024"
-                                               data-slider-step="1" data-slider-value="36"/>
+                                    <div class="form-group" id="timeout-from-group">
+                                        <label for="timeout">Timeout(s)</label>
+                                        <div class="slider-red">
+                                            <input id="timeout" data-slider-id='timeout' type="range"
+                                                data-slider-min="0" data-slider-max="10" data-slider-step="1"
+                                                data-slider-value="4" />
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="form-group" id="simulation-from-group">
-                                    <label for="simulation">Value simulation to make error</label>
+                                    <div class="form-group" id="garbage-length-from-group">
+                                        <label for="garbage-length">Length of garbage packet</label>
+                                        <div class="slider-blue">
+                                            <input id="garbage-length" data-slider-id='garbage-length' type="range"
+                                                data-slider-min="1" data-slider-max="1024" data-slider-step="1"
+                                                data-slider-value="36" />
+                                        </div>
+                                    </div>
+                                    <div class="form-group" id="simulation-from-group">
+                                        <label for="simulation">Value simulation to make error</label>
 
                                         <select class="custom-select form-control-border" id="simulation">
 
                                         </select>
 
-                                    <label for="value">Error value</label>
-                                    <input id="value" type="text" class="form-control form-control-border"/>
+                                        <label for="value">Error value</label>
+                                        <input id="value" type="text" class="form-control form-control-border" />
 
-                                    <label for="simulation-stop">Simulation stop(s)</label>
-                                    <div class="slider-blue">
-                                        <input id="simulation-stop" data-slider-id='simulation-stop' type="range"
-                                               data-slider-min="0" data-slider-max="60"
-                                               data-slider-step="1" data-slider-value="10"/>
+                                        <div id="simulation-stop-group">
+                                            <label for="simulation-stop">Simulation stop(s)</label>
+                                            <div class="slider-blue">
+                                                <input id="simulation-stop" data-slider-id='simulation-stop' type="range"
+                                                    data-slider-min="0" data-slider-max="60" data-slider-step="1"
+                                                    data-slider-value="10" />
+                                            </div>
+                                        </div>
                                     </div>
+                                    <div class="form-group" id="interval-form-group">
+                                        <label for="error-interval">Interval(s) - probability check period</label>
+                                        <input type="number" class="form-control form-control-border"
+                                               id="error-interval" min="1" step="1" value="10"
+                                               placeholder="How often the error rolls the dice, in seconds"
+                                               oninput="this.value|=0" />
+                                    </div>
+                                    <div class="form-group" id="duration-from-group">
+                                        <label for="error-duration">Duration(s) - how long the error lasts</label>
+                                        <div class="slider-red">
+                                            <input id="error-duration" data-slider-id='error-duration' type="range"
+                                                data-slider-min="1" data-slider-max="300" data-slider-step="1"
+                                                data-slider-value="30" />
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="enabled">Initial state</label>
+                                        <select class="custom-select form-control-border" id="enabled">
+                                            <option value="1">Enabled</option>
+                                            <option value="0">Disabled</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="doSubmit()">
+                                        Submit
+                                    </button>
                                 </div>
-                                <div class="form-group">
-                                    <label for="enabled">Initial state</label>
-                                    <select class="custom-select form-control-border" id="enabled">
-                                        <option value="1">Enabled</option>
-                                        <option value="0">Disabled</option>
-                                    </select>
-                                </div>
-                                <button class="btn btn-primary" onclick="doSubmit()">
-                                    Submit
-                                </button>
+                                <!-- /.card-body -->
                             </div>
-                            <!-- /.card-body -->
+                            <!-- /.card -->
                         </div>
-                        <!-- /.card -->
                     </div>
-                </div>
-                <!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </section>
-        <!-- /.content -->
-    </div>
-    <!-- /.content-wrapper -->
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 0.1-alpha
+                    <!-- /.row -->
+                </div><!-- /.container-fluid -->
+            </section>
+            <!-- /.content -->
         </div>
-    </footer>
-</div>
-<!-- ./wrapper -->
+        <!-- /.content-wrapper -->
+        <footer class="main-footer">
+            <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+            All rights reserved.
+            <div class="float-right d-none d-sm-inline-block">
+                <b>Version</b> 0.1-alpha
+            </div>
+        </footer>
+    </div>
+    <!-- ./wrapper -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../js/adminlte.js"></script>
-<!-- JSON Editor -->
-<script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
+    <!-- jQuery -->
+    <script src="../../plugins/jquery/jquery.min.js"></script>
+    <!-- jQuery UI 1.11.4 -->
+    <script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
+    <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
+    <script>
+        $.widget.bridge('uibutton', $.ui.button)
+    </script>
+    <!-- Bootstrap 4 -->
+    <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <!-- AdminLTE App -->
+    <script src="../../js/adminlte.js"></script>
+    <!-- JSON Editor -->
+    <script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
 </body>
+
 </html>
