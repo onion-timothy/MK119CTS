@@ -69,6 +69,64 @@
 
         let simulationsNames = [];
 
+        // 정책별 분포도 차트 인스턴스
+        let distCharts = {};
+        // 정책별 segment 상대 폭 비율 (X 핸들 drag로 조정)
+        let segmentSizes = {};
+        // 정책별 segment weight (정규화되지 않은 상대 가중치, 합 자유). 확률 = w / Σw.
+        let segmentWeights = {};
+        // 정책별 선택된 segment 인덱스 집합 (다중 선택 → 균등 분배용)
+        let selectedSegments = {};
+        // 정책별 정규분포 모드 on/off 및 파라미터 {mean, std}
+        let normalMode = {};
+        let normalParams = {};
+        // 드래그 중 잠긴 Y 축 최대치 (weight 스케일, mousedown 점프 방지)
+        let lockedYMax = {};
+        // 드래그 진행 중 플래그 (호버 툴팁 차단용)
+        let dragActive = false;
+        // weight(Y) 드래그 진행 중 플래그 (Y axis auto-zoom 잠금용)
+        let weightDragActive = false;
+
+        function ensureSegmentSizes(pnum, count) {
+            if (!segmentSizes[pnum] || segmentSizes[pnum].length !== count) {
+                segmentSizes[pnum] = new Array(count).fill(1);
+            }
+            return segmentSizes[pnum];
+        }
+
+        // segmentWeights[pnum] 이 없거나 길이가 맞지 않으면 균등 가중치(1)로 초기화
+        function ensureSegmentWeights(pnum, count) {
+            if (!segmentWeights[pnum] || segmentWeights[pnum].length !== count) {
+                segmentWeights[pnum] = new Array(count).fill(1);
+            }
+            return segmentWeights[pnum];
+        }
+
+        // 가장 높은 weight 의 2배를 Y 축 최대치로 (bar 가 최대 절반 높이를 차지). weight 스케일은 상대값.
+        function computeWeightYMax(weights) {
+            let maxW = 0;
+            for (let i = 0; i < weights.length; i++) {
+                if (weights[i] > maxW) maxW = weights[i];
+            }
+            if (maxW <= 0) return 1;
+            return maxW * 2;
+        }
+
+        // sizes(상대 비율)로 [min, max]를 N+1개 경계로 분할.
+        function computeBoundaries(rangeMin, rangeMax, sizes) {
+            let total = 0;
+            for (let i = 0; i < sizes.length; i++) total += (sizes[i] > 0 ? sizes[i] : 0);
+            if (total <= 0) return null;
+            let boundaries = [rangeMin];
+            let cum = 0;
+            for (let i = 0; i < sizes.length - 1; i++) {
+                cum += (sizes[i] > 0 ? sizes[i] : 0);
+                boundaries.push(rangeMin + (rangeMax - rangeMin) * (cum / total));
+            }
+            boundaries.push(rangeMax);
+            return boundaries;
+        }
+
         const targetExample = {
             'GENERIC': 'TXField.field_id in PGD<br><i>e.g. <b>register1</b></i>',
             'MODBUS': '{function_code}_{register|coil}<br><i>e.g. <b>3_100</b></i>',
@@ -88,6 +146,14 @@
             stepperEl.addEventListener('shown.bs-stepper', function (event) {
                 if (event.detail.indexStep === 1) {
                     adjustHeight();
+                } else if (event.detail.indexStep === 2) {
+                    // policies 패널이 표시되면 차트가 올바른 크기로 다시 그려지고 핸들도 재배치되어야 한다
+                    for (let key in distCharts) {
+                        if (distCharts[key]) {
+                            distCharts[key].resize();
+                            renderDistributionHandles(parseInt(key));
+                        }
+                    }
                 }
             })
 
@@ -102,7 +168,7 @@
                 $('#enabled').val(simulation.enabled);
                 $target.html(simulation.target)
                 $('#interval').val(simulation.interval)
-                $('#stopOnControl').val(simulation.stopOnControl ? 1 : 0);
+                $('#stopOnControl').val(simulation.stopOnControl != null ? simulation.stopOnControl : 0);
                 for (let i = 0; i < simulation.policies.length; i++) {
                     $('#policies-'+i+'-id').val(simulation.policies[i].id);
 
@@ -113,9 +179,39 @@
                     $('#policies-'+i+'-datatype').selectpicker('val', simulation.policies[i].data_type);
                     if(simulation.policies[i].policy === 'STATIC') {
                         $('#policies-'+i+'-value').val(simulation.policies[i].value)
+                    } else if (simulation.policies[i].policy === 'SEQUENCE') {
+                        // value 가 숫자 배열이다
+                        let saved = simulation.policies[i].value;
+                        sequenceValues[i] = Array.isArray(saved) ? saved.map(Number) : [];
+                        renderSequenceList(i);
                     } else {
                         $('#policy-'+i+'-range-min').val(simulation.policies[i].range[0]);
                         $('#policy-'+i+'-range-max').val(simulation.policies[i].range[1]);
+
+                        let dist = simulation.policies[i].distribution;
+                        if (simulation.policies[i].policy === 'RANDOM' && dist
+                                && dist.type === 'BINS' && dist.binCount && dist.weights) {
+                            $('#policy-'+i+'-dist-enabled').prop('checked', true);
+                            $('#policies-'+i+'-distribution-body').show();
+                            $('#policy-'+i+'-bin-count').val(dist.binCount);
+                            // 저장된 weight 를 상대 가중치로 그대로 복원 (스케일 무관)
+                            segmentWeights[i] = dist.weights.slice();
+                            selectedSegments[i] = [];
+                            // 저장된 segment 폭 비율 복원 (없으면 균등)
+                            if (Array.isArray(dist.sizes) && dist.sizes.length === dist.binCount) {
+                                segmentSizes[i] = dist.sizes.slice();
+                            } else {
+                                segmentSizes[i] = new Array(dist.binCount).fill(1);
+                            }
+                            // 정규분포 파라미터가 저장돼 있으면 normal 모드로 복원
+                            if (typeof dist.mean === 'number' && typeof dist.std === 'number') {
+                                normalMode[i] = true;
+                                normalParams[i] = { mean: dist.mean, std: dist.std };
+                                $('#policy-'+i+'-normal-enabled').prop('checked', true);
+                            }
+                            applyDistMode(i);
+                            renderDistributionChart(i);
+                        }
                     }
 
                     if(i < simulation.policies.length - 1) {
@@ -207,6 +303,15 @@
                         return;
                     }
                     p.range = null;
+                } else if (p.policy === 'SEQUENCE') {
+                    // value 에 숫자 배열을 그대로 담는다 (서버가 JSON number array 로 저장)
+                    let seq = getSequence(i);
+                    if (seq.length === 0) {
+                        alert('Sequence of policy ' + i + ' is empty. Add at least one value.');
+                        return;
+                    }
+                    p.value = seq.slice();
+                    p.range = null;
                 } else {
                     p.range = [];
                     p.range.push($('#policy-'+i+'-range-min').val());
@@ -214,6 +319,28 @@
                     if(p.range[0] === '' || p.range[1] === ''){
                         alert('Range of policy ' + i + ' is empty.')
                         return
+                    }
+                    if (p.policy === 'RANDOM' && $('#policy-'+i+'-dist-enabled').is(':checked')) {
+                        let segmentCount = parseInt($('#policy-'+i+'-bin-count').val());
+                        if (isNaN(segmentCount) || segmentCount < SEGMENT_MIN || segmentCount > SEGMENT_MAX) {
+                            alert('Segment count of policy ' + i + ' must be between ' + SEGMENT_MIN + ' and ' + SEGMENT_MAX + '.');
+                            return;
+                        }
+                        let weights = ensureSegmentWeights(i, segmentCount).slice();
+                        let weightSum = weights.reduce(function(a, b) { return a + (b > 0 ? b : 0); }, 0);
+                        if (weightSum <= 0) {
+                            alert('At least one segment weight of policy ' + i + ' must be positive.');
+                            return;
+                        }
+                        let sizes = ensureSegmentSizes(i, segmentCount).slice();
+                        p.distribution = { type: 'BINS', binCount: segmentCount, weights: weights, sizes: sizes };
+                        // 정규분포 모드면 μ/σ 도 저장해 재편집 가능하게 함
+                        if (normalMode[i] && normalParams[i]) {
+                            p.distribution.mean = normalParams[i].mean;
+                            p.distribution.std = normalParams[i].std;
+                        }
+                    } else {
+                        p.distribution = null;
                     }
                 }
                 policies.push(p);
@@ -226,24 +353,24 @@
             sim.enabled = $('#enabled').val();
             sim.device = device;
             sim.name = $('#name').val();
-            sim.stopOnControl = parseInt($('#stopOnControl').val()) === 1;
+            sim.stopOnControl = parseInt($('#stopOnControl').val()) || 0;
 
             if(simulation) {
                 sim.id = simulation.id;
             }
 
-            $.ajax({
-                url: simulation == null ? '/api/simulation/addSimulation' : '/api/simulation/updateSimulation',
-                type: simulation == null ? 'PUT' : 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(sim),
-                success: function () {
-                    location.href = '/simulations';
-                },
-                error: function (request) {
-                    alert(request.status + request.responseText);
-                }
+            let form = $('<form>', {
+                'action': '/saveSimulation',
+                'method': 'post'
             });
+            let hiddenInput = $('<input>', {
+                'type': 'hidden',
+                'name': 'simulationJson',
+                'value': JSON.stringify(sim)
+            });
+            form.append(hiddenInput);
+            $('body').append(form);
+            form.submit();
         }
 
         function validatePanel1() {
@@ -302,31 +429,941 @@
             }
         }
 
+        /** SEQUENCE 정책의 숫자 배열. key = policy index */
+        let sequenceValues = {};
+
         function changePolicy(el) {
             let pnum = el.id.split("-")[1];
             let val = el.value;
 
             let value = $('#policies-' + pnum + '-value-wrapper')
             let range = $('#policies-' + pnum + '-range-wrapper');
+            let distribution = $('#policies-' + pnum + '-distribution-wrapper');
+            let sequence = $('#policies-' + pnum + '-sequence-wrapper');
 
             if(val === 'STATIC'){
                 value.show();
                 range.hide();
+                distribution.hide();
+                sequence.hide();
+            } else if (val === 'SEQUENCE') {
+                value.hide();
+                range.hide();
+                distribution.hide();
+                sequence.show();
+                renderSequenceList(pnum);
             } else {
                 value.hide();
                 range.show();
+                sequence.hide();
 
                 let range_min = $('#policy-'+pnum+'-range-min');
                 let range_max = $('#policy-'+pnum+'-range-max');
-                if(val === 2){
+                if(val === 'RANDOM'){
                     range_min.prop('placeholder', 'Minimum for simulation value');
                     range_max.prop('placeholder', 'Maximum for simulation value');
+                    distribution.show();
                 }
-                if(val === 3) {
+                if(val === 'ACCUMULATE') {
                     range_min.prop('placeholder', 'Initial simulation value');
                     range_max.prop('placeholder', 'Accumulate per interval');
+                    distribution.hide();
                 }
             }
+        }
+
+        function getSequence(pnum) {
+            if (!Array.isArray(sequenceValues[pnum])) sequenceValues[pnum] = [];
+            return sequenceValues[pnum];
+        }
+
+        /** 입력칸의 숫자를 배열 끝에 추가한다. */
+        function addSequenceValue(pnum) {
+            let $input = $('#policy-' + pnum + '-seq-input');
+            let raw = $input.val();
+            if (raw === null || String(raw).trim() === '' || !Number.isFinite(Number(raw))) {
+                alert('Enter a number to add.');
+                return;
+            }
+            getSequence(pnum).push(Number(raw));
+            $input.val('').trigger('focus');
+            renderSequenceList(pnum);
+        }
+
+        function removeSequenceValue(pnum, index) {
+            getSequence(pnum).splice(index, 1);
+            renderSequenceList(pnum);
+        }
+
+        function moveSequenceValue(pnum, index, delta) {
+            let arr = getSequence(pnum);
+            let to = index + delta;
+            if (to < 0 || to >= arr.length) return;
+            let tmp = arr[index]; arr[index] = arr[to]; arr[to] = tmp;
+            renderSequenceList(pnum);
+        }
+
+        function clearSequenceValues(pnum) {
+            if (getSequence(pnum).length === 0) return;
+            if (!confirm('Remove all sequence values?')) return;
+            sequenceValues[pnum] = [];
+            renderSequenceList(pnum);
+        }
+
+        function renderSequenceList(pnum) {
+            let arr = getSequence(pnum);
+            let $list = $('#policy-' + pnum + '-seq-list');
+            if ($list.length === 0) return;
+            if (arr.length === 0) {
+                $list.html('<div class="text-muted" style="font-size:.85rem;">No values yet. Add at least one.</div>');
+                return;
+            }
+            let rows = arr.map(function (v, i) {
+                return '<span class="badge badge-light border mr-1 mb-1" style="font-size:.85rem; padding:6px 8px;">'
+                    + '<span class="text-muted mr-1">' + (i + 1) + '.</span>'
+                    + '<b>' + v + '</b>'
+                    + '<button type="button" class="btn btn-link btn-sm p-0 ml-2" title="Move left"'
+                    + ' onclick="moveSequenceValue(' + pnum + ',' + i + ',-1)">&#8592;</button>'
+                    + '<button type="button" class="btn btn-link btn-sm p-0 ml-1" title="Move right"'
+                    + ' onclick="moveSequenceValue(' + pnum + ',' + i + ',1)">&#8594;</button>'
+                    + '<button type="button" class="btn btn-link btn-sm p-0 ml-1 text-danger" title="Remove"'
+                    + ' onclick="removeSequenceValue(' + pnum + ',' + i + ')">&times;</button>'
+                    + '</span>';
+            }).join('');
+            $list.html(rows
+                + '<div class="mt-1">'
+                + '<span class="text-muted" style="font-size:.8rem;">' + arr.length + ' value(s)</span>'
+                + '<button type="button" class="btn btn-outline-danger btn-sm ml-2 py-0"'
+                + ' onclick="clearSequenceValues(' + pnum + ')">Clear all</button>'
+                + '</div>');
+        }
+
+        function toggleDistribution(pnum) {
+            let enabled = $('#policy-'+pnum+'-dist-enabled').is(':checked');
+            $('#policies-'+pnum+'-distribution-body').toggle(enabled);
+            if (enabled) {
+                if (!$('#policy-'+pnum+'-bin-count').val()) {
+                    $('#policy-'+pnum+'-bin-count').val(4);
+                    syncWeights(pnum);
+                } else {
+                    renderDistributionChart(pnum);
+                }
+            } else {
+                destroyDistChart(pnum);
+            }
+        }
+
+        // segment 개수가 바뀌면 weights/sizes 를 균등으로 리셋.
+        // segment 개수가 바뀌면 weights/sizes 를 균등으로 리셋하고 선택 해제
+        const SEGMENT_MIN = 2;
+        const SEGMENT_MAX = 30;
+
+        function syncWeights(pnum) {
+            let count = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (isNaN(count)) return;
+            if (count < SEGMENT_MIN) count = SEGMENT_MIN;
+            if (count > SEGMENT_MAX) count = SEGMENT_MAX;
+            $('#policy-'+pnum+'-bin-count').val(count); // 클램프 결과를 입력칸에 반영
+            segmentWeights[pnum] = new Array(count).fill(1);
+            segmentSizes[pnum] = new Array(count).fill(1);
+            selectedSegments[pnum] = [];
+            // 정규분포 모드면 새 개수로 파라미터 유지하며 종 모양 재계산은 render 에서 처리
+            renderDistributionChart(pnum);
+        }
+
+        // 명시적으로 weights 만 균등 리셋
+        function resetSegmentWeights(pnum) {
+            let count = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (!isNaN(count) && count >= 1) {
+                segmentWeights[pnum] = new Array(count).fill(1);
+            }
+            renderDistributionChart(pnum);
+        }
+
+        // 선택된 segment 들의 weight 합을 균등 분배 (확률 그룹 비중은 유지, 그룹 내부는 동일)
+        function equalizeSelected(pnum) {
+            let count = parseInt($('#policy-'+pnum+'-bin-count').val());
+            let sel = selectedSegments[pnum] || [];
+            if (sel.length < 2) { return; }
+            let weights = ensureSegmentWeights(pnum, count);
+            let sum = 0;
+            for (let i = 0; i < sel.length; i++) {
+                let w = weights[sel[i]];
+                sum += (w > 0 ? w : 0);
+            }
+            let each = sum / sel.length;
+            for (let i = 0; i < sel.length; i++) {
+                weights[sel[i]] = each;
+            }
+            renderDistributionChart(pnum);
+        }
+
+        function toggleSegmentSelection(pnum, idx) {
+            if (normalMode[pnum]) return; // 정규분포 모드에서는 선택 무의미
+            if (!selectedSegments[pnum]) selectedSegments[pnum] = [];
+            let arr = selectedSegments[pnum];
+            let pos = arr.indexOf(idx);
+            if (pos >= 0) arr.splice(pos, 1);
+            else arr.push(idx);
+            renderDistributionChart(pnum);
+        }
+
+        // ── 정규분포(Normal) 프리셋 ──
+        function erf(x) {
+            let sign = x < 0 ? -1 : 1;
+            x = Math.abs(x);
+            let t = 1 / (1 + 0.3275911 * x);
+            let y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+            return sign * y;
+        }
+        function normalCdf(x, mu, sigma) {
+            return 0.5 * (1 + erf((x - mu) / (sigma * Math.SQRT2)));
+        }
+
+        function normalRange(pnum, segmentCount) {
+            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
+            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
+            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
+            return { xMin: useRealRange ? rangeMin : 0, xMax: useRealRange ? rangeMax : segmentCount };
+        }
+
+        // μ, σ 와 segment 경계로 각 segment 의 정규분포 질량을 계산해 weight 로 설정 (truncated normal).
+        function computeNormalWeights(pnum, segmentCount) {
+            let p = normalParams[pnum];
+            if (!p) return;
+            let r = normalRange(pnum, segmentCount);
+            let sizes = ensureSegmentSizes(pnum, segmentCount);
+            let boundaries = computeBoundaries(r.xMin, r.xMax, sizes);
+            if (!boundaries) return;
+            let mu = p.mean;
+            let sigma = (p.std > 0) ? p.std : (r.xMax - r.xMin) / 100;
+            let w = [];
+            let sum = 0;
+            for (let i = 0; i < segmentCount; i++) {
+                let m = normalCdf(boundaries[i + 1], mu, sigma) - normalCdf(boundaries[i], mu, sigma);
+                if (!(m > 0)) m = 0;
+                w.push(m);
+                sum += m;
+            }
+            if (sum <= 0) w = new Array(segmentCount).fill(1);
+            segmentWeights[pnum] = w;
+        }
+
+        function toggleNormal(pnum) {
+            let on = $('#policy-'+pnum+'-normal-enabled').is(':checked');
+            normalMode[pnum] = on;
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (!isNaN(segmentCount) && segmentCount >= 1 && on) {
+                // 정규분포 모드는 균등 segment 위에서 종 모양을 그린다
+                segmentSizes[pnum] = new Array(segmentCount).fill(1);
+                selectedSegments[pnum] = [];
+                let r = normalRange(pnum, segmentCount);
+                normalParams[pnum] = { mean: (r.xMin + r.xMax) / 2, std: (r.xMax - r.xMin) / 6 };
+            }
+            applyDistMode(pnum);
+            renderDistributionChart(pnum);
+        }
+
+        // 모드에 따라 manual 전용 버튼(Equalize/Reset)과 설명 문구를 전환
+        function applyDistMode(pnum) {
+            let on = !!normalMode[pnum];
+            $('#policy-'+pnum+'-dist-controls').toggle(!on);
+            let desc = on
+                ? 'Normal distribution: drag the purple μ handle to move the center, the orange σ handle to change the spread. Weights are computed automatically; the % under each segment is its probability.'
+                : 'Bar height = relative weight; the % under each segment is its probability. Drag green handles to set a segment weight (only that bar moves), red handles to resize. Click segments to select, then Equalize selected.';
+            $('#policy-'+pnum+'-dist-desc').text(desc);
+        }
+
+        function renderDistributionChart(pnum) {
+            let $canvas = $('#policy-'+pnum+'-dist-chart');
+            if ($canvas.length === 0) return;
+
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (isNaN(segmentCount) || segmentCount < 1) return;
+
+            // 정규분포 모드면 μ,σ 로 weight 를 매번 재계산 (range/segment 변화 자동 반영)
+            if (normalMode[pnum]) {
+                computeNormalWeights(pnum, segmentCount);
+            }
+
+            // 정책 내부 상태에서 raw weight 와 확률 계산
+            let info = currentProbabilities(pnum, segmentCount);
+            let weights = info.weights;   // bar 높이 = raw weight
+            let probabilities = info.probs;
+
+            // Y 축 최대치: 드래그 중에는 drag 시작 시점 값으로 잠가 스케일 점프/anchor stale 방지.
+            let yMax;
+            if (weightDragActive && lockedYMax[pnum] !== undefined) {
+                yMax = lockedYMax[pnum];
+            } else {
+                yMax = computeWeightYMax(weights);
+            }
+
+            // range/segment sizes 로 boundary 계산. range가 무효하면 [0, segmentCount]를 가상 X축으로 사용.
+            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
+            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
+            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
+            let xMin = useRealRange ? rangeMin : 0;
+            let xMax = useRealRange ? rangeMax : segmentCount;
+
+            let sizes = ensureSegmentSizes(pnum, segmentCount);
+            let boundaries = computeBoundaries(xMin, xMax, sizes);
+            if (!boundaries) {
+                // sizes 합이 0인 비정상 상황 → 균등 리셋
+                segmentSizes[pnum] = new Array(segmentCount).fill(1);
+                sizes = segmentSizes[pnum];
+                boundaries = computeBoundaries(xMin, xMax, sizes);
+            }
+
+            // line+fill 로 가변폭 히스토그램. bar 높이 = raw weight. 각 segment에 대해 (lo, w), (hi, w) 두 점.
+            let dataPoints = [];
+            for (let i = 0; i < segmentCount; i++) {
+                dataPoints.push({ x: boundaries[i], y: weights[i] });
+                dataPoints.push({ x: boundaries[i + 1], y: weights[i] });
+            }
+
+            let chart = distCharts[pnum];
+            if (chart) {
+                chart.data.datasets[0].data = dataPoints;
+                chart.options.scales.xAxes[0].ticks.min = xMin;
+                chart.options.scales.xAxes[0].ticks.max = xMax;
+                chart.options.scales.yAxes[0].ticks.max = yMax;
+                chart.update({ duration: 0 });
+                renderDistributionHandles(pnum);
+            } else {
+                distCharts[pnum] = new Chart($canvas[0].getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Weight',
+                            data: dataPoints,
+                            backgroundColor: 'rgba(60, 141, 188, 0.5)',
+                            borderColor: 'rgba(60, 141, 188, 1)',
+                            borderWidth: 1,
+                            fill: 'origin',
+                            pointRadius: 0,
+                            pointHitRadius: 0,
+                            lineTension: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 0 },
+                        scales: {
+                            yAxes: [{
+                                // weight 스케일은 상대값이라 숫자는 의미가 없어 숨긴다. 확률은 하단 라벨로 표시.
+                                ticks: { min: 0, max: yMax, display: false },
+                                scaleLabel: { display: true, labelString: 'Weight (relative)' }
+                            }],
+                            xAxes: [{
+                                type: 'linear',
+                                position: 'bottom',
+                                ticks: { min: xMin, max: xMax },
+                                scaleLabel: { display: true, labelString: useRealRange ? 'Value' : 'Segment index' }
+                            }]
+                        },
+                        tooltips: { enabled: false },
+                        legend: { display: false },
+                        onResize: function() { renderDistributionHandles(pnum); }
+                    }
+                });
+                // 차트 레이아웃 계산 후 핸들을 그린다
+                setTimeout(function() { renderDistributionHandles(pnum); }, 0);
+            }
+        }
+
+        // 핸들 DOM 을 한 번 생성하고 이벤트 바인딩까지 끝낸다 (재사용을 위해)
+        function createWeightHandle(pnum, idx) {
+            let $h = $('<div class="weight-handle"></div>').attr('data-idx', idx).css({
+                position: 'absolute',
+                height: '11px',
+                cursor: 'ns-resize',
+                background: 'rgba(40, 167, 69, 0.18)',
+                borderTop: '2px solid rgba(40, 167, 69, 0.85)',
+                borderBottom: '2px solid rgba(40, 167, 69, 0.85)',
+                pointerEvents: 'auto',
+                zIndex: 9
+            });
+            $h.on('mousedown', function(e) { startWeightDrag(e, pnum, parseInt($(this).attr('data-idx'))); });
+            $h.on('touchstart', function(e) {
+                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
+                    let t = e.originalEvent.touches[0];
+                    startWeightDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, parseInt($(this).attr('data-idx')), true);
+                }
+            });
+            $h.on('mouseenter mousemove', function(e) {
+                if (dragActive) return;
+                showWeightHoverTooltip(pnum, parseInt($(this).attr('data-idx')), e.pageX, e.pageY);
+            });
+            $h.on('mouseleave', function() {
+                if (dragActive) return;
+                hideDragTooltip();
+            });
+            return $h;
+        }
+
+        function createBoundaryHandle(pnum, idx) {
+            let $h = $('<div class="seg-handle"></div>').attr('data-idx', idx).css({
+                position: 'absolute',
+                width: '9px',
+                cursor: 'ew-resize',
+                background: 'rgba(220, 53, 69, 0.15)',
+                borderLeft: '2px solid rgba(220, 53, 69, 0.85)',
+                borderRight: '2px solid rgba(220, 53, 69, 0.85)',
+                pointerEvents: 'auto',
+                zIndex: 10
+            });
+            $h.on('mousedown', function(e) { startBoundaryDrag(e, pnum, parseInt($(this).attr('data-idx'))); });
+            $h.on('touchstart', function(e) {
+                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
+                    let t = e.originalEvent.touches[0];
+                    startBoundaryDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, parseInt($(this).attr('data-idx')), true);
+                }
+            });
+            $h.on('mouseenter mousemove', function(e) {
+                if (dragActive) return;
+                showBoundaryHoverTooltip(pnum, parseInt($(this).attr('data-idx')), e.pageX, e.pageY);
+            });
+            $h.on('mouseleave', function() {
+                if (dragActive) return;
+                hideDragTooltip();
+            });
+            return $h;
+        }
+
+        // segment 본문 선택 오버레이 (클릭 → 선택 토글). bar 영역 클릭으로 다중 선택.
+        function createSelectOverlay(pnum, idx) {
+            let $o = $('<div class="seg-select"></div>').attr('data-idx', idx).css({
+                position: 'absolute',
+                pointerEvents: 'auto',
+                cursor: 'pointer',
+                zIndex: 5
+            });
+            $o.on('click', function() { toggleSegmentSelection(pnum, parseInt($(this).attr('data-idx'))); });
+            return $o;
+        }
+
+        // 하단 확률 라벨 (표시 전용 + 클릭 시 선택 토글)
+        function createSegmentLabel(pnum, idx) {
+            let $l = $('<div class="seg-label"></div>').attr('data-idx', idx).css({
+                position: 'absolute',
+                transform: 'translateX(-50%)',
+                fontSize: '0.72rem',
+                lineHeight: '1',
+                padding: '1px 4px',
+                borderRadius: '3px',
+                background: 'rgba(255,255,255,0.85)',
+                color: '#333',
+                pointerEvents: 'auto',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                zIndex: 11
+            });
+            $l.on('click', function() { toggleSegmentSelection(pnum, parseInt($(this).attr('data-idx'))); });
+            return $l;
+        }
+
+        // μ(평균) 핸들 — 세로선, 좌우 드래그로 중심 이동
+        function createMeanHandle(pnum) {
+            let $h = $('<div class="mean-handle"></div>').css({
+                position: 'absolute',
+                width: '3px',
+                marginLeft: '-1px',
+                cursor: 'ew-resize',
+                background: 'rgba(111, 66, 193, 0.9)',
+                pointerEvents: 'auto',
+                zIndex: 12
+            });
+            let $tag = $('<div>μ</div>').css({
+                position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(111, 66, 193, 0.9)', color: '#fff', fontSize: '0.7rem',
+                padding: '0 4px', borderRadius: '3px'
+            });
+            $h.append($tag);
+            $h.on('mousedown', function(e) { startMeanDrag(e, pnum); });
+            $h.on('touchstart', function(e) {
+                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
+                    let t = e.originalEvent.touches[0];
+                    startMeanDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, true);
+                }
+            });
+            return $h;
+        }
+
+        // σ(표준편차) 핸들 — μ+σ 위치 세로선, 좌우 드래그로 폭 조절
+        function createStdHandle(pnum) {
+            let $h = $('<div class="std-handle"></div>').css({
+                position: 'absolute',
+                width: '3px',
+                marginLeft: '-1px',
+                cursor: 'ew-resize',
+                background: 'rgba(253, 126, 20, 0.9)',
+                pointerEvents: 'auto',
+                zIndex: 12
+            });
+            let $tag = $('<div>σ</div>').css({
+                position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(253, 126, 20, 0.9)', color: '#fff', fontSize: '0.7rem',
+                padding: '0 4px', borderRadius: '3px'
+            });
+            $h.append($tag);
+            $h.on('mousedown', function(e) { startStdDrag(e, pnum); });
+            $h.on('touchstart', function(e) {
+                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
+                    let t = e.originalEvent.touches[0];
+                    startStdDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, true);
+                }
+            });
+            return $h;
+        }
+
+        function renderDistributionHandles(pnum) {
+            let $handlesContainer = $('#policy-'+pnum+'-dist-handles');
+            if ($handlesContainer.length === 0) return;
+
+            let chart = distCharts[pnum];
+            if (!chart) return;
+
+            let xScale = chart.scales['x-axis-0'];
+            let yScale = chart.scales['y-axis-0'];
+            if (!xScale || !yScale) return;
+            let area = chart.chartArea;
+            if (!area) return;
+
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (isNaN(segmentCount) || segmentCount < 1) return;
+
+            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
+            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
+            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
+            let xMin = useRealRange ? rangeMin : 0;
+            let xMax = useRealRange ? rangeMax : segmentCount;
+
+            let sizes = ensureSegmentSizes(pnum, segmentCount);
+            let boundaries = computeBoundaries(xMin, xMax, sizes);
+            if (!boundaries) return;
+
+            let info = currentProbabilities(pnum, segmentCount);
+            let weights = info.weights;
+            let probs = info.probs;
+            let selected = selectedSegments[pnum] || [];
+            let isNormal = !!normalMode[pnum];
+
+            // 모드(manual/normal) + segment 개수가 바뀌면 핸들 DOM 을 재구성한다.
+            let sig = (isNormal ? 'N' : 'M') + ':' + segmentCount;
+            if ($handlesContainer.data('sig') !== sig) {
+                $handlesContainer.empty();
+                if (isNormal) {
+                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createSegmentLabel(pnum, i));
+                    $handlesContainer.append(createMeanHandle(pnum));
+                    $handlesContainer.append(createStdHandle(pnum));
+                } else {
+                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createSelectOverlay(pnum, i));
+                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createWeightHandle(pnum, i));
+                    for (let i = 1; i < segmentCount; i++) $handlesContainer.append(createBoundaryHandle(pnum, i));
+                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createSegmentLabel(pnum, i));
+                }
+                $handlesContainer.data('sig', sig);
+            }
+
+            let $labels = $handlesContainer.children('.seg-label');
+
+            // 하단 확률 라벨은 모드 공통
+            for (let i = 0; i < segmentCount; i++) {
+                let xLo = xScale.getPixelForValue(boundaries[i]);
+                let xHi = xScale.getPixelForValue(boundaries[i + 1]);
+                let segW = Math.max(1, xHi - xLo);
+                let isSel = !isNormal && selected.indexOf(i) >= 0;
+                $labels.eq(i)
+                    .text(Math.round(probs[i]) + '%')
+                    .css({
+                        left: (xLo + segW / 2) + 'px',
+                        top: (area.bottom - 18) + 'px',
+                        fontWeight: isSel ? '700' : '400'
+                    });
+            }
+
+            if (isNormal) {
+                let p = normalParams[pnum];
+                if (p) {
+                    let clampPix = function(v) {
+                        let px = xScale.getPixelForValue(v);
+                        return Math.max(area.left, Math.min(area.right, px));
+                    };
+                    $handlesContainer.children('.mean-handle').css({
+                        left: clampPix(p.mean) + 'px',
+                        top: area.top + 'px',
+                        height: (area.bottom - area.top) + 'px'
+                    });
+                    $handlesContainer.children('.std-handle').css({
+                        left: clampPix(p.mean + p.std) + 'px',
+                        top: area.top + 'px',
+                        height: (area.bottom - area.top) + 'px'
+                    });
+                }
+                return;
+            }
+
+            // ── manual 모드: 오버레이/weight/boundary 핸들 위치 갱신 ──
+            let $weightHandles = $handlesContainer.children('.weight-handle');
+            let $boundaryHandles = $handlesContainer.children('.seg-handle');
+            let $overlays = $handlesContainer.children('.seg-select');
+            for (let i = 0; i < segmentCount; i++) {
+                let xLo = xScale.getPixelForValue(boundaries[i]);
+                let xHi = xScale.getPixelForValue(boundaries[i + 1]);
+                let segW = Math.max(1, xHi - xLo);
+                let isSel = selected.indexOf(i) >= 0;
+
+                $overlays.eq(i).css({
+                    left: xLo + 'px',
+                    top: area.top + 'px',
+                    width: segW + 'px',
+                    height: (area.bottom - area.top) + 'px',
+                    background: isSel ? 'rgba(255, 193, 7, 0.25)' : 'transparent',
+                    boxShadow: isSel ? 'inset 0 0 0 2px rgba(255, 193, 7, 0.9)' : 'none'
+                });
+
+                let yW = yScale.getPixelForValue(weights[i]);
+                let handleTop = Math.max(area.top, Math.min(area.bottom - 11, yW - 5));
+                $weightHandles.eq(i).css({
+                    left: xLo + 'px',
+                    top: handleTop + 'px',
+                    width: segW + 'px'
+                });
+            }
+            for (let i = 1; i < segmentCount; i++) {
+                let pixel = xScale.getPixelForValue(boundaries[i]);
+                $boundaryHandles.eq(i - 1).css({
+                    left: (pixel - 4) + 'px',
+                    top: area.top + 'px',
+                    height: (area.bottom - area.top) + 'px'
+                });
+            }
+        }
+
+        // ── Drag tooltip (boundary/weight 공용) ──
+        function ensureDragTooltip() {
+            let $tip = $('#drag-tooltip');
+            if ($tip.length === 0) {
+                $tip = $('<div id="drag-tooltip"></div>').css({
+                    position: 'fixed',
+                    pointerEvents: 'none',
+                    background: 'rgba(0, 0, 0, 0.85)',
+                    color: 'white',
+                    padding: '6px 10px',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    lineHeight: '1.3',
+                    zIndex: 9999,
+                    whiteSpace: 'nowrap',
+                    display: 'none'
+                }).appendTo('body');
+            }
+            return $tip;
+        }
+        function showDragTooltip(html, pageX, pageY) {
+            let $tip = ensureDragTooltip();
+            $tip.html(html).css({
+                left: (pageX + 14) + 'px',
+                top: (pageY + 14) + 'px',
+                display: 'block'
+            });
+        }
+        function hideDragTooltip() {
+            $('#drag-tooltip').hide();
+        }
+
+        // 현재 입력/sizes 상태를 기반으로 segment idx 의 정보 툴팁을 그린다.
+        function showWeightHoverTooltip(pnum, idx, pageX, pageY) {
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (isNaN(segmentCount) || segmentCount < 1) return;
+            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
+            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
+            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
+            let xMin = useRealRange ? rangeMin : 0;
+            let xMax = useRealRange ? rangeMax : segmentCount;
+            let sizes = ensureSegmentSizes(pnum, segmentCount);
+            let bnds = computeBoundaries(xMin, xMax, sizes);
+            if (!bnds) return;
+            let info = currentProbabilities(pnum, segmentCount);
+            let lo = bnds[idx], hi = bnds[idx + 1];
+            let prob = info.probs[idx];
+            showDragTooltip(
+                '<b>Seg ' + idx + '</b><br>Range: [' + formatBound(lo) + ', ' + formatBound(hi) + ')<br>Probability: ' + prob.toFixed(2) + '%',
+                pageX, pageY
+            );
+        }
+
+        // 현재 입력/sizes 상태를 기반으로 internal boundary idx 의 정보 툴팁을 그린다.
+        function showBoundaryHoverTooltip(pnum, idx, pageX, pageY) {
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (isNaN(segmentCount) || segmentCount < 2) return;
+            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
+            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
+            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
+            let xMin = useRealRange ? rangeMin : 0;
+            let xMax = useRealRange ? rangeMax : segmentCount;
+            let sizes = ensureSegmentSizes(pnum, segmentCount);
+            let bnds = computeBoundaries(xMin, xMax, sizes);
+            if (!bnds) return;
+            let info = currentProbabilities(pnum, segmentCount);
+            let val = bnds[idx];
+            let leftBound = bnds[idx - 1];
+            let rightBound = bnds[idx + 1];
+            let pLeft = info.probs[idx - 1];
+            let pRight = info.probs[idx];
+            showDragTooltip(
+                '<b>Boundary</b>: ' + formatBound(val) + '<br>' +
+                'Seg ' + (idx - 1) + ' [' + formatBound(leftBound) + ', ' + formatBound(val) + ') &rarr; ' + pLeft.toFixed(2) + '%<br>' +
+                'Seg ' + idx + ' [' + formatBound(val) + ', ' + formatBound(rightBound) + ') &rarr; ' + pRight.toFixed(2) + '%',
+                pageX, pageY
+            );
+        }
+
+        function currentProbabilities(pnum, segmentCount) {
+            let raw = ensureSegmentWeights(pnum, segmentCount);
+            let weights = [];
+            let sum = 0;
+            for (let k = 0; k < segmentCount; k++) {
+                let w = raw[k];
+                if (typeof w !== 'number' || isNaN(w) || w < 0) w = 0;
+                weights.push(w);
+                sum += w;
+            }
+            let probs = weights.map(function(w) { return sum > 0 ? (w / sum * 100) : 0; });
+            return { weights: weights, sum: sum, probs: probs };
+        }
+
+        function showNormalTooltip(pnum, pageX, pageY) {
+            let p = normalParams[pnum];
+            if (!p) return;
+            showDragTooltip(
+                '<b>Normal</b><br>μ (mean): ' + formatBound(p.mean) + '<br>σ (std): ' + formatBound(p.std),
+                pageX, pageY
+            );
+        }
+
+        function startMeanDrag(e, pnum, isTouch) {
+            if (e.preventDefault) e.preventDefault();
+            let chart = distCharts[pnum];
+            if (!chart) return;
+            let xScale = chart.scales['x-axis-0'];
+            if (!xScale) return;
+            dragActive = true;
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            let r = normalRange(pnum, segmentCount);
+            let p = normalParams[pnum];
+            let startPixel = xScale.getPixelForValue(p.mean);
+            let startPageX = e.pageX;
+
+            let onMove = function(ev) {
+                let pageX = ev.pageX, pageY = ev.pageY;
+                if (isTouch && ev.touches && ev.touches.length > 0) { pageX = ev.touches[0].pageX; pageY = ev.touches[0].pageY; }
+                let v = xScale.getValueForPixel(startPixel + (pageX - startPageX));
+                if (v < r.xMin) { v = r.xMin; startPixel = xScale.getPixelForValue(r.xMin); startPageX = pageX; }
+                if (v > r.xMax) { v = r.xMax; startPixel = xScale.getPixelForValue(r.xMax); startPageX = pageX; }
+                p.mean = v;
+                renderDistributionChart(pnum);
+                showNormalTooltip(pnum, pageX, pageY);
+            };
+            let onUp = function() {
+                dragActive = false;
+                hideDragTooltip();
+                renderDistributionChart(pnum);
+                $(document).off('mousemove.mean'+pnum).off('mouseup.mean'+pnum)
+                    .off('touchmove.mean'+pnum).off('touchend.mean'+pnum);
+            };
+            $(document).on('mousemove.mean'+pnum, onMove).on('mouseup.mean'+pnum, onUp)
+                .on('touchmove.mean'+pnum, onMove).on('touchend.mean'+pnum, onUp);
+        }
+
+        function startStdDrag(e, pnum, isTouch) {
+            if (e.preventDefault) e.preventDefault();
+            let chart = distCharts[pnum];
+            if (!chart) return;
+            let xScale = chart.scales['x-axis-0'];
+            if (!xScale) return;
+            dragActive = true;
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            let r = normalRange(pnum, segmentCount);
+            let span = r.xMax - r.xMin;
+            let minStd = span / 200, maxStd = span * 2;
+            let p = normalParams[pnum];
+            let startPixel = xScale.getPixelForValue(p.mean + p.std);
+            let startPageX = e.pageX;
+
+            let onMove = function(ev) {
+                let pageX = ev.pageX, pageY = ev.pageY;
+                if (isTouch && ev.touches && ev.touches.length > 0) { pageX = ev.touches[0].pageX; pageY = ev.touches[0].pageY; }
+                let v = xScale.getValueForPixel(startPixel + (pageX - startPageX));
+                let newStd = Math.abs(v - p.mean);
+                if (newStd < minStd) { newStd = minStd; startPixel = xScale.getPixelForValue(p.mean + newStd); startPageX = pageX; }
+                if (newStd > maxStd) { newStd = maxStd; startPixel = xScale.getPixelForValue(p.mean + newStd); startPageX = pageX; }
+                p.std = newStd;
+                renderDistributionChart(pnum);
+                showNormalTooltip(pnum, pageX, pageY);
+            };
+            let onUp = function() {
+                dragActive = false;
+                hideDragTooltip();
+                renderDistributionChart(pnum);
+                $(document).off('mousemove.std'+pnum).off('mouseup.std'+pnum)
+                    .off('touchmove.std'+pnum).off('touchend.std'+pnum);
+            };
+            $(document).on('mousemove.std'+pnum, onMove).on('mouseup.std'+pnum, onUp)
+                .on('touchmove.std'+pnum, onMove).on('touchend.std'+pnum, onUp);
+        }
+
+        function startWeightDrag(e, pnum, idx, isTouch) {
+            if (e.preventDefault) e.preventDefault();
+            let chart = distCharts[pnum];
+            if (!chart) return;
+            let yScale = chart.scales['y-axis-0'];
+            if (!yScale) return;
+            dragActive = true;
+            weightDragActive = true;
+
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            let weights = ensureSegmentWeights(pnum, segmentCount);
+
+            // 현재 표시 중인 yMax 를 잠근다 — 이미 화면에 그려진 스케일과 동일하므로 점프 없음.
+            // 드래그 가능한 weight 상한 = 잠긴 yMax (≈ 2 × 시작 시점 max weight, 즉 2배 여유).
+            let yMaxLocked = computeWeightYMax(weights);
+            lockedYMax[pnum] = yMaxLocked;
+
+            let startWeight = weights[idx];
+            let startPixelY = yScale.getPixelForValue(startWeight);
+            let startPageY = e.pageY;
+
+            let onMove = function(ev) {
+                let pageY = ev.pageY, pageX = ev.pageX;
+                if (isTouch && ev.touches && ev.touches.length > 0) {
+                    pageY = ev.touches[0].pageY;
+                    pageX = ev.touches[0].pageX;
+                }
+                let newPixelY = startPixelY + (pageY - startPageY);
+                let newWeight = yScale.getValueForPixel(newPixelY);
+
+                // 클램핑 시 anchor 리셋 (데드존 방지)
+                if (newWeight < 0) {
+                    newWeight = 0;
+                    startPixelY = yScale.getPixelForValue(0);
+                    startPageY = pageY;
+                }
+                if (newWeight > yMaxLocked) {
+                    newWeight = yMaxLocked;
+                    startPixelY = yScale.getPixelForValue(yMaxLocked);
+                    startPageY = pageY;
+                }
+
+                // 끄는 segment 의 raw weight 만 설정. 다른 segment 는 그대로 — 확률만 정규화로 변함.
+                segmentWeights[pnum][idx] = newWeight;
+
+                renderDistributionChart(pnum);
+                showWeightHoverTooltip(pnum, idx, pageX, pageY);
+            };
+            let onUp = function() {
+                dragActive = false;
+                weightDragActive = false;
+                delete lockedYMax[pnum];
+                hideDragTooltip();
+                renderDistributionChart(pnum); // Y 축이 새 max(weight)*2 로 다시 줌
+                $(document).off('mousemove.weight'+pnum).off('mouseup.weight'+pnum)
+                    .off('touchmove.weight'+pnum).off('touchend.weight'+pnum);
+            };
+            $(document).on('mousemove.weight'+pnum, onMove).on('mouseup.weight'+pnum, onUp)
+                .on('touchmove.weight'+pnum, onMove).on('touchend.weight'+pnum, onUp);
+        }
+
+        function startBoundaryDrag(e, pnum, idx, isTouch) {
+            if (e.preventDefault) e.preventDefault();
+            let chart = distCharts[pnum];
+            if (!chart) return;
+            let xScale = chart.scales['x-axis-0'];
+            dragActive = true;
+
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
+            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
+            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
+            let xMin = useRealRange ? rangeMin : 0;
+            let xMax = useRealRange ? rangeMax : segmentCount;
+            let span = xMax - xMin;
+
+            let sizes = ensureSegmentSizes(pnum, segmentCount);
+            let totalRatio = 0;
+            for (let k = 0; k < sizes.length; k++) totalRatio += (sizes[k] > 0 ? sizes[k] : 0);
+            if (totalRatio <= 0) return;
+
+            let startBoundary = computeBoundaries(xMin, xMax, sizes)[idx];
+            let leftBound = computeBoundaries(xMin, xMax, sizes)[idx - 1];
+            let rightBound = computeBoundaries(xMin, xMax, sizes)[idx + 1];
+            let startPageX = e.pageX;
+            let startPixel = xScale.getPixelForValue(startBoundary);
+
+            let onMove = function(ev) {
+                let pageX = ev.pageX, pageY = ev.pageY;
+                if (isTouch && ev.touches && ev.touches.length > 0) {
+                    pageX = ev.touches[0].pageX;
+                    pageY = ev.touches[0].pageY;
+                }
+                let newPixel = startPixel + (pageX - startPageX);
+                let newVal = xScale.getValueForPixel(newPixel);
+                let epsilon = span * 1e-4;
+                // 극단으로 드래그한 후 돌아올 때의 "데드존"을 없애기 위해 클램핑 시 anchor 를 리셋
+                if (newVal <= leftBound + epsilon) {
+                    newVal = leftBound + epsilon;
+                    startPixel = xScale.getPixelForValue(newVal);
+                    startPageX = pageX;
+                }
+                if (newVal >= rightBound - epsilon) {
+                    newVal = rightBound - epsilon;
+                    startPixel = xScale.getPixelForValue(newVal);
+                    startPageX = pageX;
+                }
+
+                // 좌/우 segment 폭을 새 boundary 기준으로 재계산. 둘의 합은 보존되어 다른 segment에 영향 없음.
+                let leftRatio = (newVal - leftBound) / span * totalRatio;
+                let rightRatio = (rightBound - newVal) / span * totalRatio;
+                sizes[idx - 1] = leftRatio;
+                sizes[idx] = rightRatio;
+
+                renderDistributionChart(pnum);
+                showBoundaryHoverTooltip(pnum, idx, pageX, pageY);
+            };
+            let onUp = function() {
+                dragActive = false;
+                hideDragTooltip();
+                // 빠른 드래그 후 마지막 mousemove 렌더가 늦게 반영되는 경우 대비
+                renderDistributionChart(pnum);
+                $(document).off('mousemove.seg'+pnum).off('mouseup.seg'+pnum)
+                    .off('touchmove.seg'+pnum).off('touchend.seg'+pnum);
+            };
+            $(document).on('mousemove.seg'+pnum, onMove).on('mouseup.seg'+pnum, onUp)
+                .on('touchmove.seg'+pnum, onMove).on('touchend.seg'+pnum, onUp);
+        }
+
+        function formatBound(v) {
+            if (Number.isInteger(v)) return v.toString();
+            return parseFloat(v.toFixed(4)).toString();
+        }
+
+        function destroyDistChart(pnum) {
+            if (distCharts[pnum]) {
+                distCharts[pnum].destroy();
+                delete distCharts[pnum];
+            }
+            let $h = $('#policy-'+pnum+'-dist-handles');
+            if ($h.length) $h.empty();
+        }
+
+        function resetSegmentSizes(pnum) {
+            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
+            if (!isNaN(segmentCount) && segmentCount >= 1) {
+                segmentSizes[pnum] = new Array(segmentCount).fill(1);
+            }
+            renderDistributionChart(pnum);
         }
 
         function addPolicy() {
@@ -348,6 +1385,7 @@
                 '            <option value="STATIC" selected>STATIC</option>\n' +
                 '            <option value="RANDOM">RANDOM</option>\n' +
                 '            <option value="ACCUMULATE">ACCUMULATE</option>\n' +
+                '            <option value="SEQUENCE">SEQUENCE</option>\n' +
                 '        </select>\n' +
                 '    </div>\n' +
                 '    <div class="form-group">\n' +
@@ -391,10 +1429,56 @@
                 '        <label for="policies-'+pnum+'-range">Range</label>\n' +
                 '        <div class="form-row" id="policies-'+pnum+'-range">\n' +
                 '            <div class="form-group col-md-6">\n' +
-                '                <input type="text" class="form-control" id="policy-'+pnum+'-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)">\n' +
+                '                <input type="text" class="form-control" id="policy-'+pnum+'-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart('+pnum+')">\n' +
                 '            </div>\n' +
                 '            <div class="form-group col-md-6">\n' +
-                '                <input type="text" class="form-control" id="policy-'+pnum+'-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)">\n' +
+                '                <input type="text" class="form-control" id="policy-'+pnum+'-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart('+pnum+')">\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '    </div>\n' +
+                '    <div id="policies-'+pnum+'-sequence-wrapper" style="display: none">\n' +
+                '        <label for="policy-'+pnum+'-seq-input">Sequence values</label>\n' +
+                '        <div class="input-group">\n' +
+                '            <input type="text" class="form-control" id="policy-'+pnum+'-seq-input" placeholder="Number to append" onbeforeinput="numeric_filter(this, event)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addSequenceValue('+pnum+');}">\n' +
+                '            <div class="input-group-append">\n' +
+                '                <button class="btn btn-success" type="button" onclick="addSequenceValue('+pnum+')"><i class="fas fa-plus"></i> Add</button>\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '        <small class="form-text text-muted">Applied in order, one value per interval, then wraps to the first.</small>\n' +
+                '        <div id="policy-'+pnum+'-seq-list" class="mt-2"></div>\n' +
+                '    </div>\n' +
+                '    <div id="policies-'+pnum+'-distribution-wrapper" style="display: none">\n' +
+                '        <div class="form-group">\n' +
+                '            <div class="custom-control custom-switch">\n' +
+                '                <input type="checkbox" class="custom-control-input" id="policy-'+pnum+'-dist-enabled" onchange="toggleDistribution('+pnum+')">\n' +
+                '                <label class="custom-control-label" for="policy-'+pnum+'-dist-enabled">Use weighted distribution</label>\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '        <div id="policies-'+pnum+'-distribution-body" style="display: none">\n' +
+                '            <div class="form-group">\n' +
+                '                <label for="policy-'+pnum+'-bin-count">Segments</label>\n' +
+                '                <input type="number" min="2" max="30" step="1" class="form-control form-control-border" id="policy-'+pnum+'-bin-count" placeholder="Number of segments (2-30, recommended 4-12)" onchange="syncWeights('+pnum+')">\n' +
+                '            </div>\n' +
+                '            <div class="form-group">\n' +
+                '                <div class="custom-control custom-switch">\n' +
+                '                    <input type="checkbox" class="custom-control-input" id="policy-'+pnum+'-normal-enabled" onchange="toggleNormal('+pnum+')">\n' +
+                '                    <label class="custom-control-label" for="policy-'+pnum+'-normal-enabled">Normal distribution (drag &mu; / &sigma;)</label>\n' +
+                '                </div>\n' +
+                '            </div>\n' +
+                '            <div class="form-group">\n' +
+                '                <div class="d-flex justify-content-between align-items-center">\n' +
+                '                    <label class="mb-0">Distribution</label>\n' +
+                '                    <div id="policy-'+pnum+'-dist-controls">\n' +
+                '                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="equalizeSelected('+pnum+')">Equalize selected</button>\n' +
+                '                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentSizes('+pnum+')">Reset widths</button>\n' +
+                '                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentWeights('+pnum+')">Reset weights</button>\n' +
+                '                    </div>\n' +
+                '                </div>\n' +
+                '                <small class="form-text text-muted" id="policy-'+pnum+'-dist-desc">Bar height = relative weight; the % under each segment is its probability. Drag green handles to set a segment weight (only that bar moves), red handles to resize. Click segments to select, then Equalize selected.</small>\n' +
+                '                <div id="policy-'+pnum+'-dist-wrapper" style="position: relative; height: 220px;">\n' +
+                '                    <canvas id="policy-'+pnum+'-dist-chart"></canvas>\n' +
+                '                    <div id="policy-'+pnum+'-dist-handles" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;"></div>\n' +
+                '                </div>\n' +
                 '            </div>\n' +
                 '        </div>\n' +
                 '    </div>\n' +
@@ -414,6 +1498,9 @@
             let pnum = parseInt(pnum_input.val()) - 1;
 
             if(pnum > 0) {
+                destroyDistChart(pnum);
+                delete segmentSizes[pnum];
+                delete sequenceValues[pnum];
                 $('#policies-' + pnum).remove();
                 $('#policies-' + pnum + '-label').remove()
                 pnum_input.val(pnum);
@@ -623,11 +1710,9 @@
                                                            onbeforeinput="numeric_filter(this, event)">
                                                 </div>
                                                 <div class="form-group">
-                                                    <label for="stopOnControl">Stop on control</label>
-                                                    <select class="custom-select form-control-border" id="stopOnControl">
-                                                        <option value="1">Enabled</option>
-                                                        <option value="0">Disabled</option>
-                                                    </select>
+                                                    <label for="stopOnControl">Stop on control (seconds — 0: off, N&gt;0: pause N sec, N&lt;0: permanent)</label>
+                                                    <input type="number" class="form-control form-control-border"
+                                                           id="stopOnControl" value="0">
                                                 </div>
                                                 <button class="btn btn-primary" onclick="stepper.previous()">Previous
                                                 </button>
@@ -659,6 +1744,7 @@
                                                                 <option value="STATIC" selected>STATIC</option>
                                                                 <option value="RANDOM">RANDOM</option>
                                                                 <option value="ACCUMULATE">ACCUMULATE</option>
+                                                                <option value="SEQUENCE">SEQUENCE</option>
                                                             </select>
                                                         </div>
                                                         <div class="form-group">
@@ -702,10 +1788,62 @@
                                                             <label for="policies-0-range">Range</label>
                                                             <div class="form-row" id="policies-0-range">
                                                                 <div class="form-group col-md-6">
-                                                                    <input type="text" class="form-control" id="policy-0-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)">
+                                                                    <input type="text" class="form-control" id="policy-0-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart(0)">
                                                                 </div>
                                                                 <div class="form-group col-md-6">
-                                                                    <input type="text" class="form-control" id="policy-0-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)">
+                                                                    <input type="text" class="form-control" id="policy-0-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart(0)">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div id="policies-0-sequence-wrapper" style="display: none">
+                                                            <label for="policy-0-seq-input">Sequence values</label>
+                                                            <div class="input-group">
+                                                                <input type="text" class="form-control" id="policy-0-seq-input"
+                                                                       placeholder="Number to append" onbeforeinput="numeric_filter(this, event)"
+                                                                       onkeydown="if(event.key==='Enter'){event.preventDefault();addSequenceValue(0);}">
+                                                                <div class="input-group-append">
+                                                                    <button class="btn btn-success" type="button" onclick="addSequenceValue(0)">
+                                                                        <i class="fas fa-plus"></i> Add
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <small class="form-text text-muted">
+                                                                Applied in order, one value per interval, then wraps to the first.
+                                                            </small>
+                                                            <div id="policy-0-seq-list" class="mt-2"></div>
+                                                        </div>
+                                                        <div id="policies-0-distribution-wrapper" style="display: none">
+                                                            <div class="form-group">
+                                                                <div class="custom-control custom-switch">
+                                                                    <input type="checkbox" class="custom-control-input" id="policy-0-dist-enabled" onchange="toggleDistribution(0)">
+                                                                    <label class="custom-control-label" for="policy-0-dist-enabled">Use weighted distribution</label>
+                                                                </div>
+                                                            </div>
+                                                            <div id="policies-0-distribution-body" style="display: none">
+                                                                <div class="form-group">
+                                                                    <label for="policy-0-bin-count">Segments</label>
+                                                                    <input type="number" min="2" max="30" step="1" class="form-control form-control-border" id="policy-0-bin-count" placeholder="Number of segments (2-30, recommended 4-12)" onchange="syncWeights(0)">
+                                                                </div>
+                                                                <div class="form-group">
+                                                                    <div class="custom-control custom-switch">
+                                                                        <input type="checkbox" class="custom-control-input" id="policy-0-normal-enabled" onchange="toggleNormal(0)">
+                                                                        <label class="custom-control-label" for="policy-0-normal-enabled">Normal distribution (drag &mu; / &sigma;)</label>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="form-group">
+                                                                    <div class="d-flex justify-content-between align-items-center">
+                                                                        <label class="mb-0">Distribution</label>
+                                                                        <div id="policy-0-dist-controls">
+                                                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="equalizeSelected(0)">Equalize selected</button>
+                                                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentSizes(0)">Reset widths</button>
+                                                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentWeights(0)">Reset weights</button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <small class="form-text text-muted" id="policy-0-dist-desc">Bar height = relative weight; the % under each segment is its probability. Drag green handles to set a segment's weight (only that bar moves), red handles to resize. Click segments to select, then "Equalize selected" to split their total equally.</small>
+                                                                    <div id="policy-0-dist-wrapper" style="position: relative; height: 220px;">
+                                                                        <canvas id="policy-0-dist-chart"></canvas>
+                                                                        <div id="policy-0-dist-handles" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;"></div>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -790,5 +1928,7 @@
 <!-- BS-Stepper -->
 <script src="../../plugins/bs-stepper/js/bs-stepper.min.js"></script>
 <script src="../../js/bootstrap-select.min.js"></script>
+<!-- Chart.js -->
+<script src="../../plugins/chart.js/Chart.min.js"></script>
 </body>
 </html>

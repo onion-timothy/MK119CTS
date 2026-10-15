@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,293 +12,707 @@
     <!-- Theme style -->
     <link rel="stylesheet" href="../../css/adminlte.min.css">
     <!-- jTree -->
-    <link rel="stylesheet" href="../../css/style.min.css"/>
-    <!-- DataTables -->
-    <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/bootstrap4-duallistbox/bootstrap-duallistbox.min.css">
-    <link rel="stylesheet" href="../../plugins/jquery-contextmenu/css/jquery.contextMenu.min.css">
+    <link rel="stylesheet" href="../../css/style.min.css" />
+    <!-- Tabulator -->
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
 
     <!-- JSON Editor -->
     <link href="../../plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
+    <!-- Toastr -->
+    <link rel="stylesheet" href="../../plugins/toastr/toastr.min.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
+
+        /* 툴바 + 테이블 + pagination 감싸는 외곽 패널 */
+        .table-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #fff;
+            overflow: hidden;
+            container-type: inline-size;
+            container-name: tblpanel;
+        }
+
+        /* 툴바 */
+        .table-toolbar {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+            padding: 6px 10px;
+            display: flex;
+            gap: 0.25rem;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+        .table-toolbar .btn { white-space: nowrap; }
+        @container tblpanel (max-width: 720px) {
+            .table-toolbar .btn-text { display: none; }
+        }
+        @container tblpanel (max-width: 520px) {
+            .table-toolbar input[type="search"] { width: 100px !important; }
+        }
+
+        /* Tabulator 폴리시 (devices.html과 동일) */
+        .cts-tabulator {
+            border: none !important;
+            border-radius: 0 !important;
+            font-size: 0.9rem;
+        }
+        .cts-tabulator .tabulator-header {
+            background-color: #fff;
+            border-bottom: 2px solid #007bff;
+            font-weight: 600;
+            color: #495057;
+        }
+        .cts-tabulator .tabulator-header .tabulator-col {
+            background-color: transparent;
+            border-right: none;
+        }
+        .cts-tabulator .tabulator-cell {
+            border-right: none;
+        }
+        /* 계산이 정확한데 subpixel/border 차이로 미세 overflow 방지 */
+        .cts-tabulator .tabulator-tableholder {
+            overflow: hidden !important;
+        }
+        .cts-tabulator .tabulator-row {
+            border-bottom: 1px solid #f1f3f5;
+            transition: background-color 0.12s ease;
+        }
+        .cts-tabulator .tabulator-row.tabulator-row-even {
+            background-color: #fbfcfd;
+        }
+        .cts-tabulator .tabulator-row:hover {
+            background-color: #eef5ff !important;
+        }
+        .cts-tabulator .tabulator-row.tabulator-selected {
+            background-color: #d6e8ff !important;
+        }
+        .cts-tabulator .tabulator-footer,
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
+            background: #fff !important;
+            background-color: #fff !important;
+            background-image: none !important;
+        }
+        .cts-tabulator .tabulator-footer {
+            border-top: 1px solid #dee2e6 !important;
+            padding: 0;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
+            padding: 6px 10px;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page {
+            border-radius: 3px;
+            margin: 0 2px;
+            transition: background-color 0.12s ease;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover {
+            background-color: #eef5ff;
+            border-color: #b8dcff;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page.active {
+            background-color: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page.disabled {
+            opacity: 0.4;
+        }
+    
+        /* 뷰포트 방향에 따라 트리/본문 배치를 전환한다.
+           가로가 길면 좌우, 세로가 길면 상하. 인라인 flex 비율을 덮어쓰므로 !important 가 필요하다. */
+        @media (orientation: portrait) {
+            .cts-split { flex-direction: column !important; }
+            .cts-split > .cts-split-side { flex: 2 1 0 !important; }
+            .cts-split > .cts-split-main { flex: 5 1 0 !important; }
+        }
+    </style>
 
     <script>
         /*<![CDATA[*/
         let devicesTable;
         let simulationsTable;
-        let tree;
         let device_id;
         let simulationsToUpload = [];
         let deviceSelected = '[[${device}]]';
+        let targetSimulation = '[[${targetSimulation}]]';
         let devices = [];
-        let copyDevicesBox;
+        let deployTargetsTable;
+        let deployCandidates = [];
         let excelTable;
 
-        let editors = {};
+        let currentDevice;
+        let currentSimulations = [];
 
-        let currentSimulations;
+        let currentSimXhr = null;
+        let simRequestSeq = 0;
 
-        String.format = function () {
-            let args = arguments;
-            return args[0].replace(/{(\d+)}/g, function (match, num) {
-                num = Number(num) + 1;
-                return typeof (args[num]) != 'undefined' ? args[num] : match;
+        const DEVICES_BASE_ROW_H = 44;
+        const SIMULATIONS_BASE_ROW_H = 48;
+
+        function withHeaderMinWidth(cols) {
+            return cols.map(function (c) {
+                if (!c || !c.title) return c;
+                let needed = Math.max(80, c.title.length * 9 + 40);
+                if (c.width !== undefined && c.width < needed) c.width = needed;
+                if (c.width === undefined && (c.minWidth === undefined || c.minWidth < needed)) c.minWidth = needed;
+                return c;
             });
         }
 
-        function getDevice(device_id) {
-            let device = devices.filter((device) => device.id === parseInt(device_id))
-            if (device.length > 0) return device[0];
-            else return null;
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        // 시뮬레이션 테이블의 Policy 컬럼용 짧은 요약 - "STATIC(30)", "RANDOM(20~30)", "ACCUMULATE(1000,10++)"
+        function formatPolicyDetail(p) {
+            let mode = escapeHtml(p.policy || '');
+            if (p.policy === 'STATIC') {
+                return mode + '(' + escapeHtml(p.value) + ')';
+            }
+            if (p.policy === 'RANDOM' && Array.isArray(p.range) && p.range.length >= 2) {
+                return mode + '(' + escapeHtml(p.range[0]) + '~' + escapeHtml(p.range[1]) + ')';
+            }
+            if (p.policy === 'ACCUMULATE' && Array.isArray(p.range) && p.range.length >= 2) {
+                return mode + '(' + escapeHtml(p.range[0]) + ',' + escapeHtml(p.range[1]) + '++)';
+            }
+            if (p.policy === 'SEQUENCE' && Array.isArray(p.value)) {
+                // 길면 앞 4개만 보여주고 나머지는 개수로 줄인다
+                let head = p.value.slice(0, 4).map(escapeHtml).join(',');
+                let rest = p.value.length > 4 ? ',…+' + (p.value.length - 4) : '';
+                return mode + '[' + head + rest + ']';
+            }
+            return mode;
+        }
+
+        // batch 미리보기에서 단일 정책을 사람이 읽기 쉬운 요약으로 렌더
+        function renderPolicySummary(p) {
+            let rows = [];
+            rows.push('<span class="text-muted">ID</span> <b>' + escapeHtml(p.id) + '</b>');
+            rows.push('<span class="text-muted">Policy</span> ' + escapeHtml(p.policy));
+            if (p.data_type) rows.push('<span class="text-muted">Type</span> ' + escapeHtml(p.data_type));
+            if (p.policy === 'STATIC') {
+                rows.push('<span class="text-muted">Value</span> ' + escapeHtml(p.value));
+            } else if (Array.isArray(p.range) && p.range.length >= 2) {
+                let label = (p.policy === 'ACCUMULATE') ? 'Init / Step' : 'Range';
+                rows.push('<span class="text-muted">' + label + '</span> ' + escapeHtml(p.range[0]) + ' ~ ' + escapeHtml(p.range[1]));
+            }
+            return '<div class="policy-summary" style="font-size:0.85rem; line-height:1.5; text-align:left;">'
+                + rows.map(function (r) { return '<div>' + r + '</div>'; }).join('') + '</div>';
+        }
+
+        function getDevice(id) {
+            let d = devices.filter((x) => x.id === parseInt(id));
+            return d.length > 0 ? d[0] : null;
         }
 
         function onload() {
-            $('[data-toggle="tooltip"]').tooltip()
+            $('[data-toggle="tooltip"]').tooltip();
 
-            let tableFirstRowId;
+            let firstDeviceId;
             $.ajax({
                 url: '/api/device/devices',
                 type: 'GET',
                 async: false,
                 success: function (data) {
-                    let table = $('#devicesTable');
-
-                    for (let i = 0; i < data.length; i++) {
-                        let markup = "<tr onclick='viewSimulations(this.id)' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + "</td><td>" + data[i].protocol + "</td><td>" + data[i].host + "</td><td>" + data[i].port + "</td><td>" + data[i].name + "</tr>";
-                        table.append(markup);
-                        if (i === 0) {
-                            tableFirstRowId = data[i].id;
-                        }
-                        devices.push(data[i]);
-                    }
-
-                    devicesTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
+                    devices = data;
+                    if (data.length > 0) firstDeviceId = data[0].id;
                 }
             });
 
-            simulationsTable = $('#simulationsTable').DataTable({
-                "paging": true,
-                "lengthChange": false,
-                "searching": false,
-                "ordering": true,
-                "info": true,
-                "autoWidth": false,
-                "responsive": true,
+            initTree(firstDeviceId);
+            initSimulationsTable([]);
+
+            bindTreeSearch();
+            bindSimulationsSearch();
+            bindSimulationsToolbarActions();
+            bindDeployTargetsToolbar();
+            $('#simulationCopyModal').on('shown.bs.modal', initDeployTargetsTable);
+
+            // 값 변경 모달: 열리면 보이는 첫 입력에 포커스하고 기존 값을 선택해 바로 덮어쓸 수 있게 한다
+            $('#valModal').on('shown.bs.modal', function () {
+                let $first = $('#valSingleWrap').is(':visible') ? $('#valSingle') : $('#valLow');
+                $first.trigger('focus').trigger('select');
+            });
+            $('#valSingle, #valLow, #valHigh').on('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); submitSimulationValue(); }
             });
 
-            viewSimulations(deviceSelected === '0' ? tableFirstRowId : deviceSelected);
+            let resizeTimer;
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    fitTablePageSize(simulationsTable, '#simulationsToolbar', SIMULATIONS_BASE_ROW_H);
+                }, 100);
+            });
 
             $('#excel').change(function (e) {
                 let file = e.target.files[0];
+                if (!file) return;
                 let reader = new FileReader();
                 reader.onload = function () {
-                    if (excelTable) {
-                        excelTable.destroy()
-                    }
-                    let fileData = reader.result;
-                    let wb = XLSX.read(fileData, {type: 'binary'});
-                    $('#excelTableModal').modal('show');
-                    $('#excelObjects > tbody').empty();
-                    simulations = [];
+                    let wb = XLSX.read(reader.result, { type: 'binary' });
+                    let sheet = wb.SheetNames[0];
+                    let rows = sheet ? XLSX.utils.sheet_to_json(wb.Sheets[sheet]) : [];
 
-                    wb.SheetNames.forEach(function (sheetName) {
-                        let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-                        rowObj.forEach(function (obj) {
-                            let policies = [];
-                            let simulationPolicy = {};
-                            const keysToCopy = ['id', 'policy', 'data_type', 'value', 'stopOnControl'];
-                            keysToCopy.forEach(key => {
-                                if (key in obj) {
-                                    simulationPolicy[key] = obj[key];
-                                }
-                            })
-                            obj.id = null;
-                            if (obj.range !== undefined) {
-                                simulationPolicy.range = [];
-                                let range = obj.range.split(',');
-                                range.forEach(boundary => {
-                                    simulationPolicy.range.push(parseInt(boundary))
-                                });
-                            }
-                            policies.push(simulationPolicy);
-                            let markup = String.format("<tr style='{0}'><td>{1}</td><td>{2}</td><td><div id='{1}_editor'></div></td><td>{4}</td><td>{5}</td></tr>",
-                                '',
-                                obj.name,
-                                obj.target,
-                                '',
-                                obj.interval,
-                                obj.enabled);
-                            $('#excelObjects').append(markup);
-                            obj.policies = policies;
-                            simulationsToUpload.push(obj)
+                    let normalized = rows.map(function (r) {
+                        let p = {};
+                        ['id', 'policy', 'data_type', 'value'].forEach(function (k) {
+                            if (k in r && r[k] !== null) p[k] = r[k];
                         });
-                    });
-                    excelTable = $('#excelObjects').DataTable({
-                        "paging": false,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
+                        if (r.range !== undefined && r.range !== null && r.range !== '') {
+                            p.range = String(r.range).split(',').map(function (b) { return Number(String(b).trim()); });
+                        }
+                        return {
+                            name: r.name,
+                            target: r.target,
+                            interval: r.interval,
+                            enabled: r.enabled,
+                            // stopOnControl 은 Simulation 의 최상위 필드다 (SimulationPolicy 에는 없다)
+                            stopOnControl: r.stopOnControl,
+                            policies: [p]
+                        };
                     });
 
-                    simulationsToUpload.forEach(simlation => {
-                        editors[simlation.name] = new JSONEditor(document.getElementById(simlation.name + "_editor"), {});
-                        editors[simlation.name].set(simlation.policies);
-                    })
+                    // 검증과 확인/수정은 batch 페이지가 클라이언트에서 수행한다
+                    sessionStorage.setItem('batchAddSimulations', JSON.stringify({ simulations: normalized }));
+                    location.href = '/simulations/batch?device=' + device_id;
                 };
                 reader.readAsBinaryString(file);
                 $('#excel').val('');
             });
         }
 
+        // ── Groups and devices (좌측) 트리 ──────────────────────
+        let treeInitialSelected = false;
+        function initTree(fallbackDeviceId) {
+            let targetDeviceId = (deviceSelected && deviceSelected !== '0') ? deviceSelected : fallbackDeviceId;
+            $('#tree-container').jstree({
+                'core': {
+                    'themes': { 'responsive': true, 'variant': 'large' },
+                    'check_callback': true,
+                    'data': {
+                        'url': '/api/device/devices/treeData',
+                        'data': function (node) {
+                            return { 'id': node.id === '#' ? 0 : node.id.split('_')[1] };
+                        }
+                    },
+                    'multiple': false,
+                },
+                'types': {
+                    'group': { 'icon': 'fas fa-folder', 'valid_children': ['device', 'group'] },
+                    'device': { 'icon': 'fas fa-server' }
+                },
+                'plugins': ['types', 'wholerow', 'sort', 'search'],
+                'sort': function (a, b) {
+                    let n1 = this.get_node(a);
+                    let n2 = this.get_node(b);
+                    if (n1.type !== n2.type) return n1.type === 'group' ? -1 : 1;
+                    return String(n1.text).localeCompare(String(n2.text), undefined, { numeric: true });
+                },
+                'search': {
+                    'case_insensitive': true,
+                    'show_only_matches': true,
+                    'show_only_matches_children': true
+                }
+            }).on('select_node.jstree', function (e, data) {
+                if (data.node.type === 'device') {
+                    let id = parseInt(data.node.id.split('_')[1]);
+                    viewSimulations(id);
+                } else if (data.node.type === 'group') {
+                    $.jstree.reference('#tree-container').open_node(data.node.id);
+                }
+            }).on('loaded.jstree', function () {
+                $('#tree-container').jstree('open_all');
+            }).on('open_node.jstree', function () {
+                if (treeInitialSelected || !targetDeviceId) return;
+                let node = $('#d_' + targetDeviceId);
+                if (node.length) {
+                    $.jstree.reference('#tree-container').select_node(node);
+                    treeInitialSelected = true;
+                }
+            });
+        }
+
+        // ── Simulations (우측) 테이블 ────────────────────────────
+        function initSimulationsTable(data) {
+            if (simulationsTable) { simulationsTable.destroy(); simulationsTable = null; }
+            simulationsTable = new Tabulator('#simulationsTable', {
+                data: data,
+                layout: 'fitColumns',
+                height: '100%',
+                index: 'id',
+                pagination: true,
+                paginationSize: 10,
+                selectableRows: true,
+                columnDefaults: { resizable: false },
+                placeholder: 'No simulations for this device',
+                columns: withHeaderMinWidth([
+                    {formatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 50},
+                    {title: 'Name', field: 'name'},
+                    {title: 'Target', field: 'target'},
+                    {
+                        title: 'Policy',
+                        field: 'policy',
+                        formatter: function (cell) {
+                            let d = cell.getRow().getData();
+                            if (!d.policies || !d.policies.length) return '';
+                            return d.policies.map(formatPolicyDetail).join(', ');
+                        }
+                    },
+                    {title: 'Interval', field: 'interval', width: 100, hozAlign: 'center'},
+                    {
+                        title: 'Enabled', field: 'enabled', hozAlign: 'center', width: 120,
+                        formatter: function (cell) {
+                            let enabled = cell.getValue() === 1;
+                            let cls = enabled ? 'btn-success' : 'btn-danger';
+                            return '<button class="btn ' + cls + '" style="width:60px;height:20px;padding:0"></button>';
+                        },
+                        cellClick: function (e, cell) {
+                            e.stopPropagation();
+                            let d = cell.getRow().getData();
+                            toggleSimulation(d.id, d.enabled);
+                        }
+                    }
+                ]),
+                rowContextMenu: [
+                    {
+                        label: "<i class='fas fa-pen'></i> Edit simulation",
+                        action: function (e, row) { location.href = '/editSimulation/' + row.getData().id; }
+                    },
+                    {
+                        label: "<i class='fas fa-toggle-off'></i> Toggle simulation",
+                        action: function (e, row) {
+                            let d = row.getData();
+                            toggleSimulation(d.id, d.enabled);
+                        }
+                    },
+                    {
+                        label: "<i class='fas fa-trash'></i> Delete simulation",
+                        action: function (e, row) {
+                            let id = row.getData().id;
+                            if (!confirm("Confirm to delete simulation '" + id + "'")) return;
+                            $.ajax({
+                                url: '/api/simulation/deleteSimulation/' + id,
+                                type: 'DELETE',
+                                contentType: 'application/json',
+                                success: function () { location.href = '/simulations?device=' + device_id; },
+                                error: function (r) { alert(r.status + r.responseText); }
+                            });
+                        }
+                    }
+                ]
+            });
+            // Tabulator v6 는 rowDblClick 을 생성자 옵션으로 주면 무시한다 — .on() 으로 등록해야 한다
+            simulationsTable.on('rowDblClick', function (e, row) {
+                changeSimulationVal(row.getData().id);
+            });
+            simulationsTable.on('tableBuilt', function () {
+                applySimulationsSearch();
+                injectSimulationsFooterButtons();
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        fitTablePageSize(simulationsTable, '#simulationsToolbar', SIMULATIONS_BASE_ROW_H);
+                        highlightTargetSimulation();
+                    });
+                });
+            });
+            simulationsTable.on('pageLoaded', function () {
+                requestAnimationFrame(function () { fitTablePageSize(simulationsTable, '#simulationsToolbar', SIMULATIONS_BASE_ROW_H); });
+            });
+        }
+
+        function highlightTargetSimulation() {
+            if (!targetSimulation || targetSimulation === 'null' || targetSimulation === '') return;
+            let row = simulationsTable.getRow(parseInt(targetSimulation));
+            if (row) {
+                row.scrollTo();
+                let el = row.getElement();
+                el.style.transition = 'background-color 1s ease';
+                el.style.backgroundColor = '#ffff99';
+                setTimeout(function () { el.style.backgroundColor = ''; }, 2000);
+            }
+            targetSimulation = null;
+        }
+
+        // ── 공용: pageSize + row height 동적 조정 ───────────────
+        function fitTablePageSize(table, toolbarSelector, baseRowH) {
+            if (!table) return;
+            let root = table.element;
+            if (!root) return;
+            let panel = root.closest('.table-panel');
+            if (!panel) return;
+
+            root.style.height = '';
+
+            let toolbar = panel.querySelector(toolbarSelector);
+            let header = root.querySelector('.tabulator-header');
+            let footer = root.querySelector('.tabulator-footer');
+            let holder = root.querySelector('.tabulator-tableholder');
+            let toolbarH = toolbar ? toolbar.offsetHeight : 0;
+            let headerH = header ? header.offsetHeight : 0;
+            let footerH = footer ? footer.offsetHeight : 0;
+
+            let availableForHolder = panel.clientHeight - toolbarH - headerH - footerH;
+            if (availableForHolder <= 0) return;
+
+            let pageSize = Math.max(1, Math.floor(availableForHolder / baseRowH));
+            let actualRowH = availableForHolder / pageSize;
+            let cellVertPad = Math.max(2, (actualRowH - 22 - 1) / 2);
+
+            let styleId = root.id + '-row-h-style';
+            let styleEl = document.getElementById(styleId);
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = styleId;
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent =
+                '#' + root.id + ' .tabulator-row { ' +
+                    'height: ' + actualRowH + 'px !important; ' +
+                    'min-height: ' + actualRowH + 'px !important; ' +
+                '} ' +
+                '#' + root.id + ' .tabulator-cell { ' +
+                    'padding-top: ' + cellVertPad + 'px !important; ' +
+                    'padding-bottom: ' + cellVertPad + 'px !important; ' +
+                '}';
+
+            if (pageSize !== table.getPageSize()) {
+                table.setPageSize(pageSize);
+            }
+            if (holder) {
+                holder.style.setProperty('height', availableForHolder + 'px', 'important');
+                holder.style.setProperty('max-height', availableForHolder + 'px', 'important');
+                holder.style.setProperty('min-height', availableForHolder + 'px', 'important');
+            }
+        }
+
+        // ── 검색 ─────────────────────────────────────────────
+        function bindTreeSearch() {
+            let input = document.getElementById('treeSearchInput');
+            if (!input) return;
+            let timer;
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    $('#tree-container').jstree(true).search(input.value.trim());
+                }, 150);
+            });
+        }
+        function bindSimulationsSearch() {
+            let field = document.getElementById('simulationsSearchField');
+            let input = document.getElementById('simulationsSearchInput');
+            if (!field || !input) return;
+            field.addEventListener('change', applySimulationsSearch);
+            input.addEventListener('input', applySimulationsSearch);
+        }
+        function applySimulationsSearch() {
+            if (!simulationsTable) return;
+            let field = document.getElementById('simulationsSearchField').value;
+            let val = document.getElementById('simulationsSearchInput').value.trim();
+            if (!val) { simulationsTable.clearFilter(); return; }
+            let needle = val.toLowerCase();
+            if (field === 'policy') {
+                simulationsTable.setFilter(function (data) {
+                    if (!data.policies || !data.policies.length) return false;
+                    return data.policies.some(p => String(p.policy || '').toLowerCase().indexOf(needle) !== -1);
+                });
+            } else {
+                simulationsTable.setFilter(field, 'like', val);
+            }
+        }
+
+        // ── Simulations 툴바 액션 (툴바 + footer 통합 delegation) ─
+        function bindSimulationsToolbarActions() {
+            // 시뮬레이션 카드 body 전체를 대상으로 delegation (툴바 + Tabulator footer 커버)
+            let panel = document.querySelector('.card.card-primary');
+            if (!panel) return;
+            panel.addEventListener('click', function (e) {
+                let btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                let action = btn.getAttribute('data-action');
+                if (action === 'add') {
+                    if (!device_id) { alert('Select a device first.'); return; }
+                    location.href = '/addSimulation/' + device_id;
+                } else if (action === 'batchAdd') {
+                    if (!device_id) { alert('Select a device first.'); return; }
+                    $('#excel').click();
+                } else if (!simulationsTable || !device_id) {
+                    alert('Select a device first.');
+                } else if (action === 'selectAll') {
+                    let all = simulationsTable.getRows().length;
+                    let sel = simulationsTable.getSelectedRows().length;
+                    if (sel === all) simulationsTable.deselectRow();
+                    else simulationsTable.selectRow();
+                } else if (action === 'delete') {
+                    deleteSelectedSimulations();
+                } else if (action === 'toggle') {
+                    toggleSelectedSimulations();
+                } else if (action === 'copy') {
+                    openCopySimulationsModal();
+                }
+            });
+        }
+
+        // 선택과 무관한 액션 버튼들을 Tabulator footer(pagination) 좌측에 주입
+        function injectSimulationsFooterButtons() {
+            if (!simulationsTable) return;
+            let footerContents = simulationsTable.element.querySelector('.tabulator-footer .tabulator-footer-contents');
+            if (!footerContents) return;
+            if (footerContents.querySelector('.cts-footer-actions')) return;
+            let el = document.createElement('div');
+            el.className = 'cts-footer-actions';
+            el.style.cssText = 'display:inline-flex; gap:0.25rem;';
+            el.innerHTML =
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="add"><i class="fas fa-plus"></i> <span class="btn-text">Add</span></button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="batchAdd"><i class="fas fa-file-excel"></i> <span class="btn-text">Batch Add</span></button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="copy"><i class="fas fa-upload"></i> <span class="btn-text">Deploy to...</span></button>';
+            footerContents.insertBefore(el, footerContents.firstChild);
+        }
+
+        function deleteSelectedSimulations() {
+            let rows = simulationsTable.getSelectedRows();
+            if (rows.length === 0) { alert('No simulations selected.'); return; }
+            if (!confirm('Delete ' + rows.length + ' simulation(s)?')) return;
+            let ids = rows.map(r => r.getData().id);
+            let failures = [];
+            let i = 0;
+            let next = function () {
+                if (i >= ids.length) {
+                    if (failures.length > 0) alert('Failed: ' + failures.join(', '));
+                    location.href = '/simulations?device=' + device_id;
+                    return;
+                }
+                let id = ids[i];
+                $.ajax({
+                    url: '/api/simulation/deleteSimulation/' + id,
+                    type: 'DELETE',
+                    contentType: 'application/json',
+                    error: function (r) { failures.push(id + ' (' + r.status + ')'); },
+                    complete: function () { i++; next(); }
+                });
+            };
+            next();
+        }
+
+        function toggleSelectedSimulations() {
+            let rows = simulationsTable.getSelectedRows();
+            if (rows.length === 0) { alert('No simulations selected.'); return; }
+            if (!confirm('Toggle ' + rows.length + ' simulation(s)?')) return;
+            let items = rows.map(r => ({id: r.getData().id, enabled: r.getData().enabled}));
+            let failures = [];
+            let i = 0;
+            let next = function () {
+                if (i >= items.length) {
+                    if (failures.length > 0) alert('Failed: ' + failures.join(', '));
+                    location.href = '/simulations?device=' + device_id;
+                    return;
+                }
+                let it = items[i];
+                $.ajax({
+                    url: '/api/simulation/setEnabled/' + it.id + '/' + (it.enabled === 1 ? 0 : 1),
+                    type: 'POST',
+                    contentType: 'application/json',
+                    error: function (r) { failures.push(it.id + ' (' + r.status + ')'); },
+                    complete: function () { i++; next(); }
+                });
+            };
+            next();
+        }
+
+        function openCopySimulationsModal() {
+            if (!currentDevice) { alert('Select a device first.'); return; }
+            deployCandidates = devices
+                .filter(function (d) {
+                    return parseInt(d.id) !== parseInt(device_id) && d.protocol === currentDevice.protocol;
+                })
+                .map(function (d) {
+                    return { id: d.id, name: d.name, group: (d.group && d.group.name) ? d.group.name : '' };
+                });
+            $('#simulationCopyModal').modal('show');
+        }
+
+        function initDeployTargetsTable() {
+            if (deployTargetsTable) { deployTargetsTable.destroy(); deployTargetsTable = null; }
+            deployTargetsTable = new Tabulator('#deployTargetsTable', {
+                data: deployCandidates,
+                layout: 'fitColumns',
+                index: 'id',
+                pagination: true,
+                paginationSize: 10,
+                selectableRows: true,
+                columnDefaults: { resizable: false },
+                placeholder: 'No devices with the same protocol',
+                columns: withHeaderMinWidth([
+                    { formatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 50 },
+                    { title: 'Name', field: 'name' },
+                    { title: 'Group', field: 'group' }
+                ])
+            });
+            let updateCount = function () {
+                let counter = document.getElementById('deployTargetsCount');
+                if (counter) counter.textContent = deployTargetsTable.getSelectedRows().length + ' selected';
+            };
+            deployTargetsTable.on('rowSelectionChanged', updateCount);
+            deployTargetsTable.on('tableBuilt', updateCount);
+        }
+
+        function bindDeployTargetsToolbar() {
+            let tb = document.getElementById('deployTargetsToolbar');
+            if (!tb) return;
+            tb.addEventListener('click', function (e) {
+                let btn = e.target.closest('[data-deploy-action]');
+                if (!btn || !deployTargetsTable) return;
+                if (btn.getAttribute('data-deploy-action') === 'selectAll') {
+                    let all = deployTargetsTable.getRows().length;
+                    let sel = deployTargetsTable.getSelectedRows().length;
+                    if (sel === all) deployTargetsTable.deselectRow();
+                    else deployTargetsTable.selectRow();
+                }
+            });
+        }
+
+        // ── 디바이스 선택 시 해당 시뮬레이션 로드 ────────────────
         function viewSimulations(id) {
             device_id = id;
-
-            if (simulationsTable)
-                simulationsTable.destroy();
-
             let device = getDevice(id);
-            if (device != null)
-                $('#device-title').text('Simulations of ' + device.name)
+            if (device != null) {
+                $('#device-title').text('Simulations of ' + device.name);
+                currentDevice = device;
+            } else {
+                alert('Device not found ' + id);
+                location.reload();
+                return;
+            }
 
-            currentSimulations = []
+            if (currentSimXhr) { currentSimXhr.abort(); currentSimXhr = null; }
+            let mySeq = ++simRequestSeq;
+            currentSimulations = [];
+            $('#simLoading').css('display', 'flex');
 
-            $.ajax({
+            currentSimXhr = $.ajax({
                 url: '/api/simulation/simulations/' + id,
                 type: 'GET',
-                success: function (data) {
-                    currentSimulations = data;
-                    let table = $('#simulationsTable');
-                    $('#simulationsTable > tbody').empty();
-
-                    $.contextMenu('destroy', '#simulationsTable');
-
-                    for (let i = 0; i < data.length; i++) {
-                        let policy = data[i].policies;
-                        let policies = [];
-                        for (let j = 0; j < policy.length; j++) {
-                            policies.push(policy[j].policy);
-                        }
-                        let button = "<button class='" + (data[i].enabled === 1 ? "btn btn-success" : "btn btn-danger") + "' onclick='toggleSimulation(" + data[i].id + "," + data[i].enabled + ")'></button>"
-                        let markup = "<tr ondblclick='changeSimulationVal("+data[i].id+")' id='sim_" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].name + "</td><td>" + data[i].target + "</td><td>" + policies.join(',') + "</td><td>" + data[i].interval + "</td><td>" + button + "</td></tr>";
-                        table.append(markup);
+                error: function (request, textStatus) {
+                    if (textStatus === 'abort' || mySeq !== simRequestSeq) return;
+                    alert(request.status + ' ' + request.responseText);
+                },
+                complete: function () {
+                    if (mySeq === simRequestSeq) {
+                        currentSimXhr = null;
+                        $('#simLoading').hide();
                     }
-
-                    simulationsTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
-
-                    $(function () {
-                        $('#simulationsTable').contextMenu({
-                            selector: 'td',
-                            callback: function (key) {
-                                let row = $(this).parent().attr('id');
-                                let id
-                                if (typeof (row) != 'undefined') {
-                                    id = parseInt($(this).parent().attr('id').split('_')[1])
-                                }
-                                if (key === 'edit') {
-                                    if (typeof (id) != 'undefined') {
-                                        location.href = '/editSimulation/' + id;
-                                    }
-                                } else if (key === 'delete') {
-                                    if (typeof (id) != 'undefined') {
-                                        if (confirm("Confirm to delete simulation '" + id + "'")) {
-                                            $.ajax({
-                                                url: '/api/simulation/deleteSimulation/' + id,
-                                                type: 'DELETE',
-                                                contentType: 'application/json',
-                                                success: function () {
-                                                    location.href = '/simulations?device=' + device_id;
-                                                },
-                                                error: function (request) {
-                                                    alert(request.status + request.responseText);
-                                                }
-                                            });
-                                        }
-                                    }
-                                } else if (key === 'toggle') {
-                                    if (typeof (id) != 'undefined') {
-                                        let enabled;
-                                        $.ajax({
-                                            url: '/api/simulation/getEnabled/' + id,
-                                            type: 'GET',
-                                            async: false,
-                                            contentType: 'application/json',
-                                            success: function (data) {
-                                                enabled = data;
-                                            },
-                                            error: function (request) {
-                                                alert(request.status + request.responseText);
-                                            }
-                                        });
-
-                                        if (confirm((enabled ? 'Disable' : 'Enable') + " simulation '" + id + "'?")) {
-                                            $.ajax({
-                                                url: '/api/simulation/setEnabled/' + id + '/' + (enabled ? 0 : 1),
-                                                type: 'POST',
-                                                contentType: 'application/json',
-                                                success: function () {
-                                                    location.href = '/simulations?device=' + device_id;
-                                                },
-                                                error: function (request) {
-                                                    alert(request.status + request.responseText);
-                                                }
-                                            });
-                                        }
-                                    }
-                                } else if (key === 'copy') {
-                                    if (typeof (id) != 'undefined') {
-                                        copyDevicesBox = $('#duallistbox').bootstrapDualListbox({
-                                            nonSelectedListLabel: 'List of devices(with same protocol)',
-                                            selectedListLabel: 'Devices to copy',
-                                            preserveSelectionOnMove: 'moved',
-                                            moveOnSelect: false,
-                                        })
-
-                                        copyDevicesBox.empty()
-
-                                        devices.forEach((d) => {
-                                            if (parseInt(d.id) !== parseInt(device_id) && d.protocol === device.protocol) {
-                                                copyDevicesBox.append('<option value="' + d.id + '">' + d.name + '</option>')
-                                            }
-                                        })
-                                        copyDevicesBox.bootstrapDualListbox('refresh');
-                                        $('#simulationCopyModal').modal('show');
-                                    }
-                                } else if (key === 'add') {
-                                    location.href = '/addSimulation/' + device_id;
-                                } else if (key === 'addBatch') {
-                                    $('#excel').click();
-                                }
-                            },
-                            items: {
-                                "add": {name: "Add simulation", icon: "fas fa-plus"},
-                                "addBatch": {name: "Add simulation(batch)", icon: "fas fa-file-excel"},
-                                "toggle": {name: "Toggle simulation", icon: "fas fa-toggle-off"},
-                                "edit": {name: "Edit simulation", icon: "fas fa-pen"},
-                                "delete": {name: "Delete simulation", icon: "fas fa-trash"},
-                                "copy": {name: "Copy simulations", icon: "fas fa-copy"}
-                            }
-                        });
-                    })
+                },
+                success: function (data) {
+                    if (mySeq !== simRequestSeq) return;
+                    currentSimulations = data;
+                    initSimulationsTable(data);
                 }
             });
         }
@@ -319,40 +734,115 @@
         }
 
         function performUpload() {
-            simulationsToUpload.forEach(function (simulation) {
-                simulation.device = {"id": device_id};
+            let total = simulationsToUpload.length;
+            if (total === 0) {
+                alert('No simulations to register.');
+                return;
+            }
+
+            let $bar = $('#uploadProgressBar');
+            let $text = $('#uploadProgressText');
+            let setProgress = function (done, failed) {
+                let pct = Math.round(done / total * 100);
+                $bar.css('width', pct + '%').attr('aria-valuenow', pct).text(pct + '%');
+                $text.text(done + ' / ' + total + (failed > 0 ? ' (' + failed + ' failed)' : ''));
+            };
+            setProgress(0, 0);
+
+            let i = 0;
+            let failures = [];
+
+            let uploadNext = function () {
+                if (i >= total) {
+                    finishUpload();
+                    return;
+                }
+                let simulation = simulationsToUpload[i];
+                simulation.device = currentDevice;
                 $.ajax({
                     url: '/api/simulation/addSimulation',
                     type: 'PUT',
                     contentType: 'application/json',
                     data: JSON.stringify(simulation),
                     error: function (request) {
-                        alert(request.status + request.responseText);
+                        failures.push((simulation.name || ('#' + i)) + ': ' + request.status + ' ' + request.responseText);
                     },
-                    async: false,
+                    complete: function () {
+                        i++;
+                        setProgress(i, failures.length);
+                        uploadNext(); // 순차 처리 (서버 부하/순서 보장)
+                    }
                 });
-            });
-            location.href = '/simulations?device=' + device_id;
+            };
+
+            let finishUpload = function () {
+                if (failures.length > 0) {
+                    $('#uploadProgressModal').modal('hide');
+                    alert('Completed with ' + failures.length + ' failure(s):\n\n' + failures.join('\n'));
+                }
+                location.href = '/simulations?device=' + device_id;
+            };
+
+            // excel 모달을 닫고, 닫힘 완료 후 진행률 모달(입력 차단)을 띄운 뒤 업로드 시작
+            $('#excelTableModal').one('hidden.bs.modal', function () {
+                $('#uploadProgressModal').modal('show');
+                uploadNext();
+            }).modal('hide');
         }
 
         function copySimulations() {
-            if (copyDevicesBox.val().length > 0) {
+            let targets = deployTargetsTable ? deployTargetsTable.getSelectedRows().map(function (r) { return r.getData().id; }) : [];
+            if (targets.length === 0) {
+                alert('Device not selected.');
+                return;
+            }
+
+            let total = targets.length;
+            let $bar = $('#copyProgressBar');
+            let $text = $('#copyProgressText');
+            let setProgress = function (done, failed) {
+                let pct = Math.round(done / total * 100);
+                $bar.css('width', pct + '%').attr('aria-valuenow', pct).text(pct + '%');
+                $text.text(done + ' / ' + total + (failed > 0 ? ' (' + failed + ' failed)' : ''));
+            };
+
+            let i = 0;
+            let failures = [];
+
+            let copyNext = function () {
+                if (i >= total) {
+                    if (failures.length > 0) {
+                        $('#copyProgressModal').modal('hide');
+                        alert('Completed with ' + failures.length + ' failure(s):\n\n' + failures.join('\n'));
+                    }
+                    location.href = '/simulations?device=' + device_id;
+                    return;
+                }
+                let targetId = targets[i];
                 $.ajax({
                     url: '/api/simulation/copySimulation/' + device_id,
                     type: 'PUT',
                     contentType: 'application/json',
-                    data: JSON.stringify(copyDevicesBox.val()),
-                    success: function () {
-                        location.href = '/simulations?device=' + device_id;
-                    },
+                    data: JSON.stringify([targetId]), // 디바이스 1개씩 보내 진행률 카운트
                     error: function (request) {
-                        alert(request.status + request.responseText);
+                        failures.push(targetId + ': ' + request.status + ' ' + request.responseText);
                     },
-                    async: false,
+                    complete: function () {
+                        i++;
+                        setProgress(i, failures.length);
+                        copyNext();
+                    }
                 });
-            } else {
-                alert('Device not selected.')
-            }
+            };
+
+            let doCopy = function () {
+                setProgress(0, 0);
+                $('#copyProgressModal').modal('show');
+                copyNext();
+            };
+
+            // 복사 모달을 닫고, 닫힘 완료 후 진행 모달(입력 차단)을 띄운 뒤 복사 시작
+            $('#simulationCopyModal').one('hidden.bs.modal', doCopy).modal('hide');
         }
 
         function generateTemplate() {
@@ -369,42 +859,192 @@
                     out.range = simulation.policies[0].range.join(',')
                 }
                 out.value = simulation.policies[0].value === null ? 'null' : simulation.policies[0].value;
-                out.stopOnControl = simulation.policies[0].stopOnControl;
+                // stopOnControl 은 Simulation 의 최상위 필드다. policies[0] 에서 읽으면 항상 undefined 가 된다.
+                out.stopOnControl = simulation.stopOnControl;
                 out.interval = simulation.interval;
                 out.enabled = simulation.enabled;
                 output.push(out);
             })
-            const headers = ['name','target','id','policy','data_type','range','value','stopOnControl','interval','enabled'];
-            const worksheet = XLSX.utils.json_to_sheet(output, {header: headers});
+            const headers = ['name', 'target', 'id', 'policy', 'data_type', 'range', 'value', 'stopOnControl', 'interval', 'enabled'];
+            const worksheet = XLSX.utils.json_to_sheet(output, { header: headers });
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
             XLSX.writeFile(workbook, "simulations_template.xlsx");
         }
 
+        /** pickBinRange 가 가중 분포로 인정하는 조건과 동일하게 판정한다. */
+        function hasWeightedDistribution(p) {
+            let d = p.distribution;
+            if (!d || !d.type || String(d.type).toUpperCase() !== 'BINS') return false;
+            return typeof d.binCount === 'number' && d.binCount > 0
+                && Array.isArray(d.weights) && d.weights.length > 0;
+        }
+
+        /** 행 더블클릭으로 시뮬레이션 값을 바로 바꾼다 (STATIC / RANDOM / ACCUMULATE). */
         function changeSimulationVal(id) {
-            currentSimulations.some(s=>{
-                if(s.id === id) {
-                    if(s.policies[0].policy === 'STATIC') {
-                        let value = prompt('Update static simluation value:', s.policies[0].value);
-                        if(value === null) return true
-                        if (Number.isFinite(Number(value))) {
-                            $.ajax({
-                                url: '/api/simulation/updateStaticSimulationValue/' + id + '/' + value,
-                                type: 'POST',
-                                contentType: 'application/json',
-                                error: function (request) {
-                                    alert(request.status + request.responseText);
-                                },
-                                success: function(){
-                                    location.reload()
-                                },
-                                async: false,
-                            });
-                        } else alert('Input value is not a number.');
-                    } else {
-                        alert(s.name + ' is not static simulation.')
-                    }
-                    return true
+            let s = currentSimulations.find(function (x) { return x.id === id; });
+            if (!s || !s.policies || !s.policies[0]) return;
+            let p = s.policies[0];
+
+            if (p.policy === 'RANDOM' && hasWeightedDistribution(p)) {
+                toastr.info('Weighted distribution — open the editor to adjust it.');
+                return;
+            }
+            if (p.policy !== 'STATIC' && p.policy !== 'RANDOM' && p.policy !== 'ACCUMULATE') {
+                toastr.info(s.name + ' has no editable value.');
+                return;
+            }
+            openValueModal(s);
+        }
+
+        function openValueModal(s) {
+            let p = s.policies[0];
+            let isStatic = p.policy === 'STATIC';
+            let isSequence = p.policy === 'SEQUENCE';
+            let range = Array.isArray(p.range) ? p.range : [];
+
+            $('#valSimId').val(s.id);
+            $('#valName').text(s.name);
+            $('#valTarget').text(s.target);
+            $('#valPolicy').text(p.policy);
+            $('#valType').text(p.data_type || '-');
+            $('#valCurrent').text(
+                isStatic ? p.value
+                         : isSequence ? (Array.isArray(p.value) ? '[' + p.value.join(', ') + ']' : '-')
+                                      : (range[0] + ' ~ ' + range[1]));
+
+            // 정책에 따라 단일 값 / 범위 / 시퀀스 중 하나만 보인다
+            $('#valSingleWrap').toggle(isStatic);
+            $('#valRangeWrap').toggle(!isStatic && !isSequence);
+            $('#valSeqWrap').toggle(isSequence);
+            // 진행 상태 리셋은 ACCUMULATE / SEQUENCE 에서만 의미가 있다
+            $('#valResetBtn').toggle(p.policy === 'ACCUMULATE' || isSequence);
+            if (isSequence) {
+                $('#valSeq').val(Array.isArray(p.value) ? p.value.join(', ') : '');
+            } else if (isStatic) {
+                $('#valSingle').val(p.value);
+            } else {
+                // ACCUMULATE 는 range[0]=시작값, range[1]=증가분 이라 라벨이 다르다
+                let accumulate = p.policy === 'ACCUMULATE';
+                $('#valLowLabel').text(accumulate ? 'Initial value' : 'Minimum');
+                $('#valHighLabel').text(accumulate ? 'Increment per interval' : 'Maximum');
+                $('#valLow').val(range[0]);
+                $('#valHigh').val(range[1]);
+            }
+
+            $('#valError').text('').hide();
+            $('#valModal').modal('show');
+        }
+
+        function submitSimulationValue() {
+            let id = parseInt($('#valSimId').val(), 10);
+            let s = currentSimulations.find(function (x) { return x.id === id; });
+            let $err = $('#valError');
+            if (!s) { $('#valModal').modal('hide'); return; }
+            let p = s.policies[0];
+            let isStatic = p.policy === 'STATIC';
+
+            let req;
+            if (p.policy === 'SEQUENCE') {
+                let parts = String($('#valSeq').val()).split(',')
+                    .map(function (x) { return x.trim(); })
+                    .filter(function (x) { return x !== ''; });
+                if (parts.length === 0 || !parts.every(isNumericInput)) {
+                    $err.text('Enter one or more numbers separated by commas.').show();
+                    return;
+                }
+                let values = parts.map(Number);
+                req = {
+                    url: '/api/simulation/updateSequenceValues/' + id,
+                    data: JSON.stringify({ values: values }),
+                    apply: function () { p.value = values; }
+                };
+            } else if (isStatic) {
+                let raw = $('#valSingle').val();
+                if (!isNumericInput(raw)) { $err.text('Enter a numeric value.').show(); return; }
+                let value = Number(raw);
+                req = {
+                    url: '/api/simulation/updateStaticSimulationValue/' + id + '/' + value,
+                    data: null,
+                    apply: function () { p.value = value; }
+                };
+            } else {
+                let lowRaw = $('#valLow').val(), highRaw = $('#valHigh').val();
+                if (!isNumericInput(lowRaw) || !isNumericInput(highRaw)) {
+                    $err.text('Enter numeric values for both fields.').show();
+                    return;
+                }
+                let low = Number(lowRaw), high = Number(highRaw);
+                if (p.policy === 'RANDOM' && low > high) {
+                    $err.text('Minimum must be less than or equal to Maximum.').show();
+                    return;
+                }
+                req = {
+                    url: '/api/simulation/updateSimulationRange/' + id,
+                    data: JSON.stringify({ low: low, high: high }),
+                    apply: function () { p.range = [low, high]; }
+                };
+            }
+
+            $('#valSaveBtn').prop('disabled', true);
+            $.ajax({
+                url: req.url,
+                type: 'POST',
+                contentType: 'application/json',
+                data: req.data,
+                success: function () {
+                    req.apply();
+                    // Policy 컬럼이 값을 포함해 렌더되므로 해당 행만 다시 그린다
+                    let row = simulationsTable.getRow(id);
+                    if (row) row.reformat();
+                    $('#valModal').modal('hide');
+                    toastr.success('Simulation value updated successfully.');
+                },
+                error: function (request) {
+                    $err.text('Update failed: ' + request.status + ' ' + request.responseText).show();
+                },
+                complete: function () {
+                    $('#valSaveBtn').prop('disabled', false);
+                }
+            });
+        }
+
+        function isNumericInput(raw) {
+            return raw !== null && raw !== undefined
+                && String(raw).trim() !== '' && Number.isFinite(Number(raw));
+        }
+
+        /**
+         * ACCUMULATE 누적값을 버린다. 다음 주기부터 Initial value 로 다시 시작한다.
+         * 누적 상태는 서버 메모리에만 있어서 range 를 바꿔도 자동으로 지워지지 않는다
+         * (초기값을 바꾼 경우는 updateSimulationRange 가 함께 리셋한다).
+         */
+        function resetAccumulation() {
+            let id = parseInt($('#valSimId').val(), 10);
+            let s = currentSimulations.find(function (x) { return x.id === id; });
+            if (!s) return;
+            let p = s.policies[0];
+            if (p.policy !== 'ACCUMULATE' && p.policy !== 'SEQUENCE') return;
+
+            let initial = (p.policy === 'SEQUENCE')
+                ? (Array.isArray(p.value) ? p.value[0] : '')
+                : (Array.isArray(p.range) ? p.range[0] : '');
+            if (!confirm('Reset progress for "' + s.name + '"?\n'
+                       + 'It will start again from ' + initial + ' on the next interval.')) return;
+
+            $('#valResetBtn').prop('disabled', true);
+            $.ajax({
+                url: '/api/simulation/resetAccumulation/' + id,
+                type: 'POST',
+                contentType: 'application/json',
+                success: function () {
+                    toastr.success('Accumulation reset. Restarts from ' + initial + '.');
+                },
+                error: function (request) {
+                    $('#valError').text('Reset failed: ' + request.status + ' ' + request.responseText).show();
+                },
+                complete: function () {
+                    $('#valResetBtn').prop('disabled', false);
                 }
             });
         }
@@ -412,292 +1052,383 @@
         /*]]>*/
     </script>
 </head>
+
 <body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
+    <div class="wrapper">
 
-    <!-- Preloader -->
-    <div class="preloader flex-column justify-content-center align-items-center">
-        <img class="animation__shake" src="../../img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
-    </div>
+        <!-- Preloader -->
+        <div class="preloader flex-column justify-content-center align-items-center">
+            <img class="animation__shake" src="../../img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
+        </div>
 
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <!-- Left navbar links -->
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
-        </ul>
+        <!-- Navbar -->
+        <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+            <!-- Left navbar links -->
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+                </li>
+                <li class="nav-item d-none d-sm-inline-block">
+                    <a href="/" class="nav-link">Home</a>
+                </li>
+                <li class="nav-item d-none d-sm-inline-block">
+                    <a href="#" class="nav-link">Contact</a>
+                </li>
+            </ul>
 
-        <!-- Right navbar links -->
-        <ul class="navbar-nav ml-auto">
-            <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip"
-                   data-placement="bottom" title="Export to template">
-                    <i class="fas fa-download"></i>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <!-- /.navbar -->
+            <!-- Right navbar links -->
+            <ul class="navbar-nav ml-auto">
+                <!-- Navbar Search -->
+                <li class="nav-item">
+                    <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip"
+                        data-placement="bottom" title="Export to template">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="fullscreen" href="#" role="button">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <!-- /.navbar -->
 
-    <!-- Main Sidebar Container -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <!-- Brand Logo -->
-        <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <!-- Sidebar Menu -->
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <!-- Add icons to the links using the .nav-icon class
+        <!-- Main Sidebar Container -->
+        <aside class="main-sidebar sidebar-dark-primary elevation-4">
+            <!-- Brand Logo -->
+            <a href="#" class="brand-link">
+                <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
+                    style="opacity: .8">
+                <span class="brand-text font-weight-light">MK119 CTS</span>
+            </a>
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Sidebar Menu -->
+                <nav class="mt-2">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
+                        data-accordion="false">
+                        <!-- Add icons to the links using the .nav-icon class
                          with font-awesome or any other icon font library -->
 
-                    <li class="nav-item">
-                        <a href="/" class="nav-link">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>
-                                Devices
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link active">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>
-                                Value Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>
-                                Error Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Settings
-                            </p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <!-- /.sidebar-menu -->
-        </div>
-        <!-- /.sidebar -->
-    </aside>
+                        <li class="nav-item">
+                            <a href="/" class="nav-link">
+                                <i class="nav-icon fas fa-table"></i>
+                                <p>
+                                    Devices
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/simulations" class="nav-link active">
+                                <i class="nav-icon fas fa-chart-area"></i>
+                                <p>
+                                    Value Simulations
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/errors" class="nav-link">
+                                <i class="nav-icon fas fa-bomb"></i>
+                                <p>
+                                    Error Simulations
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/settings" class="nav-link">
+                                <i class="nav-icon fas fa-sliders-h"></i>
+                                <p>
+                                    Settings
+                                </p>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <!-- /.sidebar-menu -->
+            </div>
+            <!-- /.sidebar -->
+        </aside>
 
-    <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper">
-        <!-- Content Header (Page header) -->
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0">Value Simulations</h1>
-                    </div><!-- /.col -->
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active">Value Simulations</li>
-                        </ol>
-                    </div><!-- /.col -->
-                </div><!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </div>
-        <!-- /.content-header -->
+        <!-- Content Wrapper. Contains page content -->
+        <div class="content-wrapper d-flex flex-column">
+            <!-- Content Header (Page header) -->
+            <div class="content-header flex-shrink-0">
+                <div class="container-fluid">
+                    <div class="row mb-2">
+                        <div class="col-sm-6">
+                            <h1 class="m-0">Value Simulations</h1>
+                        </div><!-- /.col -->
+                        <div class="col-sm-6">
+                            <ol class="breadcrumb float-sm-right">
+                                <li class="breadcrumb-item"><a href="#">Home</a></li>
+                                <li class="breadcrumb-item active">Value Simulations</li>
+                            </ol>
+                        </div><!-- /.col -->
+                    </div><!-- /.row -->
+                </div><!-- /.container-fluid -->
+            </div>
+            <!-- /.content-header -->
 
-        <!-- Main content -->
-        <section class="content">
-            <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
-            <div class="container-fluid">
-                <!-- Small boxes (Stat box) -->
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Devices</h3>
+            <!-- Main content -->
+            <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
+                <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx" />
+                <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: 1rem; min-height:0; padding: 0 1rem 1rem 1rem;">
+                    <!-- Left: Groups and devices tree -->
+                    <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
+                        <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                            <div class="card-header flex-shrink-0">
+                                <h3 class="card-title mb-0">Groups and devices</h3>
                             </div>
-                            <!-- ./card-header -->
-                            <div class="card-body p-2">
-                                <table id="devicesTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>ID</th>
-                                    <th>Transport</th>
-                                    <th>Protocol</th>
-                                    <th>Host</th>
-                                    <th>Port</th>
-                                    <th>Name</th>
-                                    </thead>
-                                    <tbody>
-
-                                    </tbody>
-                                </table>
+                            <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
+                                <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
+                                <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
                             </div>
-                            <!-- /.card-body -->
-                        </div>
-                        <!-- /.card -->
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card card-primary">
-                            <div class="card-header">
-                                <h3 class="card-title" id="device-title">Simulations</h3>
-                            </div>
-                            <!-- /.card-header -->
-                            <div class="card-body p-2">
-                                <table id="simulationsTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Target</th>
-                                    <th>Policy</th>
-                                    <th>Interval</th>
-                                    <th>Enabled</th>
-                                    </thead>
-                                    <tbody class="simulation-table-selector">
-
-                                    </tbody>
-                                </table>
-                            </div>
-                            <!-- /.card-body -->
                         </div>
                     </div>
-                </div>
-                <!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </section>
-        <!-- /.content -->
-
-        <!-- excel table modal -->
-        <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog" aria-labelledby="excelTableModalLabel"
-             aria-hidden="true">
-            <div class="modal-dialog" role="document" style="max-width:fit-content">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="excelTableModalLabel">Register New Simulations by Excel</h5>
+                    <!-- Right: Simulations of selected device -->
+                    <div class="d-flex flex-column cts-split-main" style="flex: 7 1 0; min-width: 0; min-height: 0;">
+                        <div class="card card-primary mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                            <div class="card-header flex-shrink-0">
+                                <h3 class="card-title mb-0" id="device-title">Simulations</h3>
+                            </div>
+                            <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0.5rem 0.5rem 0 0.5rem; position:relative;">
+                                <div id="simLoading" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,0.6); z-index:10; align-items:center; justify-content:center;">
+                                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                                </div>
+                                <div class="table-panel flex-grow-1 d-flex flex-column" style="min-height:0;">
+                                    <div id="simulationsToolbar" class="table-toolbar flex-shrink-0">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                                        <div class="ml-auto d-flex" style="gap:0.25rem; min-width:0;">
+                                            <select id="simulationsSearchField" class="form-control form-control-sm" style="width:auto;">
+                                                <option value="name">Name</option>
+                                                <option value="target">Target</option>
+                                                <option value="policy">Policy</option>
+                                            </select>
+                                            <input id="simulationsSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:160px; min-width:0;">
+                                        </div>
+                                    </div>
+                                    <div id="simulationsTable" class="cts-tabulator flex-grow-1" style="min-height:0;"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="modal-body">
-                        <table class="table table-bordered" id="excelObjects" style="overflow-y: auto;">
-                            <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Target</th>
-                                <th>Simulation Policy</th>
-                                <th>Interval</th>
-                                <th>Enabled</th>
-                            </tr>
-                            </thead>
-                            <tbody>
+                </div><!-- /.container-fluid -->
+            </section>
+            <!-- /.content -->
 
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button" onclick="$('#excelTableModal').modal('hide')">
-                            Cancel
-                        </button>
-                        <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
-                        <button class="btn btn-success" type="button" onclick="performUpload()" id="registerByExcel">
-                            Register
-                        </button>
+            <!-- excel table modal -->
+            <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog"
+                aria-labelledby="excelTableModalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document" style="max-width:fit-content">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="excelTableModalLabel">Register New Simulations by Excel</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div id="excelObjects" class="cts-tabulator" style="min-width:800px;"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" type="button"
+                                onclick="$('#excelTableModal').modal('hide')">
+                                Cancel
+                            </button>
+                            <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
+                            <button class="btn btn-success" type="button" onclick="performUpload()"
+                                id="registerByExcel">
+                                Register
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <!-- Excel modal end -->
+            <!-- Excel modal end -->
+
+            <!-- batch upload progress modal (입력 차단: static backdrop + keyboard off) -->
+            <div class="modal fade" id="uploadProgressModal" data-backdrop="static" data-keyboard="false"
+                tabindex="-1" role="dialog" aria-labelledby="uploadProgressModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="uploadProgressModalLabel">Registering simulations…</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="progress" style="height: 22px;">
+                                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                    role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0"
+                                    aria-valuemax="100">0%</div>
+                            </div>
+                            <div id="uploadProgressText" class="text-muted small mt-2">0 / 0</div>
+                            <div class="text-muted small mt-1">Please wait, do not close this window.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- progress modal end -->
 
 
-        <!-- excel table modal -->
-        <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog"
-             aria-labelledby="simulationCopyModalLabel"
-             aria-hidden="true">
-            <div class="modal-dialog" role="document" style="max-width:fit-content">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="simulationCopyModalLabel">Select devices to copy simulations</h5>
-                    </div>
-                    <div class="modal-body">
-                        <label>
-                            <select class="duallistbox" id="duallistbox" multiple="multiple">
-                            </select>
-                        </label>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button"
+            <!-- Deploy simulations modal -->
+            <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog"
+                aria-labelledby="simulationCopyModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="simulationCopyModalLabel">Deploy simulations to devices</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-panel d-flex flex-column">
+                                <div id="deployTargetsToolbar" class="table-toolbar flex-shrink-0">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-deploy-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
+                                    <span class="ml-auto text-muted small" id="deployTargetsCount">0 selected</span>
+                                </div>
+                                <div id="deployTargetsTable" class="cts-tabulator"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" type="button"
                                 onclick="$('#simulationCopyModal').modal('hide')">
-                            Cancel
-                        </button>
-                        <button class="btn btn-primary" type="button" onclick="copySimulations()">Copy</button>
+                                Cancel
+                            </button>
+                            <button class="btn btn-primary" type="button" onclick="copySimulations()">Deploy</button>
+                        </div>
                     </div>
                 </div>
             </div>
+            <!-- Deploy modal end -->
+
+            <!-- copy progress modal -->
+            <div class="modal fade" id="copyProgressModal" data-backdrop="static" data-keyboard="false"
+                tabindex="-1" role="dialog" aria-labelledby="copyProgressModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="copyProgressModalLabel">Copying simulations…</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="progress" style="height: 22px;">
+                                <div id="copyProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                    role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0"
+                                    aria-valuemax="100">0%</div>
+                            </div>
+                            <div id="copyProgressText" class="text-muted small mt-2">0 / 0</div>
+                            <div class="text-muted small mt-1">Please wait, do not close this window.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- copy progress modal end -->
+
+            <!-- simulation value edit modal (row double click) -->
+            <div class="modal fade" id="valModal" tabindex="-1" role="dialog"
+                aria-labelledby="valModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="valModalLabel">Change Simulation Value</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" id="valSimId">
+                            <dl class="row mb-2" style="font-size:.875rem;">
+                                <dt class="col-4 text-muted">Simulation</dt>
+                                <dd class="col-8 mb-1" id="valName"></dd>
+                                <dt class="col-4 text-muted">Target</dt>
+                                <dd class="col-8 mb-1" id="valTarget"></dd>
+                                <dt class="col-4 text-muted">Policy</dt>
+                                <dd class="col-8 mb-1" id="valPolicy"></dd>
+                                <dt class="col-4 text-muted">Data type</dt>
+                                <dd class="col-8 mb-1" id="valType"></dd>
+                                <dt class="col-4 text-muted">Current</dt>
+                                <dd class="col-8 mb-0" id="valCurrent"></dd>
+                            </dl>
+
+                            <!-- STATIC: single value -->
+                            <div class="form-group mb-1" id="valSingleWrap">
+                                <label for="valSingle">New value</label>
+                                <input type="number" step="any" class="form-control" id="valSingle"
+                                    placeholder="Numeric value">
+                            </div>
+
+                            <!-- RANDOM / ACCUMULATE: two values -->
+                            <div id="valRangeWrap">
+                                <div class="form-row">
+                                    <div class="form-group col-6 mb-1">
+                                        <label for="valLow" id="valLowLabel">Minimum</label>
+                                        <input type="number" step="any" class="form-control" id="valLow">
+                                    </div>
+                                    <div class="form-group col-6 mb-1">
+                                        <label for="valHigh" id="valHighLabel">Maximum</label>
+                                        <input type="number" step="any" class="form-control" id="valHigh">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SEQUENCE: comma separated numbers -->
+                            <div class="form-group mb-1" id="valSeqWrap">
+                                <label for="valSeq">Sequence values</label>
+                                <input type="text" class="form-control" id="valSeq"
+                                    placeholder="e.g. 10, 20, 30">
+                                <small class="form-text text-muted">
+                                    Comma separated. Saving restarts from the first value.
+                                </small>
+                            </div>
+
+                            <div class="text-danger" id="valError" style="display:none; font-size:.8rem;"></div>
+                        </div>
+                        <div class="modal-footer justify-content-between">
+                            <!-- ACCUMULATE 전용: 누적값을 버려 초기값부터 다시 시작 -->
+                            <button type="button" class="btn btn-outline-warning btn-sm" id="valResetBtn"
+                                onclick="resetAccumulation()">
+                                <i class="fas fa-undo"></i> Reset accumulation
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="valSaveBtn"
+                                    onclick="submitSimulationValue()">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- simulation value edit modal end -->
+
         </div>
-        <!-- Excel modal end -->
-
-
+        <!-- /.content-wrapper -->
+        <footer class="main-footer">
+            <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+            All rights reserved.
+            <div class="float-right d-none d-sm-inline-block">
+                <b>Version</b> 0.1-alpha
+            </div>
+        </footer>
     </div>
-    <!-- /.content-wrapper -->
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 0.1-alpha
-        </div>
-    </footer>
-</div>
-<!-- ./wrapper -->
+    <!-- ./wrapper -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../js/adminlte.js"></script>
-<script src="../../js/jstree.min.js"></script>
-<!-- DataTables  & Plugins -->
-<script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
-<script src="../../plugins/pdfmake/vfs_fonts.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.html5.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.print.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
-<script src="../../js/xlsx.full.min.js"></script>
-<script src="../../plugins/jquery-contextmenu/js/jquery.contextMenu.min.js"></script>
-<script src="../../plugins/jquery-contextmenu/js/jquery.ui.position.js"></script>
-<script src="../../plugins/bootstrap4-duallistbox/jquery.bootstrap-duallistbox.min.js"></script>
-<!-- JSON Editor -->
-<script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
+    <!-- jQuery -->
+    <script src="../../plugins/jquery/jquery.min.js"></script>
+    <!-- jQuery UI 1.11.4 -->
+    <script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
+    <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
+    <script>
+        $.widget.bridge('uibutton', $.ui.button)
+    </script>
+    <!-- Bootstrap 4 -->
+    <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <!-- AdminLTE App -->
+    <script src="../../js/adminlte.js"></script>
+    <script src="../../js/jstree.min.js"></script>
+    <!-- Tabulator -->
+    <script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+    <script src="../../js/jstree.min.js"></script>
+    <script src="../../js/xlsx.full.min.js"></script>
+    <!-- JSON Editor -->
+    <script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
+    <!-- Toastr -->
+    <script src="../../plugins/toastr/toastr.min.js"></script>
 </body>
+
 </html>

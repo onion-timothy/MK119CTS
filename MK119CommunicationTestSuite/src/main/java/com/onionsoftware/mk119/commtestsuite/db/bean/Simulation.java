@@ -21,14 +21,22 @@ public class Simulation implements Cloneable {
     @ManyToOne
     @JoinColumn(name = "device_id")
     Device device;
+    @Lob
     private String target;
     @Convert(converter = JsonStringPolicyListConverter.class)
+    @Lob
     private List<SimulationPolicy> policies;
     @Column(name="`interval`")
     private int interval;
     private int enabled;
     String name;
-    boolean stopOnControl;
+    /**
+     * 제어 수용 시 시뮬레이션 정지 동작.
+     * 0: 정지 없음.
+     * N > 0: N초 동안 해당 target 을 쓰기 보호한다 (ServerData lock. 재시작 시 초기화).
+     * N < 0: 영구 정지 (DB에 enabled=DISABLED 기록).
+     */
+    int stopOnControl;
 
     @OneToOne(mappedBy = "simulation", cascade = CascadeType.REMOVE)
     @JsonIgnore
