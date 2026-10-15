@@ -8,18 +8,13 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.buffer.ByteBuf;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component("opc_agent_decoder_udp")
-@Scope("prototype")
 public class OPCAgentUDPDecoder extends MkUDPDecoder {
 
-    public OPCAgentUDPDecoder(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public OPCAgentUDPDecoder(IOServer server) {
+        super(server);
     }
 
     @Override

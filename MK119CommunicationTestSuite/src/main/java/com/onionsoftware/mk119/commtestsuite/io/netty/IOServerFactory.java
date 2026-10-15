@@ -7,7 +7,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
@@ -15,14 +14,17 @@ import org.springframework.context.annotation.Scope;
 @Configuration("ioServerFactory")
 @RequiredArgsConstructor
 public class IOServerFactory {
-    final ApplicationContext applicationContext;
+    private final ErrorService errorService;
+    private final com.onionsoftware.mk119.commtestsuite.db.service.SimulationService simulationService;
+    private final com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService bacnetService;
+    private final org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler taskScheduler;
 
     @Bean
     @Scope("prototype")
     public IOServer ioServer(Device device) {
         device.getCommunicationSettings().put("transport", device.getTransport().name());
-        ErrorService errorService = (ErrorService) applicationContext.getBean("errorService");
         IOServer ioServer = new IOServer(device, errorService.selectEnabledErrorsByDeviceId(device.getId()));
+        ioServer.setTaskScheduler(taskScheduler);
         ioServer.setServerData(serverData(device));
         return ioServer;
     }
@@ -52,24 +54,50 @@ public class IOServerFactory {
                 return new SnmpData();
             case ETHERNET_IP:
                 return new EthernetIPData(device.getCommunicationSettings());
+            case BACNET:
+                return new BACnetData(bacnetService);
             default:
                 return null;
         }
     }
 
-    @Bean
-    @Scope("prototype")
     public ChannelInboundHandlerAdapter decoder(Device device, IOServer server) {
-        String beanName = device.getProtocol().name().toLowerCase() + "_decoder_" + device.getTransport().name().toLowerCase();
-        if(device.getTransport() == Transport.UDP)
-            return (ChannelInboundHandlerAdapter) applicationContext.getBean(beanName, applicationContext, server);
-        else
-            return (ChannelInboundHandlerAdapter) applicationContext.getBean(beanName, server);
+        if (device.getTransport() == Transport.UDP) {
+            switch (device.getProtocol()) {
+                case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.GenericUDPDecoder(server);
+                case MODBUS: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.ModbusUDPDecoder(server);
+                case XGT_PLC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.XGTUDPDecoder(server);
+                case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.DaeyunUDPDecoder(server);
+                case OPC_AGENT: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.OPCAgentUDPDecoder(server);
+                case SNMP: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.SnmpDecoder(server);
+                case BACNET: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.BACnetDecoder(server, bacnetService);
+                // EthernetIP UDP Decoder is not present
+                default: return null;
+            }
+        } else {
+            switch (device.getProtocol()) {
+                case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.GenericTCPDecoder(server);
+                case MODBUS: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.ModbusDecoder(server);
+                case XGT_PLC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.XGTDecoder(server);
+                case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.DaeyunDecoder(server);
+                case OPC_AGENT: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.OPCAgentDecoder(server);
+                case ETHERNET_IP: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.EthernetIPDecoder(server);
+                default: return null;
+            }
+        }
     }
 
-    @Bean
-    @Scope("prototype")
     public MkHandler handler(Device device, IOServer server) {
-        return (MkHandler) applicationContext.getBean(device.getProtocol().name().toLowerCase(), applicationContext, server);
+        switch (device.getProtocol()) {
+            case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.GenericTCPUDPHandler(server);
+            case MODBUS: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.ModbusHandler(server, simulationService);
+            case XGT_PLC: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.XGTHandler(server, simulationService);
+            case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.DaeyunHandler(server);
+            case OPC_AGENT: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.OPCAgentHandler(server, simulationService);
+            case SNMP: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.SnmpHandler(server, simulationService);
+            case ETHERNET_IP: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.EthernetIPHandler(server, simulationService);
+            case BACNET: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.BACnetHandler(server, bacnetService, simulationService);
+            default: return null;
+        }
     }
 }

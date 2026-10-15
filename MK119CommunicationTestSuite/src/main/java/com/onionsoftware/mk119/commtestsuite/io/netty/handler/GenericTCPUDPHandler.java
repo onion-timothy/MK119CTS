@@ -17,17 +17,12 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
-@Component("generic")
-@Scope("prototype")
 public class GenericTCPUDPHandler extends MkHandler {
     private List<TXFrame> sendFrames;
 
-    public GenericTCPUDPHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public GenericTCPUDPHandler(IOServer server) {
+        super(server);
     }
 
     @Override

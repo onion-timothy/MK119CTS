@@ -7,22 +7,14 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.DatagramPacket;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
-
-import java.util.List;
-
-@Configuration("snmp_decoder_udp")
-@Scope("prototype")
+import io.netty.channel.socket.DatagramPacket;import java.util.List;
 public class SnmpDecoder extends MkUDPDecoder {
     private final int version;
     private final String getCommunity;
     private final String setCommunity;
 
-    public SnmpDecoder(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public SnmpDecoder(IOServer server) {
+        super(server);
         this.version = Integer.parseInt(target.getDevice().getCommunicationSettings().get("snmpVersion").toString());
         this.getCommunity = target.getDevice().getCommunicationSettings().get("getCommunity").toString();
         this.setCommunity = target.getDevice().getCommunicationSettings().get("setCommunity").toString();

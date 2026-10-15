@@ -4,15 +4,11 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import etherip.protocol.Encapsulation;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 
-@Component("ethernet_ip_decoder_tcp")
-@Scope("prototype")
 public class EthernetIPDecoder extends MkDecoder {
     int cpuSlotNumber;
     ByteBuffer brokenBuffer = null;

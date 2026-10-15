@@ -11,8 +11,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -21,8 +19,6 @@ import java.util.List;
 
 @Getter
 @Setter
-@Component
-@Scope("prototype")
 @RequiredArgsConstructor
 public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecoderInterface {
     private long rxCounter;
@@ -38,7 +34,7 @@ public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecode
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         rxCounter++;
-        if(target.getDevice().getLog() == Device.DEVICE_ENABLED)
+        if(target.getDevice().isLogEnabled())
             ByteBufUtils.writeRXPacketLog(in, this.getClass().getSimpleName(), target.getPacketLogger());
     }
 

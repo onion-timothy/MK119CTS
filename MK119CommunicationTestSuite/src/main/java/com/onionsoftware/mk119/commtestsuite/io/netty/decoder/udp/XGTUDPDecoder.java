@@ -8,18 +8,13 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component("xgt_plc_decoder_udp")
-@Scope("prototype")
 public class XGTUDPDecoder extends MkUDPDecoder {
 
-    public XGTUDPDecoder(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public XGTUDPDecoder(IOServer server) {
+        super(server);
     }
 
     @Override

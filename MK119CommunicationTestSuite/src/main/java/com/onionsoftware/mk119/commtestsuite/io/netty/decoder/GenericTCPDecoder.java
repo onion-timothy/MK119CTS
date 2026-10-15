@@ -16,11 +16,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
-@Component("generic_decoder_tcp")
-@Scope("prototype")
 public class GenericTCPDecoder extends MkDecoder {
     private final List<RXFrame> acceptFrames;
 

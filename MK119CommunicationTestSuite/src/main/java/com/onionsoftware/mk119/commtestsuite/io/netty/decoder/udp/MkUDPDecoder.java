@@ -15,9 +15,6 @@ import io.netty.handler.codec.MessageToMessageDecoder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,13 +22,10 @@ import java.util.Optional;
 
 @Getter
 @Setter
-@Component
 @RequiredArgsConstructor
-@Scope("prototype")
 public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacket> implements MkDecoderInterface {
     private long rxCounter;
     private ChannelHandlerContext context;
-    final ApplicationContext applicationContext;
     protected final IOServer target;
     private MkHandler handler;
 
@@ -45,7 +39,7 @@ public abstract class MkUDPDecoder extends MessageToMessageDecoder<DatagramPacke
     protected void decode(ChannelHandlerContext ctx, DatagramPacket msg, List<Object> out) throws Exception {
         rxCounter++;
         handler.setSender(msg.sender());
-        if(target.getDevice().getLog() == Device.DEVICE_ENABLED)
+        if(target.getDevice().isLogEnabled())
             ByteBufUtils.writeRXPacketLog(msg.content(), this.getClass().getSimpleName(), target.getPacketLogger());
     }
 

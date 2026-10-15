@@ -7,13 +7,9 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component("opc_agent_decoder_tcp")
-@Scope("prototype")
 public class OPCAgentDecoder extends MkDecoder {
 
     public OPCAgentDecoder(IOServer server) {

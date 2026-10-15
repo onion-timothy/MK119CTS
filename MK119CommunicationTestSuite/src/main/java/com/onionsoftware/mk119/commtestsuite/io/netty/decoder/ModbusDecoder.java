@@ -12,11 +12,7 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
-@Component("modbus_decoder_tcp")
-@Scope("prototype")
 public class ModbusDecoder extends MkDecoder {
     int uid;
     int type;

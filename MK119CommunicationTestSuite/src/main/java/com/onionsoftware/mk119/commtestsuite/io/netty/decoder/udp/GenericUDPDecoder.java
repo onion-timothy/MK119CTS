@@ -11,21 +11,16 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 
-@Component("generic_decoder_udp")
-@Scope("prototype")
 public class GenericUDPDecoder extends MkUDPDecoder {
     private final List<RXFrame> acceptFrames;
 
-    public GenericUDPDecoder(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public GenericUDPDecoder(IOServer server) {
+        super(server);
         Type listType = new TypeToken<ArrayList<RXFrame>>() {}.getType();
         this.acceptFrames = new Gson().fromJson(target.getDevice().getCommunicationSettings().get("rx").toString(), listType);
     }

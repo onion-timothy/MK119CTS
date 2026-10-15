@@ -18,7 +18,7 @@ public class MkLogger implements Comparable<MkLogger> {
     public MkLogger(Logger logger, LogLevel level, String message, Object... args) {
         this.setSubject(logger.getName());
         for (int i = 0; i < args.length; i++) {
-            message = message.replace("{" + i + "}", args[i].toString());
+            message = message.replace("{" + i + "}", String.valueOf(args[i]));
         }
         this.setMessage(message);
         this.setLevel(level);
@@ -35,7 +35,7 @@ public class MkLogger implements Comparable<MkLogger> {
     public MkLogger(Logger logger, Exception e, String message, Object... args) {
         this.setSubject(logger.getName());
         for (int i = 0; i < args.length; i++) {
-            message = message.replace("{" + i + "}", args[i].toString());
+            message = message.replace("{" + i + "}", String.valueOf(args[i]));
         }
         this.setMessage(message + "\n" + e.toString());
         this.setLevel(LogLevel.ERROR);

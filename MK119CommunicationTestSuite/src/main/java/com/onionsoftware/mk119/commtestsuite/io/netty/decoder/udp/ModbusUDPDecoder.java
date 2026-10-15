@@ -10,19 +10,14 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 import java.util.List;
 
-@Component("modbus_decoder_udp")
-@Scope("prototype")
 public class ModbusUDPDecoder extends MkUDPDecoder {
     final int uid;
     final int type;
 
-    public ModbusUDPDecoder(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public ModbusUDPDecoder(IOServer server) {
+        super(server);
         this.uid = Integer.parseInt(target.getDevice().getCommunicationSettings().get("unitId").toString());
         this.type = Integer.parseInt(target.getDevice().getCommunicationSettings().get("packetType").toString());
     }

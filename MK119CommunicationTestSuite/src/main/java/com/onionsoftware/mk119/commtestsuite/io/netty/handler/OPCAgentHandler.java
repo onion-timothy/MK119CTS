@@ -1,20 +1,18 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.OPCAgentData;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
-@Component("opc_agent")
-@Scope("prototype")
 public class OPCAgentHandler extends MkHandler {
+    private final SimulationService simulationService;
 
-    public OPCAgentHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public OPCAgentHandler(IOServer server, SimulationService simulationService) {
+        super(server);
+        this.simulationService = simulationService;
     }
 
     private static final int DEFAULT_TAGS_LENGTH = 2000;

@@ -12,20 +12,15 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.tool.Checksum;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Type;
 import java.util.*;
 
-@Component("daeyun_rcu")
-@Scope("prototype")
 public class DaeyunHandler extends MkHandler {
     private List<TXFrame> sendFrames;
 
-    public DaeyunHandler(ApplicationContext applicationContext, IOServer server) {
-        super(applicationContext, server);
+    public DaeyunHandler(IOServer server) {
+        super(server);
     }
 
     @Override

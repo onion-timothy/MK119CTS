@@ -28,7 +28,7 @@ public class ServiceInitializer {
 
         List<Device> devices = deviceService.selectDevices();
         for (Device device : devices) {
-            if (device.getEnabled() == Device.DEVICE_ENABLED) {
+            if (device.isDeviceEnabled()) {
                 deviceService.startDevice(device);
             }
         }
