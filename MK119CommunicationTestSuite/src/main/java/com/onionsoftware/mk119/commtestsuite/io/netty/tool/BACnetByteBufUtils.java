@@ -10,6 +10,65 @@ import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
 
 public class BACnetByteBufUtils {
+
+    /**
+     * present-value 를 object type 에 맞는 application tag 로 싼다.
+     * <p>
+     * 표현 타입은 BACnet 규격이 object type 으로 정한다. 값이 아니라 object 가 타입을 정하므로
+     * Simulation 의 data_type 은 여기에 관여하지 않는다.
+     * <pre>
+     *   analog_input/output/value           REAL        (4바이트 float)
+     *   binary_input/output/value           ENUMERATED  (0 = inactive, 1 = active)
+     *   multi_state_input/output/value      Unsigned    (1부터 시작하는 상태 번호)
+     * </pre>
+     * 전에는 object type 과 무관하게 전부 REAL 로 내보냈다. 표준 클라이언트는 binary 를
+     * ENUMERATED 로, multi-state 를 Unsigned 로 읽으므로 타입이 어긋난 응답을 받았다.
+     *
+     * @param objectType BACnetObjectIdentifier 의 object_type
+     * @param value      현재 값. null 이면 아직 한 번도 시뮬레이션이 돌지 않은 것으로 본다.
+     */
+    public static BACnetTag presentValueTag(short objectType, Float value) {
+        byte type = (byte) objectType;
+
+        if (type == BACNET_OBJECT_TYPE_binary_input
+                || type == BACNET_OBJECT_TYPE_binary_output
+                || type == BACNET_OBJECT_TYPE_binary_value) {
+            // 0 이 아니면 active. null 은 inactive 로 본다.
+            BACnetEnumerated enumerated =
+                    new BACnetEnumerated(value != null && value != 0f ? 1 : 0);
+            enumerated.setTagClass(BACNET_TAG_CLASS_APPLICATION);
+            enumerated.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_ENUMERATED);
+            enumerated.setLength((byte) 1);
+            return enumerated;
+        }
+
+        if (type == BACNET_OBJECT_TYPE_multi_state_input
+                || type == BACNET_OBJECT_TYPE_multi_state_output
+                || type == BACNET_OBJECT_TYPE_multi_state_value) {
+            // Unsigned 라 음수를 담을 수 없다. 상태 번호는 1 부터이므로 하한을 1 로 둔다.
+            long state = value == null ? 1L : Math.max(1L, Math.round(value.doubleValue()));
+            BACnetUnsignedInteger unsigned = new BACnetUnsignedInteger(state);
+            unsigned.setTagClass(BACNET_TAG_CLASS_APPLICATION);
+            unsigned.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_UNSIGNED_INTEGER);
+            unsigned.setLength(unsignedLength(state));
+            return unsigned;
+        }
+
+        // analog_* 와 그 밖의 object 는 REAL.
+        BACnetReal real = new BACnetReal(value == null ? Float.NaN : value);
+        real.setTagClass(BACNET_TAG_CLASS_APPLICATION);
+        real.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_REAL);
+        real.setLength((byte) 4);
+        return real;
+    }
+
+    /** writeBACnetTag 의 Unsigned 분기가 1/2/4 바이트만 쓴다. 값에 맞는 폭을 고른다. */
+    private static byte unsignedLength(long value) {
+        if (value <= 0xFFL) return 1;
+        if (value <= 0xFFFFL) return 2;
+        return 4;
+    }
+
     private static void writeObjectIdentifier(ByteBuf out, BACnetObjectIdentifier oid, int length) {
         int bitSpace = length * 8 - 10;
         int base = (int) Math.pow(2, bitSpace + 1) - 1;

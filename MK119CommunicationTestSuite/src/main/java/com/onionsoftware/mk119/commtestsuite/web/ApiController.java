@@ -458,7 +458,10 @@ public class ApiController {
         for (Map<String, Object> s : simulations) {
             Map<String, Object> row = new LinkedHashMap<>(s);
             String error = validateSimulationBatchRow(s, existingNames, seenNames);
-            if (error == null) error = simulationTargetValidator.validate(batchDevice, asString(s.get("target")));
+            if (error == null) {
+                error = simulationTargetValidator.validate(
+                        batchDevice, asString(s.get("target")), batchRowDataType(s));
+            }
             row.put("error", error);
             out.add(row);
             if (error == null) seenNames.add(asString(s.get("name")));
@@ -467,6 +470,25 @@ public class ApiController {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("simulations", out);
         return response;
+    }
+
+    /** 일괄 등록 행의 data_type. policies[0] 안에 있거나 행에 평평하게 있다. 없거나 잘못되면 null. */
+    @SuppressWarnings("unchecked")
+    private static DataType batchRowDataType(Map<String, Object> row) {
+        Map<String, Object> p = row;
+        Object policiesObj = row.get("policies");
+        if (policiesObj instanceof List && !((List<Object>) policiesObj).isEmpty()) {
+            Object first = ((List<Object>) policiesObj).get(0);
+            if (first instanceof Map) p = (Map<String, Object>) first;
+        }
+        String dt = asString(p.get("data_type"));
+        if (dt == null || dt.isEmpty()) return null;
+        try {
+            return DataType.valueOf(dt);
+        } catch (IllegalArgumentException e) {
+            // 형식 오류는 validateSimulationBatchRow 가 따로 보고한다.
+            return null;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -972,7 +994,7 @@ public class ApiController {
     private String validateSimulationTarget(Simulation simulation) {
         if (simulation == null || simulation.getDevice() == null) return null;
         return simulationTargetValidator.validate(
-                deviceOf(simulation.getDevice().getId()), simulation.getTarget());
+                deviceOf(simulation.getDevice().getId()), simulation);
     }
 
     @RequestMapping(value = "/simulation/deleteSimulation/{id}", method = RequestMethod.DELETE)

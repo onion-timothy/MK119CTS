@@ -155,7 +155,7 @@ public class WebController {
             // 이 경로만 빠져 있으면 UI 로는 잘못된 target 이 그대로 등록된다.
             if (simulation.getDevice() != null) {
                 String targetError = simulationTargetValidator.validate(
-                        deviceService.selectDevice(simulation.getDevice().getId()), simulation.getTarget());
+                        deviceService.selectDevice(simulation.getDevice().getId()), simulation);
                 if (targetError != null) {
                     redirect.addFlashAttribute("saveError", targetError);
                     return "redirect:/simulations?device=" + simulation.getDevice().getId();

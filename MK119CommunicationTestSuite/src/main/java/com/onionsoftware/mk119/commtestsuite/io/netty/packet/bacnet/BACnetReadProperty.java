@@ -133,14 +133,8 @@ public class BACnetReadProperty extends BACnetPacket {
                 if (simulationOpt.isPresent()) {
                     Simulation simulation = simulationOpt.get();
                     Float value = bacnetService.getSimulationValues().get(simulation.getId());
-                    if (value == null) {
-                        value = Float.NaN;
-                    }
-                    BACnetReal real = new BACnetReal(value);
-                    real.setTagClass(BACNET_TAG_CLASS_APPLICATION);
-                    real.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_REAL);
-                    real.setLength((byte) 4);
-                    writeBACnetTag(buf_apdu, real);
+                    // 표현 타입은 object type 이 정한다 (analog=REAL, binary=ENUMERATED, multi-state=Unsigned).
+                    writeBACnetTag(buf_apdu, presentValueTag(oid.getObject_type(), value));
                 } else return null;
             } else return null;
         }

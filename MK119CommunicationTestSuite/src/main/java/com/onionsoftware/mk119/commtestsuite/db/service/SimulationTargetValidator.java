@@ -1,6 +1,9 @@
 package com.onionsoftware.mk119.commtestsuite.db.service;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
+import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import org.springframework.stereotype.Component;
 
@@ -37,9 +40,45 @@ public class SimulationTargetValidator {
     }
 
     /**
+     * Simulation 하나를 통째로 본다. 정책이 여러 개면 모두 검사한다.
+     * 하나라도 target 과 맞지 않으면 그 Simulation 은 등록되면 안 된다.
+     *
+     * @return 첫 번째 오류 메시지, 또는 문제없으면 null
+     */
+    public String validate(Device device, Simulation simulation) {
+        if (simulation == null) return null;
+        String target = simulation.getTarget();
+        if (simulation.getPolicies() == null || simulation.getPolicies().isEmpty()) {
+            return validate(device, target, null);
+        }
+        for (SimulationPolicy policy : simulation.getPolicies()) {
+            String error = validate(device, target, policy == null ? null : policy.getData_type());
+            if (error != null) return error;
+        }
+        return null;
+    }
+
+    /**
+     * target 형식만 본다. data_type 까지 맞춰야 하는 프로토콜은
+     * {@link #validate(Device, String, DataType)} 를 쓴다.
+     *
      * @return 오류 메시지, 또는 문제없으면 null
      */
     public String validate(Device device, String target) {
+        return validate(device, target, null);
+    }
+
+    /**
+     * target 형식과 함께, 타입을 target 이 지정하는 프로토콜에서는 data_type 과 어긋나지 않는지 본다.
+     * <p>
+     * EtherNet/IP 는 target 접두어가 CIP 타입을 정한다({@code REAL@TAG1}). 여기에 맞지 않는
+     * data_type 을 두면 값이 그 타입으로 변환되어 나가므로, 화면에서 고른 것과 클라이언트가
+     * 읽는 것이 달라진다. 등록 시점에 막는다.
+     *
+     * @param dataType 정책의 data_type. null 이면 타입 검사를 건너뛴다.
+     * @return 오류 메시지, 또는 문제없으면 null
+     */
+    public String validate(Device device, String target, DataType dataType) {
         if (device == null || device.getProtocol() == null) return null;
         if (target == null || target.trim().isEmpty()) return "Missing target.";
         String t = target.trim();
@@ -165,7 +204,7 @@ public class SimulationTargetValidator {
                     return "Unknown CIP type \"" + type + "\" in \"" + t
                             + "\". Supported types: BOOL, SINT, INT, DINT, REAL.";
                 }
-                return null;
+                return cipTypeMismatch(type, dataType, t);
             }
 
             // GENERIC: tx 필드명은 자유 형식이라 등록을 막지 않는다 (API 쓰기 시점에 존재 확인).
@@ -173,5 +212,55 @@ public class SimulationTargetValidator {
             default:
                 return null;
         }
+    }
+
+    /**
+     * CIP 타입과 data_type 의 폭·성격이 맞는지 본다.
+     * <pre>
+     *   BOOL, SINT   8비트 정수   UI8  SI8
+     *   INT          16비트 정수  UI16AB SI16AB ...
+     *   DINT, BITS   32비트 정수  UI32* SI32*
+     *   REAL         32비트 실수  FP32*
+     * </pre>
+     * 바이트 순서(AB/BA/CB/DA)는 보지 않는다. CIP 가 little-endian 으로 고정하므로
+     * 폭과 정수/실수 구분만 의미가 있다.
+     *
+     * @return 어긋나면 오류 메시지, 맞거나 검사할 수 없으면 null
+     */
+    private String cipTypeMismatch(String cipType, DataType dataType, String target) {
+        if (dataType == null) return null;
+
+        String name = dataType.name();
+        boolean real = name.startsWith("FP");
+        int bytes = dataType.getByteCount();
+        String expected;
+
+        switch (cipType.toUpperCase()) {
+            case "BOOL":
+            case "SINT":
+                expected = "UI8 or SI8";
+                if (!real && bytes == 1) return null;
+                break;
+            case "INT":
+                expected = "a 16-bit integer type (UI16AB, SI16AB, ...)";
+                if (!real && bytes == 2) return null;
+                break;
+            case "DINT":
+            case "BITS":
+                expected = "a 32-bit integer type (UI32AD, SI32AD, ...)";
+                if (!real && bytes == 4) return null;
+                break;
+            case "REAL":
+                expected = "a 32-bit float type (FP32AD, ...)";
+                if (real && bytes == 4) return null;
+                break;
+            default:
+                // STRUCT 계열은 숫자 값을 담지 않는다. 형식 검사만으로 끝낸다.
+                return null;
+        }
+
+        return "EtherNet/IP target \"" + target + "\" declares CIP type " + cipType.toUpperCase()
+                + ", but data_type is " + name + ". Use " + expected
+                + ", or change the target prefix to match.";
     }
 }

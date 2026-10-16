@@ -150,14 +150,8 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
 
                     writeOpeningTag(buf_apdu, (byte) 4);
                     Float value = bacnetService.getSimulationValues().get(simulation.getId());
-                    if (value == null) {
-                        value = Float.NaN;
-                    }
-                    BACnetReal real = new BACnetReal(value);
-                    real.setTagClass(BACNET_TAG_CLASS_APPLICATION);
-                    real.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_REAL);
-                    real.setLength((byte) 4);
-                    writeBACnetTag(buf_apdu, real);
+                    // 표현 타입은 object type 이 정한다 (analog=REAL, binary=ENUMERATED, multi-state=Unsigned).
+                    writeBACnetTag(buf_apdu, presentValueTag(oid.getObject_type(), value));
                     writeClosingTag(buf_apdu, (byte) 4);
                 }
             } else {
@@ -187,14 +181,7 @@ public class BACnetReadPropertyMultiple extends BACnetPacket {
                         Optional<Simulation> simulationOpt = bacnetService.getSimulationMap().get(device.getId()).stream().filter(e -> Objects.equals(BACnetObjectIdentifier.parseSimulationTarget(e.getTarget()), oid)).findFirst();
                         if (simulationOpt.isPresent()) {
                             Float value = bacnetService.getSimulationValues().get(simulationOpt.get().getId());
-                            if (value == null) {
-                                value = Float.NaN;
-                            }
-                            BACnetReal real = new BACnetReal(value);
-                            real.setTagClass(BACNET_TAG_CLASS_APPLICATION);
-                            real.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_REAL);
-                            real.setLength((byte) 4);
-                            writeBACnetTag(buf_apdu, real);
+                            writeBACnetTag(buf_apdu, presentValueTag(oid.getObject_type(), value));
                         }
                     }
                     writeClosingTag(buf_apdu, (byte) 4);
