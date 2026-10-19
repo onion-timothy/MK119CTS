@@ -122,18 +122,18 @@ public class BACnetConstants {
         model_name.setExtendedLengthValue((byte) ("SIMULATION_DEVICE".getBytes().length + 1));
         SIMULATION_DEVICE_PROPERTIES.put(BACNET_PROPERTY_IDENTIFIER_MDL_NME, model_name);
 
-        BACnetCharacterString firmware_version = new BACnetCharacterString("1.0.0", BACNET_CHARACTER_STRING_ENCODING_UTF8);
+        BACnetCharacterString firmware_version = new BACnetCharacterString("1.0.1", BACNET_CHARACTER_STRING_ENCODING_UTF8);
         firmware_version.setTagClass(BACNET_TAG_CLASS_APPLICATION);
         firmware_version.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_CHARACTER_STRING);
         firmware_version.setLength((byte) 5);
-        firmware_version.setExtendedLengthValue((byte) ("1.0.0".getBytes().length + 1));
+        firmware_version.setExtendedLengthValue((byte) ("1.0.1".getBytes().length + 1));
         SIMULATION_DEVICE_PROPERTIES.put(BACNET_PROPERTY_IDENTIFIER_REV, firmware_version);
 
-        BACnetCharacterString application_software_version = new BACnetCharacterString("1.0.0", BACNET_CHARACTER_STRING_ENCODING_UTF8);
+        BACnetCharacterString application_software_version = new BACnetCharacterString("1.0.1", BACNET_CHARACTER_STRING_ENCODING_UTF8);
         application_software_version.setTagClass(BACNET_TAG_CLASS_APPLICATION);
         application_software_version.setTagNumber(BACNET_APPLICATION_TAG_NUMBER_CHARACTER_STRING);
         application_software_version.setLength((byte) 5);
-        application_software_version.setExtendedLengthValue((byte) ("1.0.0".getBytes().length + 1));
+        application_software_version.setExtendedLengthValue((byte) ("1.0.1".getBytes().length + 1));
         SIMULATION_DEVICE_PROPERTIES.put(BACNET_PROPERTY_IDENTIFIER_APP_SFTWR_VER, application_software_version);
 
         BACnetUnsignedInteger protocol_version = new BACnetUnsignedInteger(1);
