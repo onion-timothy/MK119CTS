@@ -33,8 +33,11 @@ public class ServerDataWebSocketController {
      * 주기적 스냅샷 push 간격 (ms).
      * 개별 target 변경은 이벤트 스트림으로 이미 전달되므로 스냅샷은 “주기적 재동기화 + liveness 신호”
      * 목적으로만 사용한다. 너무 짧으면 클라 렌더가 밀리고 ack 도 밀린다.
+     * <p>
+     * 레지스터 30000칸 장비는 스냅샷 하나가 255KB 다. 5초마다 보내면 초당 51KB 를 쓰는 셈이라,
+     * 평상시 갱신은 묶음 이벤트에 맡기고 스냅샷은 드물게 보내 어긋난 상태만 바로잡는다.
      */
-    public static final long SNAPSHOT_INTERVAL_MS = 5_000L;
+    public static final long SNAPSHOT_INTERVAL_MS = 30_000L;
 
     @Autowired
     private ServerDataSessionRegistry sessionRegistry;

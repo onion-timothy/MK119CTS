@@ -749,10 +749,72 @@
     }
 
     function handleEventMessage(ev) {
-        // API_WRITE events are applied only via our own write_ack (sender).
-        // Prevents topic broadcast arriving first and looking like an optimistic update.
+        // The server coalesces changes and sends them as one batch ({type:'events', changes:[...]}).
+        // Applying them one by one would re-render the whole grid once per change; a device with
+        // 3400 simulations would re-render 3400 times per tick. Apply the batch, then draw once.
+        if (ev && Array.isArray(ev.changes)) {
+            applyEventBatch(ev.changes);
+            return;
+        }
+        // Single-change form (kept for compatibility).
         if (ev.source === 'API_WRITE') return;
         applyEventDelta(ev);
+    }
+
+    /**
+     * Apply a batch of changes with a single render pass.
+     * Mutates latestSnapshot for every change, then refreshes the view once.
+     */
+    function applyEventBatch(changes) {
+        if (!latestSnapshot) return;
+        const touched = [];
+        let lastBase = null;
+        changes.forEach(function (ev) {
+            // API_WRITE is applied via our own write_ack (see handleEventMessage).
+            if (ev.source === 'API_WRITE') return;
+            const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
+                ? ev.affectedTargets : [ev.target];
+            const tv = ev.targetValues || {};
+            affected.forEach(function (t) {
+                const v = (t in tv) ? tv[t] : (t === ev.target ? ev.value : undefined);
+                if (v !== undefined) writeSnapshotValue(latestSnapshot, t, v);
+                recordChange(t, ev.source, ev.ts);
+                touched.push(t);
+            });
+            lastBase = ev.target;
+        });
+        if (touched.length === 0) return;
+
+        if (viewMode === 'raw' && !isGridProtocol(latestSnapshot.protocol)) {
+            // Legacy Tabulator Raw: update the rows that actually changed.
+            changes.forEach(function (ev) {
+                if (ev.source === 'API_WRITE') return;
+                const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
+                    ? ev.affectedTargets : [ev.target];
+                const tv = ev.targetValues || {};
+                affected.forEach(function (t) {
+                    const isBase = (t === ev.target);
+                    const perTargetValue = (t in tv) ? tv[t] : (isBase ? ev.value : undefined);
+                    Object.keys(tables).forEach(function (key) {
+                        applyDeltaToRowTable(key, t, ev, isBase, false, perTargetValue);
+                    });
+                });
+            });
+        } else {
+            // Focus / grid Raw: one re-render for the whole batch.
+            renderSquareGrid(latestSnapshot, viewMode);
+            if (lastBase) {
+                const $base = $('#sdContainer .sd-fcell[data-target="' + cssEscape(lastBase) + '"]');
+                if ($base.length) {
+                    $base[0].classList.add('sd-flash');
+                    setTimeout(function () { $base[0].classList.remove('sd-flash'); }, 900);
+                }
+            }
+        }
+        renderWatchRow(latestSnapshot);
+        if (inspectionOpen && inspectionTarget && touched.indexOf(inspectionTarget) >= 0) {
+            renderInspection(inspectionTarget, latestSnapshot);
+        }
     }
 
     function applyEventDelta(ev) {
