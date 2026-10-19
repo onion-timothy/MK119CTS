@@ -777,7 +777,7 @@
         // Applying them one by one would re-render the whole grid once per change; a device with
         // 3400 simulations would re-render 3400 times per tick. Apply the batch, then draw once.
         if (ev && Array.isArray(ev.changes)) {
-            applyEventBatch(ev.changes);
+            applyEventBatch(ev.changes, ev.touched);
             return;
         }
         // Single-change form (kept for compatibility).
@@ -789,9 +789,11 @@
      * Apply a batch of changes with a single render pass.
      * Mutates latestSnapshot for every change, then refreshes the view once.
      */
-    function applyEventBatch(changes) {
+    function applyEventBatch(changes, touched) {
         if (!latestSnapshot) return;
-        const touched = [];
+        // STATIC 처럼 값이 그대로인 쓰기는 본문 없이 target 만 온다. 깜빡임만 일으킨다.
+        if (touched && touched.length) flashTargets(touched);
+        const touchedTargets = [];
         let lastBase = null;
         changes.forEach(function (ev) {
             // API_WRITE is applied via our own write_ack (see handleEventMessage).
@@ -803,11 +805,14 @@
                 const v = (t in tv) ? tv[t] : (t === ev.target ? ev.value : undefined);
                 if (v !== undefined) writeSnapshotValue(latestSnapshot, t, v);
                 recordChange(t, ev.source, ev.ts);
-                touched.push(t);
+                touchedTargets.push(t);
             });
             lastBase = ev.target;
         });
-        if (touched.length === 0) return;
+        if (touchedTargets.length === 0) {
+            sendKeepAliveAck();     // 값이 안 바뀌어도 세션은 살아 있어야 한다
+            return;
+        }
 
         if (viewMode === 'raw' && !isGridProtocol(latestSnapshot.protocol)) {
             // Legacy Tabulator Raw: update the rows that actually changed.
@@ -831,7 +836,7 @@
             patchGridCells(changes);
         }
         renderWatchRow(latestSnapshot);
-        if (inspectionOpen && inspectionTarget && touched.indexOf(inspectionTarget) >= 0) {
+        if (inspectionOpen && inspectionTarget && touchedTargets.indexOf(inspectionTarget) >= 0) {
             renderInspection(inspectionTarget, latestSnapshot);
         }
         sendKeepAliveAck();
@@ -904,8 +909,44 @@
         return m;
     }
 
-    /** Cap on cells flashed per batch. Values are always updated; only the blink is limited. */
-    const MAX_FLASH_PER_BATCH = 250;
+    /**
+     * Cap on cells flashed per batch. Values are always updated; only the blink is limited.
+     * Measured at 2.7µs per cell, so 10000 cells cost ~27ms — affordable against the 250ms
+     * batch interval, and high enough that a 3400-simulation device blinks every cell.
+     */
+    const MAX_FLASH_PER_BATCH = 10000;
+
+    /**
+     * Restart the blink on one cell.
+     * Two classes carry the same animation and we alternate between them: re-adding the same
+     * class does not replay a CSS animation, and the usual fix (read offsetWidth to force a
+     * reflow) costs ~45ms on a document holding tens of thousands of cells.
+     */
+    function flashCell(el) {
+        if (el.classList.contains('sd-flash')) {
+            el.classList.remove('sd-flash');
+            el.classList.add('sd-flash-alt');
+        } else {
+            el.classList.remove('sd-flash-alt');
+            el.classList.add('sd-flash');
+        }
+    }
+
+    /**
+     * Blink cells whose value did not change.
+     * A STATIC simulation rewrites the same number every tick, so the server sends the target
+     * names alone. Without this the cell sits still and you cannot tell a running simulation
+     * from a stopped one.
+     */
+    function flashTargets(targets) {
+        const byTarget = gridCellIndex();
+        if (byTarget.size === 0) return;
+        const n = Math.min(targets.length, MAX_FLASH_PER_BATCH);
+        for (let i = 0; i < n; i++) {
+            const el = byTarget.get(targets[i]);
+            if (el) flashCell(el);
+        }
+    }
 
     /**
      * Update just the cells that changed, instead of re-rendering the grid.
@@ -952,17 +993,7 @@
                     if (src) el.classList.add('src-' + src);
                     el.setAttribute('data-src', src);
                 }
-                if (flashed < MAX_FLASH_PER_BATCH) {
-                    // Alternate the two animation classes so a repeat change restarts the blink.
-                    if (el.classList.contains('sd-flash')) {
-                        el.classList.remove('sd-flash');
-                        el.classList.add('sd-flash-alt');
-                    } else {
-                        el.classList.remove('sd-flash-alt');
-                        el.classList.add('sd-flash');
-                    }
-                    flashed++;
-                }
+                if (flashed < MAX_FLASH_PER_BATCH) { flashCell(el); flashed++; }
             });
         });
     }

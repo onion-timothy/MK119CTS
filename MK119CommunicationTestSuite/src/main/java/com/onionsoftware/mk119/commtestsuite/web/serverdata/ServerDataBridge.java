@@ -13,7 +13,9 @@ import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,9 +37,9 @@ import java.util.regex.Pattern;
  *       같은 target 이 그 사이 여러 번 바뀌면 마지막 값만 남는다. 화면도 한 묶음에 한 번만 그린다.</li>
  *   <li><b>구독자가 없으면 아무것도 하지 않는다</b> — 전에는 보는 사람이 없어도 항상 발행해서,
  *       화면을 열지 않아도 장비 하나가 초당 수백 건을 브로커에 밀어 넣었다.</li>
- *   <li><b>값이 그대로면 보내지 않는다</b> — STATIC 은 주기마다 같은 값을 다시 쓴다.
- *       화면에 보일 변화가 없는데도 전송하면 대역만 먹는다. STATIC 5851건을 3초마다 돌리는
- *       장비는 이것만으로 초당 1950건이 0건이 된다.</li>
+ *   <li><b>값이 그대로면 본문을 싣지 않는다</b> — STATIC 은 주기마다 같은 값을 다시 쓴다.
+ *       바뀐 것이 없는데 변경 본문을 보내면 대역만 먹으므로, target 이름만 touched 로 모아
+ *       보내 화면이 깜빡이게만 한다. 본문 90바이트가 문자열 9바이트로 줄어든다.</li>
  * </ul>
  */
 @Component
@@ -48,6 +50,13 @@ public class ServerDataBridge implements ServerDataListener {
 
     /** 한 번에 보내는 변경 수 상한. 넘으면 나눠 보내 한 메시지가 버퍼를 넘기지 않게 한다. */
     private static final int MAX_CHANGES_PER_MESSAGE = 500;
+
+    /**
+     * 한 묶음에 실을 깜빡임 전용 target 수의 상한.
+     * target 이름 하나가 9바이트 남짓이라 10000개를 실어도 90KB 다. 변경 본문으로 같은 수를
+     * 보내면 900KB 라 자리수가 다르다. 3400건짜리 장비가 통째로 들어가는 선으로 잡았다.
+     */
+    private static final int MAX_TOUCHED_PER_MESSAGE = 10_000;
 
     private static final Pattern EVENTS_DESTINATION =
             Pattern.compile("^/topic/devices/(\\d+)/serverdata/events$");
@@ -71,6 +80,16 @@ public class ServerDataBridge implements ServerDataListener {
      */
     private final Map<Integer, Map<String, String>> lastSent = new ConcurrentHashMap<>();
 
+    /**
+     * deviceId -> 값이 그대로여서 본문을 싣지 않은 target 집합.
+     * <p>
+     * STATIC 은 주기마다 같은 값을 다시 쓴다. 값이 안 바뀌니 보낼 것이 없다고 끊어 버리면
+     * 화면에서 그 셀이 아무 반응을 하지 않아, 시뮬레이션이 도는지 멈췄는지 구분할 수 없다.
+     * 값 없이 target 이름만 모아 보내 깜빡임만 일으킨다. 건당 90바이트 남짓인 변경 본문 대신
+     * 9바이트짜리 문자열 하나라 3400건을 10초마다 써도 3KB/s 다.
+     */
+    private final Map<Integer, Set<String>> pendingTouched = new ConcurrentHashMap<>();
+
     @Override
     public void onServerDataChanged(ServerDataEvent event) {
         int deviceId = event.getIoServer().getDevice().getId();
@@ -80,7 +99,11 @@ public class ServerDataBridge implements ServerDataListener {
         Map<String, String> sentOfDevice =
                 lastSent.computeIfAbsent(deviceId, k -> new ConcurrentHashMap<>());
         if (fingerprint.equals(sentOfDevice.get(event.getTarget()))) {
-            return;   // 값도 출처도 그대로다. 화면이 다시 그릴 이유가 없다.
+            // 값도 출처도 그대로다. 다시 그릴 것은 없지만 "썼다" 는 사실은 알려 준다.
+            pendingTouched
+                    .computeIfAbsent(deviceId, k -> ConcurrentHashMap.newKeySet())
+                    .add(event.getTarget());
+            return;
         }
         sentOfDevice.put(event.getTarget(), fingerprint);
 
@@ -110,28 +133,55 @@ public class ServerDataBridge implements ServerDataListener {
 
     @Scheduled(fixedDelay = FLUSH_INTERVAL_MS)
     public void flush() {
-        for (Integer deviceId : new ArrayList<>(pending.keySet())) {
-            Map<String, Map<String, Object>> byTarget = pending.get(deviceId);
-            if (byTarget == null) continue;
-            List<Map<String, Object>> changes;
-            synchronized (byTarget) {
-                if (byTarget.isEmpty()) continue;
-                changes = new ArrayList<>(byTarget.values());
-                byTarget.clear();
-            }
+        Set<Integer> deviceIds = new LinkedHashSet<>(pending.keySet());
+        deviceIds.addAll(pendingTouched.keySet());
+        for (Integer deviceId : deviceIds) {
+            List<Map<String, Object>> changes = drainChanges(deviceId);
+            List<String> touched = drainTouched(deviceId);
+            if (changes.isEmpty() && touched.isEmpty()) continue;
             if (!hasSubscriber(deviceId)) continue;   // 모으는 사이에 창이 닫혔다
 
-            for (int from = 0; from < changes.size(); from += MAX_CHANGES_PER_MESSAGE) {
-                List<Map<String, Object>> slice =
-                        changes.subList(from, Math.min(from + MAX_CHANGES_PER_MESSAGE, changes.size()));
+            // changes 가 비어도 한 번은 보낸다. touched 만 있는 묶음이 STATIC 장비의 평상시다.
+            int slices = Math.max(1, (changes.size() + MAX_CHANGES_PER_MESSAGE - 1) / MAX_CHANGES_PER_MESSAGE);
+            for (int i = 0; i < slices; i++) {
+                int from = i * MAX_CHANGES_PER_MESSAGE;
+                List<Map<String, Object>> slice = changes.isEmpty()
+                        ? Collections.emptyList()
+                        : changes.subList(from, Math.min(from + MAX_CHANGES_PER_MESSAGE, changes.size()));
                 Map<String, Object> batch = new LinkedHashMap<>();
                 batch.put("type", "events");
                 batch.put("ts", System.currentTimeMillis());
                 batch.put("changes", new ArrayList<>(slice));
+                if (i == 0 && !touched.isEmpty()) batch.put("touched", touched);
                 messagingTemplate.convertAndSend(
                         "/topic/devices/" + deviceId + "/serverdata/events", batch);
             }
         }
+    }
+
+    private List<Map<String, Object>> drainChanges(int deviceId) {
+        Map<String, Map<String, Object>> byTarget = pending.get(deviceId);
+        if (byTarget == null) return Collections.emptyList();
+        synchronized (byTarget) {
+            if (byTarget.isEmpty()) return Collections.emptyList();
+            List<Map<String, Object>> changes = new ArrayList<>(byTarget.values());
+            byTarget.clear();
+            return changes;
+        }
+    }
+
+    /**
+     * 깜빡임만 필요한 target 들을 꺼낸다.
+     * 한 묶음에 너무 많으면 문자열만으로도 메시지가 커지므로 잘라 낸다. 잘린 것은 버린다 —
+     * 다음 주기에 다시 쓰이면 그때 깜빡인다.
+     */
+    private List<String> drainTouched(int deviceId) {
+        Set<String> set = pendingTouched.get(deviceId);
+        if (set == null || set.isEmpty()) return Collections.emptyList();
+        List<String> all = new ArrayList<>(set);
+        set.clear();
+        return all.size() <= MAX_TOUCHED_PER_MESSAGE
+                ? all : new ArrayList<>(all.subList(0, MAX_TOUCHED_PER_MESSAGE));
     }
 
     private boolean hasSubscriber(int deviceId) {
@@ -178,6 +228,7 @@ public class ServerDataBridge implements ServerDataListener {
             if (s.isEmpty()) {
                 subscribers.remove(deviceId);
                 lastSent.remove(deviceId);
+                pendingTouched.remove(deviceId);
                 Map<String, Map<String, Object>> byTarget = pending.remove(deviceId);
                 if (byTarget != null) {
                     synchronized (byTarget) { byTarget.clear(); }
