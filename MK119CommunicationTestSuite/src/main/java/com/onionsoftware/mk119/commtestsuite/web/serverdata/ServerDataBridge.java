@@ -52,7 +52,7 @@ public class ServerDataBridge implements ServerDataListener {
     private static final int MAX_CHANGES_PER_MESSAGE = 500;
 
     /**
-     * 한 묶음에 실을 깜빡임 전용 target 수의 상한.
+     * 한 묶음에 실을 깜빡임 전용 값 묶음 수의 상한.
      * target 이름 하나가 9바이트 남짓이라 10000개를 실어도 90KB 다. 변경 본문으로 같은 수를
      * 보내면 900KB 라 자리수가 다르다. 3400건짜리 장비가 통째로 들어가는 선으로 잡았다.
      */
@@ -87,8 +87,12 @@ public class ServerDataBridge implements ServerDataListener {
      * 화면에서 그 셀이 아무 반응을 하지 않아, 시뮬레이션이 도는지 멈췄는지 구분할 수 없다.
      * 값 없이 target 이름만 모아 보내 깜빡임만 일으킨다. 건당 90바이트 남짓인 변경 본문 대신
      * 9바이트짜리 문자열 하나라 3400건을 10초마다 써도 3KB/s 다.
+     * <p>
+     * 한 값이 차지하는 칸들을 묶음으로 유지한다 (키는 그 값의 base target). 3_0 에 쓴 UI32AD 는
+     * 3_0 과 3_1 을 함께 덮으므로, 화면이 두 칸을 하나로 감싸 표시하려면 어디까지가 한 값인지
+     * 알아야 한다. 평평한 목록으로 보내면 이웃한 별개의 값끼리 붙어 버린다.
      */
-    private final Map<Integer, Set<String>> pendingTouched = new ConcurrentHashMap<>();
+    private final Map<Integer, Map<String, List<String>>> pendingTouched = new ConcurrentHashMap<>();
 
     @Override
     public void onServerDataChanged(ServerDataEvent event) {
@@ -105,10 +109,11 @@ public class ServerDataBridge implements ServerDataListener {
             // 값도 출처도 그대로다. 다시 그릴 것은 없지만 "썼다" 는 사실은 알려 준다.
             // 32비트처럼 여러 칸을 차지하는 값은 그 칸들이 모두 깜빡여야 한다. 3_0 에 쓴
             // UI32AD 는 3_0 과 3_1 을 함께 덮으므로 한 칸만 깜빡이면 범위가 거짓이 된다.
-            Set<String> touched =
-                    pendingTouched.computeIfAbsent(deviceId, k -> ConcurrentHashMap.newKeySet());
-            if (spansSeveral) touched.addAll(affected);
-            else touched.add(event.getTarget());
+            pendingTouched
+                    .computeIfAbsent(deviceId, k -> new ConcurrentHashMap<>())
+                    .put(event.getTarget(),
+                         spansSeveral ? new ArrayList<>(affected)
+                                      : Collections.singletonList(event.getTarget()));
             return;
         }
         sentOfDevice.put(event.getTarget(), fingerprint);
@@ -142,7 +147,7 @@ public class ServerDataBridge implements ServerDataListener {
         deviceIds.addAll(pendingTouched.keySet());
         for (Integer deviceId : deviceIds) {
             List<Map<String, Object>> changes = drainChanges(deviceId);
-            List<String> touched = drainTouched(deviceId);
+            List<List<String>> touched = drainTouched(deviceId);
             if (changes.isEmpty() && touched.isEmpty()) continue;
             if (!hasSubscriber(deviceId)) continue;   // 모으는 사이에 창이 닫혔다
 
@@ -180,11 +185,11 @@ public class ServerDataBridge implements ServerDataListener {
      * 한 묶음에 너무 많으면 문자열만으로도 메시지가 커지므로 잘라 낸다. 잘린 것은 버린다 —
      * 다음 주기에 다시 쓰이면 그때 깜빡인다.
      */
-    private List<String> drainTouched(int deviceId) {
-        Set<String> set = pendingTouched.get(deviceId);
-        if (set == null || set.isEmpty()) return Collections.emptyList();
-        List<String> all = new ArrayList<>(set);
-        set.clear();
+    private List<List<String>> drainTouched(int deviceId) {
+        Map<String, List<String>> groups = pendingTouched.get(deviceId);
+        if (groups == null || groups.isEmpty()) return Collections.emptyList();
+        List<List<String>> all = new ArrayList<>(groups.values());
+        groups.clear();
         return all.size() <= MAX_TOUCHED_PER_MESSAGE
                 ? all : new ArrayList<>(all.subList(0, MAX_TOUCHED_PER_MESSAGE));
     }

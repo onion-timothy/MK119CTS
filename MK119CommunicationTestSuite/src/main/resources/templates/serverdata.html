@@ -413,7 +413,7 @@
             color: #6c757d; font-weight: 600; margin-right: 4px;
         }
         .sd-fcell {
-            display: block; min-width: 0;
+            display: block; min-width: 0; position: relative;
             padding: 3px 4px; text-align: center;
             border: 1px solid #e9ecef; border-radius: 3px; background: #fff;
             cursor: pointer; user-select: none;
@@ -432,7 +432,9 @@
             margin-bottom: 1px;
         }
         .sd-fcell .fc-val { color: #212529; font-weight: 700; }
-        .sd-fcell.sd-flash { animation: sdFlash 0.9s ease-out; }
+        /* 한 칸짜리 값은 outline 으로 깜빡인다. 요소를 만들지 않아 가장 싸고,
+           초당 수만 건이 바뀌는 화면에서도 부담이 없다. */
+        .sd-fcell.sd-flash     { animation: sdFlash 0.9s ease-out; }
         /* 같은 셀이 연달아 바뀔 때 애니메이션을 다시 시작시키려면 클래스를 번갈아 쓴다.
            offsetWidth 를 읽어 강제 reflow 하는 방법은 셀 수백 개에서 너무 비싸다.
            keyframes 이름까지 달라야 한다. 클래스만 바꾸고 animation-name 이 같으면
@@ -441,6 +443,42 @@
         @keyframes sdFlashAlt {
             0%   { outline: 2px solid #f59f00; outline-offset: -2px; }
             100% { outline: 2px solid transparent; outline-offset: -2px; }
+        }
+
+        /* 32비트처럼 여러 칸을 차지하는 값(.sd-span)만 의사 요소로 그린다.
+           outline 은 변별로 끌 수 없어 두 칸을 하나로 감쌀 수 없고, 셀의 box-shadow 는
+           locked 의 녹색 안쪽 테두리가 쓰고 있어 덮으면 안 된다. 의사 요소는 요소를 하나
+           더 만드는 만큼 비싸서, 꼭 필요한 이 경우에만 쓴다. */
+        .sd-fcell.sd-span.sd-flash, .sd-fcell.sd-span.sd-flash-alt { animation: none; }
+        .sd-fcell.sd-span.sd-flash::after, .sd-fcell.sd-span.sd-flash-alt::after {
+            content: ''; position: absolute; pointer-events: none; box-sizing: border-box;
+            top: 0; bottom: 0;
+            /* 위치와 모서리는 변수로 받는다. join 규칙에 직접 쓰면 이 규칙보다 셀렉터가
+               약해서 덮이고, 특이성을 맞추려 셀렉터를 늘리면 조합마다 규칙이 불어난다. */
+            left: var(--sdf-ol, 0px); right: var(--sdf-or, 0px);
+            border-radius: var(--sdf-rl, 3px) var(--sdf-rr, 3px)
+                           var(--sdf-rr, 3px) var(--sdf-rl, 3px);
+        }
+        .sd-fcell.sd-span.sd-flash::after     { animation: sdFlashEdge 0.9s ease-out; }
+        .sd-fcell.sd-span.sd-flash-alt::after { animation: sdFlashEdgeAlt 0.9s ease-out; }
+
+        /* 칸 사이의 변을 지우고, 그 틈(gap 3px, 4칸마다 +6px)만큼 넓혀 선을 잇는다. */
+        .sd-fcell.sd-join-l { --sdf-l: transparent; --sdf-ol: -3px; --sdf-rl: 0px; }
+        .sd-fcell.sd-join-r { --sdf-r: transparent; --sdf-or: -3px; --sdf-rr: 0px; }
+        .sd-fcell.sd-join-l.sd-wide-l { --sdf-ol: -9px; }
+        .sd-fcell.sd-join-r.sd-wide-r { --sdf-or: -9px; }
+
+        @keyframes sdFlashEdge {
+            0%   { border: 2px solid #f59f00;
+                   border-left-color: var(--sdf-l, #f59f00);
+                   border-right-color: var(--sdf-r, #f59f00); }
+            100% { border: 2px solid transparent; }
+        }
+        @keyframes sdFlashEdgeAlt {
+            0%   { border: 2px solid #f59f00;
+                   border-left-color: var(--sdf-l, #f59f00);
+                   border-right-color: var(--sdf-r, #f59f00); }
+            100% { border: 2px solid transparent; }
         }
     </style>
 </head>
@@ -939,18 +977,91 @@
     }
 
     /**
+     * Blink one value's registers as a single outlined block.
+     * A 32-bit value written to 3_0 covers 3_0 and 3_1; drawing a closed border around each
+     * would show two separate writes. Drop the border edge between neighbours that belong to
+     * the same value and sit side by side on the same row. A group that wraps to the next row
+     * keeps its closed borders — there is nothing to join across a line break.
+     */
+    function flashGroup(byTarget, targets) {
+        if (targets.length === 1) {
+            const only = byTarget.get(targets[0]);
+            if (only) { clearJoins(only); flashCell(only); }
+            return;
+        }
+        // 여러 칸을 감싸는 테두리는 의사 요소가 필요하다. 한 칸짜리에는 붙이지 않는다.
+
+        const idx = {};                     // fc -> set of cell indices in this group
+        targets.forEach(function (t) {
+            const k = t.split('_');
+            if (k.length !== 2) return;
+            (idx[k[0]] = idx[k[0]] || new Set()).add(parseInt(k[1], 10));
+        });
+        targets.forEach(function (t) {
+            const el = byTarget.get(t);
+            if (!el) return;
+            const k = t.split('_');
+            const peers = idx[k[0]];
+            const i = parseInt(k[1], 10);
+            const col = i % rowWidth;
+            const joinL = !!peers && peers.has(i - 1) && col !== 0;
+            const joinR = !!peers && peers.has(i + 1) && col !== rowWidth - 1;
+            el.classList.add('sd-span');
+            el.classList.toggle('sd-join-l', joinL);
+            el.classList.toggle('sd-join-r', joinR);
+            // 4칸마다 벌어지는 추가 간격(.sd-quad-end 의 margin-right 6px)도 메워야 한다.
+            el.classList.toggle('sd-wide-l', joinL && (col % 4 === 0));
+            el.classList.toggle('sd-wide-r', joinR && (col % 4 === 3));
+            flashCell(el);
+        });
+    }
+
+    /**
+     * Drop the blink classes once the animation has played.
+     * The border is drawn by an ::after pseudo-element, so leaving the class on keeps that
+     * element — and a finished animation — alive on every cell that ever blinked. At ten
+     * thousand cells that backlog slowed the page enough that it stopped draining the socket
+     * and the server hit its 4MB send buffer. One delegated listener cleans them up.
+     */
+    function installFlashCleanup() {
+        const container = document.getElementById('sdContainer');
+        if (!container || container.dataset.flashCleanup) return;
+        container.dataset.flashCleanup = '1';
+        container.addEventListener('animationend', function (e) {
+            const el = e.target;
+            if (!el.classList) return;
+            const n = e.animationName;
+            if (n === 'sdFlashEdge' || n === 'sdFlash') el.classList.remove('sd-flash');
+            else if (n === 'sdFlashEdgeAlt' || n === 'sdFlashAlt') el.classList.remove('sd-flash-alt');
+            else return;
+            // 다른 쪽 클래스가 남아 있으면 새 깜빡임이 진행 중이므로 이음 표시를 건드리지 않는다.
+            if (!el.classList.contains('sd-flash') && !el.classList.contains('sd-flash-alt')) {
+                clearJoins(el);
+            }
+        });
+    }
+
+    function clearJoins(el) {
+        if (el.classList.contains('sd-span')) {
+            el.classList.remove('sd-span', 'sd-join-l', 'sd-join-r', 'sd-wide-l', 'sd-wide-r');
+        }
+    }
+
+    $(function () { installFlashCleanup(); });
+
+    /**
      * Blink cells whose value did not change.
      * A STATIC simulation rewrites the same number every tick, so the server sends the target
      * names alone. Without this the cell sits still and you cannot tell a running simulation
      * from a stopped one.
      */
-    function flashTargets(targets) {
+    function flashTargets(groups) {
         const byTarget = gridCellIndex();
         if (byTarget.size === 0) return;
-        const n = Math.min(targets.length, MAX_FLASH_PER_BATCH);
+        const n = Math.min(groups.length, MAX_FLASH_PER_BATCH);
         for (let i = 0; i < n; i++) {
-            const el = byTarget.get(targets[i]);
-            if (el) flashCell(el);
+            const g = groups[i];
+            flashGroup(byTarget, Array.isArray(g) ? g : [g]);
         }
     }
 
@@ -999,8 +1110,9 @@
                     if (src) el.classList.add('src-' + src);
                     el.setAttribute('data-src', src);
                 }
-                if (flashed < MAX_FLASH_PER_BATCH) { flashCell(el); flashed++; }
             });
+            // 테두리는 값 하나가 차지하는 칸 전체를 한 덩어리로 감싼다.
+            if (flashed < MAX_FLASH_PER_BATCH) { flashGroup(byTarget, affected); flashed++; }
         });
     }
 
