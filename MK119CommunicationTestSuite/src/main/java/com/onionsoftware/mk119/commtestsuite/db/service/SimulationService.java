@@ -10,6 +10,7 @@ import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.simulation.GroupedSimulationJob;
+import com.onionsoftware.mk119.commtestsuite.simulation.JitteredTrigger;
 import com.onionsoftware.mk119.commtestsuite.simulation.SimulationJobFactory;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
@@ -24,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -81,7 +81,8 @@ public class SimulationService {
                 groupJob.addSimulation(simulation);
                 groupedJobs.put(groupKey, groupJob);
 
-                PeriodicTrigger trigger = new PeriodicTrigger(simulation.getInterval(), TimeUnit.SECONDS);
+                // 같은 주기의 그룹이 모두 같은 순간에 돌면 변경이 한 덩어리로 몰린다. 첫 실행만 흩는다.
+                PeriodicTrigger trigger = JitteredTrigger.ofSeconds(simulation.getInterval());
                 ScheduledFuture<?> future = threadPoolTaskScheduler.schedule(groupJob, trigger);
                 groupedSchedules.put(groupKey, future);
 

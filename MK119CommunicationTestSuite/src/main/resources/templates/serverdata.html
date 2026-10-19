@@ -433,6 +433,9 @@
         }
         .sd-fcell .fc-val { color: #212529; font-weight: 700; }
         .sd-fcell.sd-flash { animation: sdFlash 0.9s ease-out; }
+        /* 같은 셀이 연달아 바뀔 때 애니메이션을 다시 시작시키려면 클래스를 번갈아 쓴다.
+           offsetWidth 를 읽어 강제 reflow 하는 방법은 셀 수백 개에서 너무 비싸다. */
+        .sd-fcell.sd-flash-alt { animation: sdFlash 0.9s ease-out; }
     </style>
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
@@ -822,15 +825,10 @@
                 });
             });
         } else {
-            // Focus / grid Raw: one re-render for the whole batch.
-            renderSquareGrid(latestSnapshot, viewMode);
-            if (lastBase) {
-                const $base = $('#sdContainer .sd-fcell[data-target="' + cssEscape(lastBase) + '"]');
-                if ($base.length) {
-                    $base[0].classList.add('sd-flash');
-                    setTimeout(function () { $base[0].classList.remove('sd-flash'); }, 900);
-                }
-            }
+            // Focus / grid Raw: touch only the cells that changed.
+            // Re-rendering the whole grid per batch cost ~48% of the main thread at
+            // 5000 changes/s; the client fell behind and the server dropped the session.
+            patchGridCells(changes);
         }
         renderWatchRow(latestSnapshot);
         if (inspectionOpen && inspectionTarget && touched.indexOf(inspectionTarget) >= 0) {
@@ -885,6 +883,88 @@
                 renderInspection(inspectionTarget, latestSnapshot);
             }
         }
+    }
+
+    /**
+     * target → cell element index, rebuilt only when the grid DOM is replaced.
+     * A focus view over 40000 active registers puts 40000 cells in the DOM; scanning
+     * them with querySelectorAll on every batch cost more than the update itself.
+     */
+    let _cellIndex = null;
+
+    function invalidateCellIndex() { _cellIndex = null; }
+
+    function gridCellIndex() {
+        if (_cellIndex) return _cellIndex;
+        const m = new Map();
+        document.querySelectorAll('#sdContainer .sd-fcell[data-target]').forEach(function (el) {
+            m.set(el.getAttribute('data-target'), el);
+        });
+        _cellIndex = m;
+        return m;
+    }
+
+    /** Cap on cells flashed per batch. Values are always updated; only the blink is limited. */
+    const MAX_FLASH_PER_BATCH = 250;
+
+    /**
+     * Update just the cells that changed, instead of re-rendering the grid.
+     * Cells outside the current view are skipped — latestSnapshot already holds their value,
+     * so they render correctly as soon as they scroll in or the next snapshot arrives.
+     */
+    function patchGridCells(changes) {
+        const byTarget = gridCellIndex();
+        if (byTarget.size === 0) {          // nothing drawn yet (first batch before a render)
+            renderSquareGrid(latestSnapshot, viewMode);
+            return;
+        }
+
+        const panelByFc = {};
+        try {
+            getAdapter(latestSnapshot.protocol).panels(latestSnapshot).forEach(function (p) {
+                if (p.fc !== undefined) panelByFc[p.fc] = p;
+            });
+        } catch (e) { /* adapter without panels: values stay as the snapshot rendered them */ }
+
+        let flashed = 0;
+        changes.forEach(function (ev) {
+            if (ev.source === 'API_WRITE') return;
+            const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
+                ? ev.affectedTargets : [ev.target];
+            affected.forEach(function (t) {
+                const el = byTarget.get(t);
+                if (!el) return;
+                const tk = t.split('_');
+                const panel = panelByFc[parseInt(tk[0], 10)];
+                if (panel) {
+                    // Markup is fixed: <span.fc-offset><span.fc-val>. querySelector per cell
+                    // showed up in profiles at tens of thousands of changes per second.
+                    const valEl = el.lastElementChild;
+                    if (valEl) {
+                        valEl.textContent =
+                            interpretPrimitive(panel.arr[parseInt(tk[1], 10)], panel.cellType, 'auto');
+                    }
+                }
+                const src = ev.source || '';
+                const prevSrc = el.getAttribute('data-src') || '';
+                if (prevSrc !== src) {      // VALUE_SIMULATION keeps writing the same source
+                    if (prevSrc) el.classList.remove('src-' + prevSrc);
+                    if (src) el.classList.add('src-' + src);
+                    el.setAttribute('data-src', src);
+                }
+                if (flashed < MAX_FLASH_PER_BATCH) {
+                    // Alternate the two animation classes so a repeat change restarts the blink.
+                    if (el.classList.contains('sd-flash')) {
+                        el.classList.remove('sd-flash');
+                        el.classList.add('sd-flash-alt');
+                    } else {
+                        el.classList.remove('sd-flash-alt');
+                        el.classList.add('sd-flash');
+                    }
+                    flashed++;
+                }
+            });
+        });
     }
 
     /** Write a value into the appropriate slot of a snapshot in-place (Modbus/XGT/OPC/etc.). */
@@ -957,6 +1037,7 @@
     }
 
     function renderRawLegacy(snap) {
+        invalidateCellIndex();              // legacy tables replace the grid cells
         const container = $('#sdContainer');
         if (!container.hasClass('sd-raw-active')) {
             container.empty().addClass('sd-raw-active');
@@ -1363,6 +1444,7 @@
     function renderFocus(snap) { renderSquareGrid(snap, 'focus'); }
 
     function renderSquareGrid(snap, mode) {
+        invalidateCellIndex();              // every path below replaces or drops the cells
         const container = $('#sdContainer').removeClass('sd-raw-active');
         if (!isGridProtocol(snap.protocol)) {
             if (mode === 'raw') { renderRawLegacy(snap); return; }
@@ -1560,6 +1642,7 @@
                 parts.push(renderGridRowHtml(currentPanel, r * rowWidth, currentLocks));
             }
             $viewport[0].innerHTML = parts.join('');
+            invalidateCellIndex();          // scrolling swapped the rendered rows
             if (!measured && $viewport[0].firstElementChild) {
                 const h = $viewport[0].firstElementChild.getBoundingClientRect().height;
                 if (h > 0 && Math.abs(h - rowHeight) > 1) {
@@ -1697,7 +1780,7 @@
         const display = interpretPrimitive(v, panel.cellType, 'auto');
         const offsetLabel = (colInRow !== undefined ? colInRow : (i % rowWidth)).toString(16).toUpperCase();
         return '' +
-            '<span class="' + classes.join(' ') + '" data-target="' + t + '" title="' + t + '">' +
+            '<span class="' + classes.join(' ') + '" data-target="' + t + '" data-src="' + (src || '') + '" title="' + t + '">' +
             '  <span class="fc-offset">' + offsetLabel + '</span>' +
             '  <span class="fc-val">' + display + '</span>' +
             '</span>';

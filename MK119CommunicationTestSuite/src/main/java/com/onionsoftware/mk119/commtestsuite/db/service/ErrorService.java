@@ -3,6 +3,7 @@ package com.onionsoftware.mk119.commtestsuite.db.service;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.repository.ErrorRepository;
 import com.onionsoftware.mk119.commtestsuite.simulation.ErrorJobFactory;
+import com.onionsoftware.mk119.commtestsuite.simulation.JitteredTrigger;
 import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
 import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -80,7 +80,8 @@ public class ErrorService {
         int deviceId = error.getDevice().getId();
         Runnable task = errorJobFactory.create(error);
 
-        PeriodicTrigger trigger = new PeriodicTrigger(error.getInterval(), TimeUnit.SECONDS);
+        // 에러 판정도 ServerData 를 건드리므로 시뮬레이션과 같은 이유로 첫 실행을 흩는다.
+        PeriodicTrigger trigger = JitteredTrigger.ofSeconds(error.getInterval());
         ScheduledFuture<?> future = threadPoolTaskScheduler.schedule(task, trigger);
         errorSchedules.put(error.getId(), future);
 
