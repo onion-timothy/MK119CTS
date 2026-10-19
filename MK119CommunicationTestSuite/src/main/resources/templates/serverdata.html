@@ -787,12 +787,17 @@
                     body: JSON.stringify({ seq: msg.seq })
                 });
             } catch (e) { console.error('ack publish failed', e); }
-            $('#sdSeqInfo').text('seq=' + msg.seq + ' · ' + new Date(msg.ts).toLocaleTimeString());
+            showSeq(msg.seq, msg.ts);
             latestSnapshot = msg;
             try {
                 renderSnapshot(msg);
             } catch (e) { console.error('renderSnapshot failed', e); }
         }
+    }
+
+    /** Sequence/time readout in the status bar — fed by snapshots and by event batches alike. */
+    function showSeq(seq, ts) {
+        $('#sdSeqInfo').text('seq=' + seq + ' · ' + new Date(ts).toLocaleTimeString());
     }
 
     /**
@@ -821,6 +826,9 @@
         // Applying them one by one would re-render the whole grid once per change; a device with
         // 3400 simulations would re-render 3400 times per tick. Apply the batch, then draw once.
         if (ev && Array.isArray(ev.changes)) {
+            // 묶음에도 스냅샷과 이어지는 일련번호가 붙는다. 스냅샷은 30초에 한 번뿐이라
+            // 그것만 세면 화면이 갱신되고 있는지 알 수 없다.
+            if (ev.seq !== undefined) showSeq(ev.seq, ev.ts);
             applyEventBatch(ev.changes, ev.touched);
             return;
         }

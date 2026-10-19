@@ -64,6 +64,13 @@ public class ServerDataBridge implements ServerDataListener {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    /**
+     * 묶음에도 스냅샷과 같은 일련번호를 붙이기 위해 쓴다.
+     * 편집 세션은 장비당 하나이므로 그 세션의 카운터를 공유하면 번호가 끊기지 않는다.
+     */
+    @Autowired
+    private ServerDataSessionRegistry sessionRegistry;
+
     /** deviceId -> (target -> 그 target 의 마지막 변경). 순서를 지키려고 LinkedHashMap 을 쓴다. */
     private final Map<Integer, Map<String, Map<String, Object>>> pending = new ConcurrentHashMap<>();
 
@@ -161,6 +168,10 @@ public class ServerDataBridge implements ServerDataListener {
                 Map<String, Object> batch = new LinkedHashMap<>();
                 batch.put("type", "events");
                 batch.put("ts", System.currentTimeMillis());
+                // 스냅샷만 번호를 올리면 30초에 한 번씩만 움직여, 화면이 갱신되고 있는지
+                // 알기 어렵다. 시뮬레이션이 쓴 묶음도 같은 카운터를 올린다.
+                sessionRegistry.getActive(deviceId)
+                        .ifPresent(info -> batch.put("seq", info.seq.incrementAndGet()));
                 batch.put("changes", new ArrayList<>(slice));
                 if (i == 0 && !touched.isEmpty()) batch.put("touched", touched);
                 messagingTemplate.convertAndSend(
