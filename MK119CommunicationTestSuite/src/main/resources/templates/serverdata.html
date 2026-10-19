@@ -748,6 +748,27 @@
         }
     }
 
+    /**
+     * Keep-alive ack.
+     * The server reaps a session after ACK_TIMEOUT_MS without an ack, and acks used to be sent
+     * only when a snapshot arrived. With the snapshot interval at 30s that leaves little margin —
+     * one missed snapshot and the session is reaped, after which re-entering is refused with
+     * 'another_session_active' until the old one times out. Send a light ack while events flow.
+     */
+    let lastAckSentTs = 0;
+    function sendKeepAliveAck() {
+        const now = Date.now();
+        if (now - lastAckSentTs < 10000) return;       // at most one per 10s
+        lastAckSentTs = now;
+        try {
+            stompClient.publish({
+                destination: '/app/devices/' + deviceId + '/serverdata/ack',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ seq: latestSnapshot ? latestSnapshot.seq : 0 })
+            });
+        } catch (e) { /* connection already gone; nothing to keep alive */ }
+    }
+
     function handleEventMessage(ev) {
         // The server coalesces changes and sends them as one batch ({type:'events', changes:[...]}).
         // Applying them one by one would re-render the whole grid once per change; a device with
@@ -815,6 +836,7 @@
         if (inspectionOpen && inspectionTarget && touched.indexOf(inspectionTarget) >= 0) {
             renderInspection(inspectionTarget, latestSnapshot);
         }
+        sendKeepAliveAck();
     }
 
     function applyEventDelta(ev) {

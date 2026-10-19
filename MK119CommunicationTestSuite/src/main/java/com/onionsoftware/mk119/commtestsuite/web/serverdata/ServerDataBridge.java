@@ -35,6 +35,9 @@ import java.util.regex.Pattern;
  *       같은 target 이 그 사이 여러 번 바뀌면 마지막 값만 남는다. 화면도 한 묶음에 한 번만 그린다.</li>
  *   <li><b>구독자가 없으면 아무것도 하지 않는다</b> — 전에는 보는 사람이 없어도 항상 발행해서,
  *       화면을 열지 않아도 장비 하나가 초당 수백 건을 브로커에 밀어 넣었다.</li>
+ *   <li><b>값이 그대로면 보내지 않는다</b> — STATIC 은 주기마다 같은 값을 다시 쓴다.
+ *       화면에 보일 변화가 없는데도 전송하면 대역만 먹는다. STATIC 5851건을 3초마다 돌리는
+ *       장비는 이것만으로 초당 1950건이 0건이 된다.</li>
  * </ul>
  */
 @Component
@@ -61,18 +64,37 @@ public class ServerDataBridge implements ServerDataListener {
     /** 구독 키 -> deviceId. UNSUBSCRIBE 에는 destination 이 없어 되찾을 길이 필요하다. */
     private final Map<String, Integer> subscriptionDevice = new ConcurrentHashMap<>();
 
+    /**
+     * deviceId -> (target -> 마지막으로 내보낸 "값|출처").
+     * 값과 출처가 모두 그대로면 화면에 바뀔 것이 없으므로 보내지 않는다.
+     * 출처까지 보는 이유는, 같은 값이라도 누가 썼는지가 달라지면 화면 표시가 달라지기 때문이다.
+     */
+    private final Map<Integer, Map<String, String>> lastSent = new ConcurrentHashMap<>();
+
     @Override
     public void onServerDataChanged(ServerDataEvent event) {
         int deviceId = event.getIoServer().getDevice().getId();
         if (!hasSubscriber(deviceId)) return;
+
+        String fingerprint = event.getValue() + "|" + event.getSource().name();
+        Map<String, String> sentOfDevice =
+                lastSent.computeIfAbsent(deviceId, k -> new ConcurrentHashMap<>());
+        if (fingerprint.equals(sentOfDevice.get(event.getTarget()))) {
+            return;   // 값도 출처도 그대로다. 화면이 다시 그릴 이유가 없다.
+        }
+        sentOfDevice.put(event.getTarget(), fingerprint);
 
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("target", event.getTarget());
         msg.put("value", event.getValue());
         msg.put("source", event.getSource().name());
         msg.put("ts", event.getTimestamp());
-        msg.put("affectedTargets", event.getAffectedTargets());
-        msg.put("targetValues", event.getTargetValues());
+        // 한 칸짜리 변경은 target/value 만으로 충분하다. 32비트처럼 여러 칸을 건드릴 때만 싣는다.
+        List<String> affected = event.getAffectedTargets();
+        if (affected != null && affected.size() > 1) {
+            msg.put("affectedTargets", affected);
+            msg.put("targetValues", event.getTargetValues());
+        }
         if (event.getSimulation() != null) {
             msg.put("simulationId", event.getSimulation().getId());
         }
@@ -155,6 +177,7 @@ public class ServerDataBridge implements ServerDataListener {
             // 마지막 구독자가 나가면 모아 둔 것도 버린다. 다시 들어오면 스냅샷으로 받는다.
             if (s.isEmpty()) {
                 subscribers.remove(deviceId);
+                lastSent.remove(deviceId);
                 Map<String, Map<String, Object>> byTarget = pending.remove(deviceId);
                 if (byTarget != null) {
                     synchronized (byTarget) { byTarget.clear(); }
