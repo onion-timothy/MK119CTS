@@ -761,22 +761,30 @@
             setStatus('status-lost', '<i class="fas fa-exclamation-circle"></i> STOMP error: ' + (frame.headers && frame.headers.message));
         };
         stompClient.onWebSocketClose = function () {
+            // 거절이나 무효화로 닫힌 것이면 이유를 이미 띄웠다. 덮으면 "Disconnected" 만
+            // 남아, 다른 편집 세션에 막힌 것인지 연결이 끊긴 것인지 구분할 수 없다.
+            if (closeReasonShown) return;
             setStatus('status-lost', '<i class="fas fa-plug"></i> Disconnected. <a href="#" onclick="location.reload()">Retry</a>');
         };
         stompClient.activate();
     }
+
+    /** denied / invalidated 로 이미 이유를 표시했는지. 소켓이 닫힐 때 그 문구를 지키려고 쓴다. */
+    let closeReasonShown = false;
 
     function handleStatusMessage(msg) {
         if (msg.type === 'status' && msg.status === 'granted') {
             setStatus('status-granted', '<i class="fas fa-check-circle"></i> Editing session active');
         } else if (msg.type === 'status' && msg.status === 'denied') {
             let reason = msg.reason === 'another_session_active'
-                ? 'Another editor is active on this device.'
+                ? 'Another editor is active on this device. A closed editor is released within 60 seconds.'
                 : (msg.reason === 'device_not_available' ? 'Device is not running.' : msg.reason);
             setStatus('status-denied', '<i class="fas fa-ban"></i> ' + reason + ' <a href="#" onclick="location.reload()">Retry</a>');
+            closeReasonShown = true;
             try { stompClient.deactivate(); } catch (e) {}
         } else if (msg.type === 'invalidated') {
             setStatus('status-lost', '<i class="fas fa-clock"></i> Session invalidated: ' + msg.reason + ' <a href="#" onclick="location.reload()">Retry</a>');
+            closeReasonShown = true;
         // write_ack no longer used — writes go through REST POST and apply on 200 OK.
         } else if (msg.seq !== undefined && msg.payload !== undefined) {
             // Snapshot payload — send ack first so a render error doesn't kill the session.
