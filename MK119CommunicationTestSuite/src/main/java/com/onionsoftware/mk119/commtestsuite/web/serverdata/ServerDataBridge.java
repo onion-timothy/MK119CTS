@@ -98,11 +98,17 @@ public class ServerDataBridge implements ServerDataListener {
         String fingerprint = event.getValue() + "|" + event.getSource().name();
         Map<String, String> sentOfDevice =
                 lastSent.computeIfAbsent(deviceId, k -> new ConcurrentHashMap<>());
+        List<String> affected = event.getAffectedTargets();
+        boolean spansSeveral = affected != null && affected.size() > 1;
+
         if (fingerprint.equals(sentOfDevice.get(event.getTarget()))) {
             // 값도 출처도 그대로다. 다시 그릴 것은 없지만 "썼다" 는 사실은 알려 준다.
-            pendingTouched
-                    .computeIfAbsent(deviceId, k -> ConcurrentHashMap.newKeySet())
-                    .add(event.getTarget());
+            // 32비트처럼 여러 칸을 차지하는 값은 그 칸들이 모두 깜빡여야 한다. 3_0 에 쓴
+            // UI32AD 는 3_0 과 3_1 을 함께 덮으므로 한 칸만 깜빡이면 범위가 거짓이 된다.
+            Set<String> touched =
+                    pendingTouched.computeIfAbsent(deviceId, k -> ConcurrentHashMap.newKeySet());
+            if (spansSeveral) touched.addAll(affected);
+            else touched.add(event.getTarget());
             return;
         }
         sentOfDevice.put(event.getTarget(), fingerprint);
@@ -113,8 +119,7 @@ public class ServerDataBridge implements ServerDataListener {
         msg.put("source", event.getSource().name());
         msg.put("ts", event.getTimestamp());
         // 한 칸짜리 변경은 target/value 만으로 충분하다. 32비트처럼 여러 칸을 건드릴 때만 싣는다.
-        List<String> affected = event.getAffectedTargets();
-        if (affected != null && affected.size() > 1) {
+        if (spansSeveral) {
             msg.put("affectedTargets", affected);
             msg.put("targetValues", event.getTargetValues());
         }
