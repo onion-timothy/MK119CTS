@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
     <!-- Theme style -->
     <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
     <!-- jTree -->
     <link rel="stylesheet" href="../../css/style.min.css"/>
     <!-- Tabulator -->
@@ -117,22 +118,67 @@
             .cts-split > .cts-split-side { flex: 2 1 0 !important; }
             .cts-split > .cts-split-main { flex: 5 1 0 !important; }
         }
+
+        /* 트리 side 안쪽 분할: 가로 뷰포트에선 트리 상단 / 차트 하단, 세로 뷰포트에선 트리 좌 / 차트 우. */
+        .side-split { display: flex; flex-direction: column; gap: 0.75rem; height: 100%; min-height: 0; min-width: 0; }
+        .side-split > .side-tree { flex: 2 1 0; min-height: 0; min-width: 0; display: flex; }
+        .side-split > .side-chart { flex: 1 1 0; min-height: 0; min-width: 0; display: flex; }
+        @media (orientation: portrait) {
+            .side-split { flex-direction: row; }
+        }
+
+        /* 점유 기대값 파이차트 — 가로 뷰포트: 차트 좌 / 범례 우, 세로 뷰포트: 차트 위 / 범례 아래. */
+        .occ-wrap { display: flex; flex-direction: row; align-items: center; gap: 10px; width: 100%; height: 100%; min-height: 0; min-width: 0; overflow: hidden; }
+        @media (orientation: portrait) {
+            .occ-wrap { flex-direction: column; }
+        }
+        .occ-chart { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+        .occ-chart svg { display: block; }
+        .occ-legend { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; font-size: 0.78rem; width: 100%; }
+        .occ-legend ul { list-style: none; padding: 0; margin: 0; }
+        .occ-legend li { display: flex; align-items: center; gap: 6px; margin: 2px 0; white-space: nowrap; }
+        .occ-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+        .occ-label { overflow: hidden; text-overflow: ellipsis; }
+        .occ-pct { color: #495057; font-variant-numeric: tabular-nums; margin-left: auto; padding-left: 6px; }
+        .occ-band { color: #868e96; font-size: 0.72rem; margin-left: 2px; }
+        .occ-empty { color: #868e96; font-size: 0.85rem; text-align: center; padding: 1rem; }
+
+        /* State Occupancy 탭 */
+        .occ-tabs { border-bottom: 1px solid #dee2e6; margin: 0; padding: 0 6px; display: flex; align-items: flex-end; }
+        .occ-tabs .nav-link { padding: 4px 10px; font-size: 0.8rem; color: #6c757d; border: 1px solid transparent; border-bottom: none; margin-bottom: -1px; border-radius: 3px 3px 0 0; }
+        .occ-tabs .nav-link:hover { color: #495057; background-color: #f8f9fa; }
+        .occ-tabs .nav-link.active { color: #007bff; background-color: #fff; border-color: #dee2e6 #dee2e6 #fff; font-weight: 600; }
+        /* 포커스/활성 상태의 브라우저 기본 테두리와 Bootstrap 포커스 링 제거 */
+        .occ-tabs .nav-link:focus,
+        .occ-tabs .nav-link:focus-visible,
+        .occ-tabs .nav-link:active { outline: none; box-shadow: none; }
+        .occ-tabs-tail { margin-left: auto; padding: 0 6px 4px 6px; list-style: none; }
     </style>
 
     <script>
         /*<![CDATA[*/
         let errorsTable;
         let device_id;
-        let errorsToUpload = [];
         let deviceSelected = '[[${device}]]';
         let devices = [];
         let deployTargetsTable;
         let deployCandidates = [];
-        let excelTable;
         let currentDevice;
         let currentErrors = [];
 
         const ERRORS_BASE_ROW_H = 48;
+        // 창 길이는 설정에 따라 적응: 가장 느린 inter-arrival(I/p) 의 3 배 보장,
+        // 가독성 상·하한 180s ~ 1800s. computeWindowSec() 참고.
+        const OCC_WINDOW_MIN_SEC = 180;
+        const OCC_WINDOW_MAX_SEC = 1800;
+        // 모드별 고정 색상 (브랜드 비의존, 디바이스 전환해도 동일 모드는 같은 색)
+        const OCC_MODE_COLORS = {
+            DISCARD:    '#4e79a7',
+            TIMEOUT:    '#f28e2b',
+            GARBAGE:    '#e15759',
+            DISCONNECT: '#76b7b2'
+        };
+        const OCC_IDLE_COLOR = '#e9ecef';
 
         function withHeaderMinWidth(cols) {
             return cols.map(function (c) {
@@ -177,6 +223,8 @@
             bindErrorsSearch();
             bindErrorsToolbarActions();
             bindDeployTargetsToolbar();
+            bindOccupancyTabs();
+            setOccupancyMode('actual');
             $('#simulationCopyModal').on('shown.bs.modal', initDeployTargetsTable);
 
             let resizeTimer;
@@ -184,59 +232,28 @@
                 clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(function () {
                     fitTablePageSize(errorsTable, '#errorsToolbar', ERRORS_BASE_ROW_H);
+                    renderOccupancyChart();
                 }, 100);
             });
 
+            renderOccupancyChart();
+
             $('#excel').change(function (e) {
                 let file = e.target.files[0];
+                if (!file) return;
                 let reader = new FileReader();
                 reader.onload = function () {
-                    let fileData = reader.result;
-                    let wb = XLSX.read(fileData, {type: 'binary'});
-                    errorsToUpload = [];
-                    let previewRows = [];
+                    let wb = XLSX.read(reader.result, { type: 'binary' });
+                    let sheet = wb.SheetNames[0];
+                    let rows = sheet ? XLSX.utils.sheet_to_json(wb.Sheets[sheet]) : [];
 
-                    wb.SheetNames.forEach(function (sheetName) {
-                        let rowObj = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-                        rowObj.forEach(function (obj) {
-                            errorsToUpload.push(convertObj(obj, device_id));
-                            previewRows.push({
-                                target: obj.Target,
-                                policy: obj.SimulationPolicy,
-                                interval: obj.Interval,
-                                enabled: obj.Enabled
-                            });
-                        });
-                    });
-
-                    $('#excelTableModal').modal('show');
-                    if (excelTable) { excelTable.destroy(); excelTable = null; }
-                    excelTable = new Tabulator('#excelObjects', {
-                        data: previewRows,
-                        layout: 'fitColumns',
-                        height: '400px',
-                        columnDefaults: { resizable: false },
-                        columns: withHeaderMinWidth([
-                            {title: 'Target', field: 'target'},
-                            {title: 'Simulation Policy', field: 'policy'},
-                            {title: 'Interval', field: 'interval', width: 100},
-                            {title: 'Enabled', field: 'enabled', width: 100}
-                        ])
-                    });
+                    // 템플릿의 열을 그대로 보존해 batch 페이지가 받도록 한다 (정규화는 batch 페이지에서 수행)
+                    sessionStorage.setItem('batchAddErrors', JSON.stringify({ errors: rows }));
+                    location.href = '/errors/batch?device=' + device_id;
                 };
                 reader.readAsBinaryString(file);
                 $('#excel').val('');
             });
-        }
-
-        function convertObj(obj, devid) {
-            return {
-                device_id: devid,
-                target: obj.Target,
-                policies: obj.SimulationPolicy,
-                interval: obj.Interval,
-                enabled: obj.Enabled === 'Enabled' ? 1 : 0
-            };
         }
 
         // ── Groups and devices (좌측) 트리 ──────────────────────
@@ -303,17 +320,26 @@
                 selectableRows: true,
                 columnDefaults: { resizable: false },
                 placeholder: 'No error simulations for this device',
+                // ID 오름차순 = 로드 순서 = 선권 순위. 디바이스 재기동 시 ID 작은 에러가 매 사이클 선권.
+                initialSort: [{ column: 'id', dir: 'asc' }],
                 columns: withHeaderMinWidth([
                     {formatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 50},
+                    {title: 'ID', field: 'id', hozAlign: 'right', width: 80},
                     {title: 'Mode', field: 'mode'},
                     {title: 'Frequency(%)', field: 'frequency', hozAlign: 'center'},
                     {title: 'Interval', field: 'interval', hozAlign: 'center'},
                     {
+                        title: 'Duration', field: 'errorDuration', hozAlign: 'center',
+                        formatter: function (cell) {
+                            // SIMULATION 모드는 지속 상태가 아니라 tick 기반이라 duration 개념 없음
+                            return cell.getRow().getData().mode === 'SIMULATION' ? '' : cell.getValue();
+                        }
+                    },
+                    {
                         title: 'Enabled', field: 'enabled', hozAlign: 'center', width: 120,
                         formatter: function (cell) {
                             let enabled = cell.getValue() === 1;
-                            let cls = enabled ? 'btn-success' : 'btn-danger';
-                            return '<button class="btn ' + cls + '" style="width:60px;height:20px;padding:0"></button>';
+                            return '<button class="cts-toggle' + (enabled ? ' on' : '') + '" aria-label="' + (enabled ? 'Enabled' : 'Disabled') + '"></button>';
                         },
                         cellClick: function (e, cell) {
                             e.stopPropagation();
@@ -611,6 +637,7 @@
                 success: function (data) {
                     currentErrors = data;
                     initErrorsTable(data);
+                    renderOccupancyChart();
                 }
             });
         }
@@ -631,20 +658,472 @@
             }
         }
 
-        function performUpload() {
-            errorsToUpload.forEach(function (simulation) {
-                $.ajax({
-                    url: '/api/error/addError',
-                    type: 'PUT',
-                    contentType: 'application/json',
-                    data: JSON.stringify(simulation),
-                    error: function (request) {
-                        alert(request.status + request.responseText);
-                    },
-                    async: false,
-                });
+        // ── 점유 기대값 ──────────────────────────────────────────
+        //  system error 는 device 당 한 번에 하나만 활성(IOServer.activateSystemError 상태머신).
+        //  활성 중엔 ErrorJob 이 isSystemErrorActive 로 다른 tick 을 건너뛰므로 "비포화 영역에서도"
+        //  서로 상호 간섭한다. 아래의 Monte-Carlo 로 ErrorJob 의 실 동작을 그대로 모사한다:
+        //    - 각 에러는 자기 interval I 로 periodic tick (첫 tick 만 JitteredTrigger 와 동일 범위에서 지터).
+        //    - tick 시각에 시스템 busy 면 skip, idle 이면 Bernoulli(p=freq/100).
+        //    - 성공하면 D 초간 busy 로 고정 (D = errorDuration, 서버 fallback 30).
+        //  Lost-call 폐형(ρ_i/(1+Σρ))보다 ~2~3%p 더 정확 (관측과의 실측 비교 결과).
+        function computeOccupancy(errors, windowSec) {
+            let sys = (errors || []).filter(function (e) {
+                return e.enabled === 1 && e.mode !== 'SIMULATION';
             });
-            location.href = '/errors?device=' + device_id;
+            // 같은 모드의 에러는 하나의 조각으로 묶는다. 각각은 독립 스케줄이므로
+            // "같은 모드로 설정된 에러 N개" 로 그대로 시뮬에 투입된다 (duty 를 임의 합산하지 않는다).
+            let items = sys.map(function (e) {
+                return {
+                    mode: e.mode,
+                    p: Math.max(0, Math.min(100, Number(e.frequency) || 0)) / 100,
+                    I: Math.max(1, Number(e.interval) || 1),
+                    D: (Number(e.errorDuration) > 0) ? Number(e.errorDuration) : 30
+                };
+            });
+
+            let byMode = {};
+            // 간섭이 없다고 가정했을 때의 기대값 (lower bound 가 아니라 reference 용) — 섹션 라벨 유지용
+            items.forEach(function (it) {
+                if (!byMode[it.mode]) byMode[it.mode] = { label: it.mode, mode: it.mode, duty: 0 };
+            });
+
+            if (items.length > 0) {
+                let sim = simulateDuty(items, windowSec);
+                Object.keys(sim.perMode).forEach(function (m) {
+                    if (!byMode[m]) byMode[m] = { label: m, mode: m, duty: 0 };
+                    byMode[m].duty = sim.perMode[m];
+                });
+                let per = Object.values(byMode);
+                per.forEach(function (x) { x.seconds = x.duty * windowSec; });
+                let totalDuty = per.reduce(function (s, x) { return s + x.duty; }, 0);
+                // ρ 합 — 참고용. 1 이 넘으면 과포화 영역 (duty 가 1 로 점근).
+                let rho = items.reduce(function (s, it) { return s + it.p * it.D / it.I; }, 0);
+                return {
+                    slices: per,
+                    idleDuty: Math.max(0, 1 - totalDuty),
+                    saturated: rho >= 1,
+                    windowSec: windowSec
+                };
+            }
+            return { slices: [], idleDuty: 1, saturated: false, windowSec: windowSec };
+        }
+
+        /**
+         *  ErrorJob 동작을 그대로 돌리는 몬테카를로. 결정론적(설정이 같으면 결과도 같음).
+         *  - 시뮬 길이는 "가장 느린 inter-arrival (I/p)" 의 수백 배로 수렴시키되 ≤ 1 시간 상한.
+         *  - 내부 반복 50 회 평균 — 결정론 seed 특정값에 걸리는 bias (~±1.5pp) 를 ±0.8pp 로 줄임.
+         *  - PRNG 는 설정 해시로 시드한 Mulberry32 — 디바이스 전환 전엔 색/숫자가 흔들리지 않는다.
+         */
+        function simulateDuty(items, windowSec) {
+            let maxWait = 1;
+            items.forEach(function (it) {
+                if (it.p > 0) maxWait = Math.max(maxWait, it.I / it.p);
+            });
+            let simSec = Math.min(3600, Math.max(windowSec, Math.ceil(maxWait * 300)));
+            let seed = occSeed(items);
+            let runs = 50;
+
+            let activeByMode = {};
+            items.forEach(function (it) { activeByMode[it.mode] = 0; });
+
+            for (let r = 0; r < runs; r++) {
+                let rand = mulberry32(seed + r * 2654435761 >>> 0);
+                let events = [];
+                items.forEach(function (it, idx) {
+                    let jitterMax = Math.min(it.I, 2); // JitteredTrigger 와 동일 상한
+                    let phase = rand() * jitterMax;
+                    for (let t = phase; t < simSec; t += it.I) {
+                        events.push({ t: t, idx: idx });
+                    }
+                });
+                events.sort(function (a, b) { return a.t - b.t; });
+
+                let busyUntil = 0;
+                for (let i = 0; i < events.length; i++) {
+                    let ev = events[i];
+                    if (ev.t < busyUntil) continue; // 활성 중 — ErrorJob 조기 return
+                    let cfg = items[ev.idx];
+                    if (cfg.p <= 0) continue;
+                    if (rand() < cfg.p) {
+                        let end = Math.min(simSec, ev.t + cfg.D);
+                        activeByMode[cfg.mode] += (end - ev.t);
+                        busyUntil = ev.t + cfg.D;
+                    }
+                }
+            }
+
+            // 대칭 보정: (p, I, D) 가 같은 모드들은 기대값이 수학적으로 동일하므로
+            // 같은 class 끼리 결과를 평균내서 각 모드에 다시 배분한다.
+            // (각각 unbiased 추정량이라 평균도 unbiased, 분산은 √N 배 좁아짐.)
+            let classes = {};
+            items.forEach(function (it) {
+                let key = it.p + '|' + it.I + '|' + it.D;
+                if (!classes[key]) classes[key] = [];
+                if (classes[key].indexOf(it.mode) < 0) classes[key].push(it.mode);
+            });
+            Object.values(classes).forEach(function (modes) {
+                if (modes.length <= 1) return;
+                let avg = modes.reduce(function (s, m) { return s + activeByMode[m]; }, 0) / modes.length;
+                modes.forEach(function (m) { activeByMode[m] = avg; });
+            });
+
+            let perMode = {};
+            Object.keys(activeByMode).forEach(function (m) {
+                perMode[m] = activeByMode[m] / (simSec * runs);
+            });
+            // 창 길이 기준의 realization 변동(한 번의 startup 에서 관측될 수 있는 폭)
+            // 을 별도로 샘플링해 ±σ 로 제공한다.
+            let uncertainty = simulateUncertainty(items, windowSec);
+            return { perMode: perMode, simSec: simSec, uncertainty: uncertainty };
+        }
+
+        /**
+         * "창 길이(windowSec) 짜리 관측" 을 많이 돌려 모드별 duty 샘플 분포를 추정.
+         *   - 각 샘플 run 마다 다른 PRNG seed → 다른 jitter 위상 → 선점 순서가 뒤섞인다.
+         *   - 매번의 realization 이 "같은 설정으로 서버를 켠 한 번의 운영 결과" 와 동일 의미.
+         *   - 평균은 computeOccupancy 의 symmetric-corrected 값과 일치해야 함(이건 UI 에선 안 씀).
+         *     표준편차만 뽑아 "한 번 켜면 이 폭 안에서 관측된다" 를 보여준다.
+         *   - 결정론적이지 않다 (매 호출 다른 결과) — 창이 짧고 샘플이 적어 정밀 결정론은 필요 없음.
+         */
+        function simulateUncertainty(items, windowSec) {
+            let runs = 50;
+            let seedBase = Math.floor(Math.random() * 0xFFFFFFFF);
+            let perModeSamples = {};
+            items.forEach(function (it) {
+                if (!perModeSamples[it.mode]) perModeSamples[it.mode] = [];
+            });
+
+            for (let r = 0; r < runs; r++) {
+                let rand = mulberry32((seedBase + r * 2654435761) >>> 0);
+                let events = [];
+                items.forEach(function (it, idx) {
+                    let jitterMax = Math.min(it.I, 2);
+                    let phase = rand() * jitterMax;
+                    for (let t = phase; t < windowSec; t += it.I) {
+                        events.push({ t: t, idx: idx });
+                    }
+                });
+                events.sort(function (a, b) { return a.t - b.t; });
+
+                let runActive = {};
+                items.forEach(function (it) { runActive[it.mode] = 0; });
+
+                let busyUntil = 0;
+                for (let i = 0; i < events.length; i++) {
+                    let ev = events[i];
+                    if (ev.t < busyUntil) continue;
+                    let cfg = items[ev.idx];
+                    if (cfg.p <= 0) continue;
+                    if (rand() < cfg.p) {
+                        let end = Math.min(windowSec, ev.t + cfg.D);
+                        runActive[cfg.mode] += (end - ev.t);
+                        busyUntil = ev.t + cfg.D;
+                    }
+                }
+                Object.keys(runActive).forEach(function (m) {
+                    perModeSamples[m].push(runActive[m] / windowSec);
+                });
+            }
+
+            // (p, I, D) 가 같은 모드끼리는 "라벨 교환" 이 의미 없으므로 샘플 pool 을 합쳐
+            // 더 안정적인 분산 추정을 얻는다 (각 모드가 같은 분포에서 나왔으므로).
+            let classes = {};
+            items.forEach(function (it) {
+                let key = it.p + '|' + it.I + '|' + it.D;
+                if (!classes[key]) classes[key] = [];
+                if (classes[key].indexOf(it.mode) < 0) classes[key].push(it.mode);
+            });
+            Object.values(classes).forEach(function (modes) {
+                if (modes.length <= 1) return;
+                let pooled = [];
+                modes.forEach(function (m) { pooled = pooled.concat(perModeSamples[m]); });
+                modes.forEach(function (m) { perModeSamples[m] = pooled; });
+            });
+
+            let perMode = {};
+            Object.keys(perModeSamples).forEach(function (m) {
+                let xs = perModeSamples[m];
+                let mean = xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
+                let variance = xs.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / Math.max(1, xs.length - 1);
+                perMode[m] = { mean: mean, std: Math.sqrt(variance) };
+            });
+            return perMode;
+        }
+
+        // Mulberry32 PRNG — 고정 seed 로 결정론적 uniform.
+        function mulberry32(seed) {
+            let a = seed >>> 0;
+            return function () {
+                a = (a + 0x6D2B79F5) >>> 0;
+                let t = a;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return (((t ^ (t >>> 14)) >>> 0) / 4294967296);
+            };
+        }
+
+        // 설정 (mode/freq/interval/duration/enabled) 해시 — 설정이 같으면 같은 seed.
+        function occSeed(items) {
+            let s = 2166136261 >>> 0; // FNV-1a
+            let parts = items.map(function (it) { return it.mode + '|' + it.p + '|' + it.I + '|' + it.D; });
+            parts.sort().join('\n').split('').forEach(function (ch) {
+                s ^= ch.charCodeAt(0);
+                s = Math.imul(s, 16777619) >>> 0;
+            });
+            return s;
+        }
+
+        function formatWindow(sec) {
+            if (sec % 60 === 0) return (sec / 60) + ' min';
+            if (sec >= 60) return (sec / 60).toFixed(1) + ' min';
+            return sec + ' s';
+        }
+
+        function formatSeconds(sec) {
+            if (sec >= 60) return (sec / 60).toFixed(1) + ' min';
+            return sec.toFixed(1) + ' s';
+        }
+
+        /**
+         * 적응형 창 길이:
+         *   `3 · max(I/p)` — 가장 느린 에러가 창 안에서 평균 3 번은 발동 → 통계적 유의미.
+         *   하한 180s / 상한 1800s — 가독성 보존 (초 라벨이 머리에 들어오는 범위).
+         *   p=0 짜리는 분모 0 이라 제외; 활성 시스템 에러가 하나도 없으면 180s 유지.
+         */
+        function computeWindowSec(errors) {
+            let sys = (errors || []).filter(function (e) {
+                return e.enabled === 1 && e.mode !== 'SIMULATION'
+                    && (Number(e.frequency) || 0) > 0;
+            });
+            if (sys.length === 0) return OCC_WINDOW_MIN_SEC;
+            let maxWait = 0;
+            sys.forEach(function (e) {
+                let p = Math.max(0, Math.min(100, Number(e.frequency) || 0)) / 100;
+                let I = Math.max(1, Number(e.interval) || 1);
+                maxWait = Math.max(maxWait, I / p);
+            });
+            let target = Math.ceil(3 * maxWait);
+            return Math.min(OCC_WINDOW_MAX_SEC, Math.max(OCC_WINDOW_MIN_SEC, target));
+        }
+
+        // 공통 pie 렌더링: slices 는 {label, mode, duty, seconds, color} 리스트, opts 는 {uncertainty, saturated, footer}
+        function renderOccupancyPie(host, slices, opts) {
+            opts = opts || {};
+            // size: 세로 뷰포트에선 폭 기준, 가로 뷰포트에선 짧은 쪽 기준으로 정사각
+            let rect = host.getBoundingClientRect();
+            let isPortrait = window.matchMedia('(orientation: portrait)').matches;
+            let bound = isPortrait
+                ? Math.min(rect.width, rect.height * 0.6)
+                : Math.min(rect.width * 0.5, rect.height);
+            let size = Math.max(60, Math.floor(bound - 8));
+            let cx = size / 2, cy = size / 2, radius = size / 2 - 2;
+
+            let svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">';
+            // 한 조각이 100% 를 차지하면 arc 로는 못 그리므로 원으로 대체
+            let only = slices.filter(function (x) { return x.duty > 0; });
+            if (only.length === 1 && only[0].duty >= 0.999) {
+                svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + radius + '" fill="' + only[0].color + '"/>';
+            } else {
+                let angle = -Math.PI / 2; // 12시 방향 시작
+                slices.forEach(function (s) {
+                    if (s.duty <= 0) return;
+                    let delta = s.duty * 2 * Math.PI;
+                    let x1 = cx + radius * Math.cos(angle);
+                    let y1 = cy + radius * Math.sin(angle);
+                    let x2 = cx + radius * Math.cos(angle + delta);
+                    let y2 = cy + radius * Math.sin(angle + delta);
+                    let large = delta > Math.PI ? 1 : 0;
+                    let path = 'M ' + cx + ' ' + cy
+                             + ' L ' + x1.toFixed(2) + ' ' + y1.toFixed(2)
+                             + ' A ' + radius + ' ' + radius + ' 0 ' + large + ' 1 '
+                             + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' Z';
+                    svg += '<path d="' + path + '" fill="' + s.color + '" stroke="#fff" stroke-width="1"/>';
+                    angle += delta;
+                });
+            }
+            svg += '</svg>';
+
+            let unc = opts.uncertainty || {};
+            let legendItems = slices.map(function (s) {
+                let band = '';
+                let u = unc[s.mode];
+                if (u && u.std > 0) {
+                    // 창 길이 기준 realization 표준편차 (한 번 켜면 이 폭 안쪽에서 관측될 가능성 ~68%)
+                    band = ' <span class="occ-band" title="Startup 변동(1σ) — 창 길이 기준">±'
+                        + (u.std * 100).toFixed(1) + '%</span>';
+                }
+                return '<li>'
+                    + '<span class="occ-swatch" style="background:' + s.color + '"></span>'
+                    + '<span class="occ-label" title="' + escapeHtml(s.label) + '">' + escapeHtml(s.label) + '</span>'
+                    + '<span class="occ-pct">' + (s.duty * 100).toFixed(1) + '%' + band + ' · ' + formatSeconds(s.seconds) + '</span>'
+                    + '</li>';
+            }).join('');
+            let note = '';
+            if (opts.saturated) {
+                note = '<div class="text-muted" style="font-size:.72rem; margin-top:4px;">Saturated — single-slot capped at 100%</div>';
+            } else if (opts.footer) {
+                note = '<div class="text-muted" style="font-size:.72rem; margin-top:4px;">' + escapeHtml(opts.footer) + '</div>';
+            }
+
+            host.innerHTML =
+                '<div class="occ-chart">' + svg + '</div>' +
+                '<div class="occ-legend"><ul>' + legendItems + '</ul>' + note + '</div>';
+        }
+
+        // ── State Occupancy 탭 상태 ─────────────────────────────
+        let occupancyMode = 'actual';
+        let actualStatsTimer = null;
+
+        function setOccupancyMode(mode) {
+            if (mode !== 'actual' && mode !== 'expected') return;
+            occupancyMode = mode;
+            document.querySelectorAll('#occupancyTabs .occ-tab').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-tab') === mode);
+            });
+            // "over X min" 라벨은 Expected 탭에서만 노출
+            let label = document.getElementById('occWindowLabel');
+            if (label) label.style.display = (mode === 'expected') ? '' : 'none';
+
+            if (mode === 'actual') {
+                startActualStatsPolling();
+                renderActualOccupancyChart();
+            } else {
+                stopActualStatsPolling();
+                renderExpectedOccupancyChart();
+            }
+        }
+
+        function startActualStatsPolling() {
+            if (actualStatsTimer) return;
+            actualStatsTimer = setInterval(function () {
+                if (occupancyMode === 'actual') renderActualOccupancyChart();
+            }, 2000);
+        }
+
+        function stopActualStatsPolling() {
+            if (actualStatsTimer) { clearInterval(actualStatsTimer); actualStatsTimer = null; }
+        }
+
+        function bindOccupancyTabs() {
+            let tabs = document.getElementById('occupancyTabs');
+            if (!tabs) return;
+            tabs.addEventListener('click', function (e) {
+                let btn = e.target.closest('.occ-tab');
+                if (!btn) return;
+                e.preventDefault();
+                setOccupancyMode(btn.getAttribute('data-tab'));
+            });
+        }
+
+        // 현재 활성 탭에 맞춰 재렌더 (디바이스 변경 / 리사이즈 시)
+        function renderOccupancyChart() {
+            if (occupancyMode === 'actual') renderActualOccupancyChart();
+            else renderExpectedOccupancyChart();
+        }
+
+        function renderActualOccupancyChart() {
+            let host = document.getElementById('occupancyChart');
+            if (!host) return;
+            if (!device_id) {
+                host.innerHTML = '<div class="occ-empty">Select a device.</div>';
+                return;
+            }
+            $.ajax({
+                url: '/api/error/stats/' + device_id,
+                type: 'GET',
+                success: function (stats) {
+                    renderActualFromStats(host, stats);
+                },
+                error: function () {
+                    host.innerHTML = '<div class="occ-empty">Server not running for this device.</div>';
+                }
+            });
+        }
+
+        function renderActualFromStats(host, stats) {
+            if (!stats || !stats.uptimeMs) {
+                host.innerHTML = '<div class="occ-empty">Server not running for this device.</div>';
+                return;
+            }
+            let total = stats.uptimeMs;
+            let modes = [
+                { mode: 'DISCARD',    ms: stats.discardMs },
+                { mode: 'TIMEOUT',    ms: stats.timeoutMs },
+                { mode: 'GARBAGE',    ms: stats.garbageMs },
+                { mode: 'DISCONNECT', ms: stats.disconnectMs }
+            ];
+            let slices = modes
+                .filter(function (m) { return m.ms > 0; })
+                .map(function (m) {
+                    return {
+                        label: m.mode, mode: m.mode,
+                        duty: m.ms / total,
+                        seconds: m.ms / 1000,
+                        color: OCC_MODE_COLORS[m.mode] || '#9c755f'
+                    };
+                });
+            let normalMs = Math.max(0, stats.normalMs);
+            if (normalMs > 0) {
+                slices.push({
+                    label: 'Normal', mode: 'NORMAL',
+                    duty: normalMs / total,
+                    seconds: normalMs / 1000,
+                    color: OCC_IDLE_COLOR
+                });
+            }
+            renderOccupancyPie(host, slices, {
+                footer: 'Since boot: ' + formatSeconds(total / 1000)
+            });
+        }
+
+        function renderExpectedOccupancyChart() {
+            let host = document.getElementById('occupancyChart');
+            if (!host) return;
+            let windowSec = computeWindowSec(currentErrors);
+            $('#occWindowLabel').text('over ' + formatWindow(windowSec));
+            let r = computeOccupancy(currentErrors, windowSec);
+
+            if (r.slices.length === 0) {
+                host.innerHTML = '<div class="occ-empty">No enabled system errors on this device.</div>';
+                return;
+            }
+
+            // 모드별 고정 색 — 디바이스 바꿔도 DISCARD/TIMEOUT/GARBAGE/DISCONNECT 색이 그대로
+            let slices = r.slices.map(function (s) {
+                return { ...s, color: OCC_MODE_COLORS[s.mode] || '#9c755f' };
+            });
+            if (r.idleDuty > 0) {
+                slices.push({ label: 'Normal', mode: 'NORMAL', duty: r.idleDuty, seconds: r.idleDuty * r.windowSec, color: OCC_IDLE_COLOR });
+            }
+            renderOccupancyPie(host, slices, { uncertainty: r.uncertainty, saturated: r.saturated });
+        }
+
+        function generateTemplate() {
+            // 템플릿 헤더는 error_editor 가 쓰는 필드와 Error 모델에 맞춘다.
+            // mode 별로 쓰이는 열이 다르다 — 사용되지 않는 열은 비워 둔다.
+            const headers = [
+                'mode', 'frequency', 'interval', 'errorDuration', 'enabled',
+                'timeout', 'garbageLength',
+                'simulationName', 'errorValue', 'simulation_stop'
+            ];
+            let rows = (currentErrors || []).map(function (e) {
+                return {
+                    mode: e.mode,
+                    frequency: e.frequency,
+                    interval: e.interval,
+                    errorDuration: e.mode === 'SIMULATION' ? null : e.errorDuration,
+                    enabled: e.enabled,
+                    timeout: e.mode === 'TIMEOUT' ? e.timeout : null,
+                    garbageLength: e.mode === 'GARBAGE' ? e.garbageLength : null,
+                    simulationName: (e.mode === 'SIMULATION' && e.simulation) ? e.simulation.name : null,
+                    errorValue: e.mode === 'SIMULATION' ? e.errorValue : null,
+                    simulation_stop: e.mode === 'SIMULATION' ? e.simulation_stop : null
+                };
+            });
+            const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+            XLSX.writeFile(workbook, 'errors_template.xlsx');
         }
 
         function copySimulations() {
@@ -694,6 +1173,12 @@
         </ul>
 
         <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip"
+                    data-placement="bottom" title="Export to template">
+                    <i class="fas fa-download"></i>
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link" data-widget="fullscreen" href="#" role="button">
                     <i class="fas fa-expand-arrows-alt"></i>
@@ -764,15 +1249,36 @@
         <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
             <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
             <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: 1rem; min-height:0; padding: 0 1rem 1rem 1rem;">
-                <!-- Left: Groups and devices tree -->
+                <!-- Left: Groups and devices tree + Occupancy chart -->
                 <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
-                    <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
-                        <div class="card-header flex-shrink-0">
-                            <h3 class="card-title mb-0">Groups and devices</h3>
+                    <div class="side-split">
+                        <div class="side-tree">
+                            <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0; width: 100%;">
+                                <div class="card-header flex-shrink-0">
+                                    <h3 class="card-title mb-0">Groups and devices</h3>
+                                </div>
+                                <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
+                                    <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
+                                    <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
-                            <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
-                            <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
+                        <div class="side-chart">
+                            <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0; width: 100%;">
+                                <div class="card-header flex-shrink-0">
+                                    <h3 class="card-title mb-0">State Occupancy</h3>
+                                </div>
+                                <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
+                                    <ul id="occupancyTabs" class="nav nav-tabs occ-tabs flex-shrink-0" role="tablist">
+                                        <li class="nav-item"><a class="nav-link occ-tab active" data-tab="actual" href="#" role="tab">Actual</a></li>
+                                        <li class="nav-item"><a class="nav-link occ-tab" data-tab="expected" href="#" role="tab">Expected</a></li>
+                                        <li class="occ-tabs-tail"><span class="text-muted small" id="occWindowLabel" style="display:none;">over 3 min</span></li>
+                                    </ul>
+                                    <div class="occ-pane flex-grow-1" style="min-height:0; padding:0.5rem;">
+                                        <div id="occupancyChart" class="occ-wrap"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -803,31 +1309,6 @@
                 </div>
             </div>
         </section>
-
-        <!-- excel table modal -->
-        <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog" aria-labelledby="excelTableModalLabel"
-             aria-hidden="true">
-            <div class="modal-dialog" role="document" style="max-width:fit-content">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="excelTableModalLabel">Register New Simulations by Excel</h5>
-                    </div>
-                    <div class="modal-body">
-                        <div id="excelObjects" class="cts-tabulator" style="min-width:700px;"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button" onclick="$('#excelTableModal').modal('hide')">
-                            Cancel
-                        </button>
-                        <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
-                        <button class="btn btn-success" type="button" onclick="performUpload()" id="registerByExcel">
-                            Register
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Excel modal end -->
 
         <!-- Deploy simulations modal -->
         <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog"

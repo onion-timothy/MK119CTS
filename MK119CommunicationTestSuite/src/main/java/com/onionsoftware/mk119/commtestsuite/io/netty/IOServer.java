@@ -13,9 +13,6 @@ import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.MkUDPDecoder;
 import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
-
 import java.util.concurrent.CopyOnWriteArrayList;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -35,9 +32,12 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.onionsoftware.mk119.commtestsuite.web.bean.ErrorStateStats;
 
 @Getter
 @Setter
@@ -68,6 +68,16 @@ public class IOServer extends Thread {
     private volatile Error activeSystemError;
     /** 시스템 에러 만료 시각 (System.currentTimeMillis 기준) */
     private volatile long errorExpireTime;
+
+    // ── 에러 상태 점유 시간 누적 (서버 기동시부터) ──
+    /** 디바이스 서버 기동 시각 (IOServer 인스턴스 생성 시점). */
+    private final long bootTime = System.currentTimeMillis();
+    /** 평시(NORMAL) 상태의 누적 시간 (ms). */
+    private long normalDurationMs = 0;
+    /** 각 시스템 에러 모드별 누적 시간 (ms). */
+    private final EnumMap<ErrorMode, Long> errorDurationMs = new EnumMap<>(ErrorMode.class);
+    /** 현재 상태(NORMAL 또는 activeSystemError)가 시작된 시각. */
+    private long currentStateStart = System.currentTimeMillis();
 
     // ── 포트 언바인드/리바인드 지원 ──
     /** 서버 채널 참조 (TCP/UDP 공통) */
@@ -161,10 +171,10 @@ public class IOServer extends Thread {
                     }
                 }
             } catch (InterruptedException e) {
-                MkLogger.log("io", LogLevel.WARNING, "Server for device {0} interrupted.", device.getName());
+                LoggerFactory.getLogger("io").warn("Server for device {} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                MkLogger.log("io", e, "General exception to initialize TCP server.");
+                LoggerFactory.getLogger("io").error("General exception to initialize TCP server.", e);
             } finally {
                 if (serverChannel != null && serverChannel.isOpen()) {
                     serverChannel.close();
@@ -191,10 +201,10 @@ public class IOServer extends Thread {
                 serverChannel = f.channel();
                 f.channel().closeFuture().sync();
             } catch (InterruptedException e) {
-                MkLogger.log("io", LogLevel.WARNING, "Server for device {0} interrupted.", device.getName());
+                LoggerFactory.getLogger("io").warn("Server for device {} interrupted.", device.getName());
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                MkLogger.log("io", e, "General exception to initialize UDP server.");
+                LoggerFactory.getLogger("io").error("General exception to initialize UDP server.", e);
             } finally {
                 bossGroup.shutdownGracefully();
             }
@@ -215,7 +225,11 @@ public class IOServer extends Thread {
         pipeline.addLast(decoder);
         pipeline.addLast(handler);
 
-        sessions.put((InetSocketAddress) channel.remoteAddress(), System.currentTimeMillis());
+        // UDP 서버 채널은 remoteAddress 가 null 이다 — 세션 맵은 "클라이언트" 추적용이므로 넣지 않는다.
+        InetSocketAddress remote = (InetSocketAddress) channel.remoteAddress();
+        if (remote != null) {
+            sessions.put(remote, System.currentTimeMillis());
+        }
     }
 
     // ── 시스템 에러 관리 메서드 ──
@@ -225,12 +239,12 @@ public class IOServer extends Thread {
      * DISCONNECT 모드인 경우 포트를 언바인드하고 기존 연결을 모두 종료한다.
      */
     public synchronized void activateSystemError(Error error, int durationSeconds) {
+        // 상태 전이 전에 현재 상태(NORMAL)의 경과 시간을 누적한다.
+        flushStateDuration();
         this.activeSystemError = error;
         this.errorExpireTime = System.currentTimeMillis() + durationSeconds * 1000L;
 
-        MkLogger.log("io", LogLevel.INFO,
-                "System error activated on device {0}({1}): mode={2}, duration={3}s",
-                device.getName(), device.getId(), error.getMode(), durationSeconds);
+        LoggerFactory.getLogger("io").info("System error activated on device {}({}): mode={}, duration={}s", device.getName(), device.getId(), error.getMode(), durationSeconds);
 
         if (error.getMode() == ErrorMode.DISCONNECT) {
             unbindPort();
@@ -269,15 +283,58 @@ public class IOServer extends Thread {
         if (previous == null) {
             return;
         }
+        // 상태 전이 전에 현재 에러 모드의 경과 시간을 누적한다.
+        flushStateDuration();
         activeSystemError = null;
 
-        MkLogger.log("io", LogLevel.INFO,
-                "System error deactivated on device {0}({1}). Resuming normal operation.",
-                device.getName(), device.getId());
+        LoggerFactory.getLogger("io").info("System error deactivated on device {}({}). Resuming normal operation.", device.getName(), device.getId());
 
         if (previous.getMode() == ErrorMode.DISCONNECT) {
             rebindPort();
         }
+    }
+
+    // ── 에러 상태 점유 시간 집계 ──
+
+    /**
+     * 현재 상태(NORMAL 또는 activeSystemError)가 시작된 시점부터 지금까지의 경과 시간을
+     * 해당 버킷에 누적하고 시작 시각을 리셋한다. 호출자는 synchronized 컨텍스트여야 한다.
+     */
+    private void flushStateDuration() {
+        long now = System.currentTimeMillis();
+        long elapsed = now - currentStateStart;
+        if (elapsed > 0) {
+            if (activeSystemError == null) {
+                normalDurationMs += elapsed;
+            } else {
+                errorDurationMs.merge(activeSystemError.getMode(), elapsed, Long::sum);
+            }
+        }
+        currentStateStart = now;
+    }
+
+    /**
+     * 서버 기동 이후 각 에러 상태의 누적 점유 시간을 스냅샷으로 반환한다.
+     * 아직 flush 되지 않은 현재 상태의 경과 시간도 포함한다.
+     */
+    public synchronized ErrorStateStats getErrorStateStats() {
+        long now = System.currentTimeMillis();
+        long currentElapsed = Math.max(0, now - currentStateStart);
+        long normal = normalDurationMs;
+        EnumMap<ErrorMode, Long> perMode = new EnumMap<>(errorDurationMs);
+        if (activeSystemError == null) {
+            normal += currentElapsed;
+        } else {
+            perMode.merge(activeSystemError.getMode(), currentElapsed, Long::sum);
+        }
+        ErrorStateStats stats = new ErrorStateStats();
+        stats.setUptimeMs(now - bootTime);
+        stats.setNormalMs(normal);
+        stats.setDiscardMs(perMode.getOrDefault(ErrorMode.DISCARD, 0L));
+        stats.setTimeoutMs(perMode.getOrDefault(ErrorMode.TIMEOUT, 0L));
+        stats.setGarbageMs(perMode.getOrDefault(ErrorMode.GARBAGE, 0L));
+        stats.setDisconnectMs(perMode.getOrDefault(ErrorMode.DISCONNECT, 0L));
+        return stats;
     }
 
     // ── 포트 언바인드/리바인드 ──
@@ -301,9 +358,7 @@ public class IOServer extends Thread {
         if (serverChannel != null && serverChannel.isOpen()) {
             serverChannel.close().addListener(f -> {
                 if (f.isSuccess()) {
-                    MkLogger.log("io", LogLevel.INFO,
-                            "Port unbound for device {0}({1}) - DISCONNECT error active.",
-                            device.getName(), device.getId());
+                    LoggerFactory.getLogger("io").info("Port unbound for device {}({}) - DISCONNECT error active.", device.getName(), device.getId());
                 }
             });
         }
@@ -315,12 +370,9 @@ public class IOServer extends Thread {
     private void rebindPort() {
         try {
             bindServer();
-            MkLogger.log("io", LogLevel.INFO,
-                    "Port rebound for device {0}({1}) - DISCONNECT error resolved.",
-                    device.getName(), device.getId());
+            LoggerFactory.getLogger("io").info("Port rebound for device {}({}) - DISCONNECT error resolved.", device.getName(), device.getId());
         } catch (Exception e) {
-            MkLogger.log("io", e, "Failed to rebind port for device {0}({1}).",
-                    device.getName(), device.getId());
+            LoggerFactory.getLogger("io").error("Failed to rebind port for device {}({}).", device.getName(), device.getId(), e);
         }
     }
 
@@ -366,8 +418,7 @@ public class IOServer extends Thread {
             try {
                 listener.onServerDataChanged(event);
             } catch (Exception e) {
-                MkLogger.log("io", e, "ServerDataListener {0} failed for device {1}({2}).",
-                        listener.getClass().getSimpleName(), device.getName(), device.getId());
+                LoggerFactory.getLogger("io").error("ServerDataListener {} failed for device {}({}).", listener.getClass().getSimpleName(), device.getName(), device.getId(), e);
             }
         }
     }
