@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
     <!-- Theme style -->
     <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
     <!-- jTree -->
     <link rel="stylesheet" href="../../css/style.min.css" />
     <!-- Tabulator -->
@@ -27,7 +28,8 @@
         .main-header, .main-footer { flex-shrink: 0; }
         .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
 
-        /* 툴바 + 테이블 + pagination 감싸는 외곽 패널 */
+        /* 외곽 패널: 모달 등 .card 밖에서 쓰일 때는 자체 border/radius 유지,
+           메인 카드 내부에서는 바깥 card 가 외곽을 제공하므로 중화한다. */
         .table-panel {
             border: 1px solid #dee2e6;
             border-radius: 4px;
@@ -36,6 +38,12 @@
             container-type: inline-size;
             container-name: tblpanel;
         }
+        .card-body > .table-panel {
+            border: 0; border-radius: 0; background: transparent;
+        }
+
+        /* 메인 카드: 툴바가 card-header 로 이동했으므로 카드를 container 로 삼는다. */
+        .cts-main-card { container-type: inline-size; container-name: tblpanel; }
 
         /* 툴바 */
         .table-toolbar {
@@ -46,6 +54,10 @@
             gap: 0.25rem;
             align-items: center;
             flex-wrap: nowrap;
+        }
+        /* 툴바가 card-header 로 이동한 경우: 자체 padding/border/background 중화 */
+        .card-header > .table-toolbar {
+            padding: 0; border: none; background: transparent;
         }
         .table-toolbar .btn { white-space: nowrap; }
         @container tblpanel (max-width: 720px) {
@@ -371,8 +383,7 @@
                         title: 'Enabled', field: 'enabled', hozAlign: 'center', width: 120,
                         formatter: function (cell) {
                             let enabled = cell.getValue() === 1;
-                            let cls = enabled ? 'btn-success' : 'btn-danger';
-                            return '<button class="btn ' + cls + '" style="width:60px;height:20px;padding:0"></button>';
+                            return '<button class="cts-toggle' + (enabled ? ' on' : '') + '" aria-label="' + (enabled ? 'Enabled' : 'Disabled') + '"></button>';
                         },
                         cellClick: function (e, cell) {
                             e.stopPropagation();
@@ -1177,39 +1188,39 @@
                     <!-- Left: Groups and devices tree -->
                     <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
                         <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
-                            <div class="card-header flex-shrink-0">
+                            <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                                 <h3 class="card-title mb-0">Groups and devices</h3>
+                                <input id="treeSearchInput" type="search"
+                                       class="form-control form-control-sm ml-auto"
+                                       placeholder="Search by name..." style="width:180px; min-width:0;">
                             </div>
-                            <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
-                                <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
+                            <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
                                 <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
                             </div>
                         </div>
                     </div>
                     <!-- Right: Simulations of selected device -->
                     <div class="d-flex flex-column cts-split-main" style="flex: 7 1 0; min-width: 0; min-height: 0;">
-                        <div class="card card-primary mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
-                            <div class="card-header flex-shrink-0">
+                        <div class="card card-primary cts-main-card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                            <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                                 <h3 class="card-title mb-0" id="device-title">Simulations</h3>
+                                <div id="simulationsToolbar" class="table-toolbar ml-auto flex-shrink-0">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                                    <select id="simulationsSearchField" class="form-control form-control-sm" style="width:auto;">
+                                        <option value="name">Name</option>
+                                        <option value="target">Target</option>
+                                        <option value="policy">Policy</option>
+                                    </select>
+                                    <input id="simulationsSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:160px; min-width:0;">
+                                </div>
                             </div>
-                            <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0.5rem 0.5rem 0 0.5rem; position:relative;">
+                            <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0; position:relative;">
                                 <div id="simLoading" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,0.6); z-index:10; align-items:center; justify-content:center;">
                                     <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
                                 </div>
                                 <div class="table-panel flex-grow-1 d-flex flex-column" style="min-height:0;">
-                                    <div id="simulationsToolbar" class="table-toolbar flex-shrink-0">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
-                                        <div class="ml-auto d-flex" style="gap:0.25rem; min-width:0;">
-                                            <select id="simulationsSearchField" class="form-control form-control-sm" style="width:auto;">
-                                                <option value="name">Name</option>
-                                                <option value="target">Target</option>
-                                                <option value="policy">Policy</option>
-                                            </select>
-                                            <input id="simulationsSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:160px; min-width:0;">
-                                        </div>
-                                    </div>
                                     <div id="simulationsTable" class="cts-tabulator flex-grow-1" style="min-height:0;"></div>
                                 </div>
                             </div>

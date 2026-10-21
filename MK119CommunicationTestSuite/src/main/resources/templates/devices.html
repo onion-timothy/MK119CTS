@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
     <!-- Theme style -->
     <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
     <!-- jTree -->
     <link rel="stylesheet" href="../../css/style.min.css"/>
     <!-- Tabulator -->
@@ -22,15 +23,11 @@
         .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
         #tree-container { height: 100%; overflow: auto; }
 
-        /* 툴바 + 테이블 + pagination을 하나로 감싸는 외곽 패널 */
-        .devices-panel {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            background-color: #fff;
-            overflow: hidden;
-            container-type: inline-size;
-            container-name: devs;
-        }
+        /* 메인 카드: 툴바가 card-header 로 이동했으므로 카드를 container 로 삼는다. */
+        .cts-main-card { container-type: inline-size; container-name: devs; }
+
+        /* 테이블 wrapper: 외곽 border/radius 는 바깥 card 가 제공한다. (JS 가 ancestor 로 참조) */
+        .devices-panel { overflow: hidden; min-height: 0; }
 
         /* 툴바 버튼 텍스트: 좁아지면 숨기고 아이콘만 표시 */
         #devicesToolbar .btn { white-space: nowrap; }
@@ -39,15 +36,6 @@
         }
         @container devs (max-width: 520px) {
             #devicesSearchInput { width: 100px !important; }
-        }
-
-        /* 툴바: 외곽 보더는 패널이 갖고, 아래쪽만 구분선 */
-        #devicesToolbar {
-            background-color: #fff;
-            border: none;
-            border-bottom: 1px solid #dee2e6;
-            border-radius: 0;
-            padding: 6px 10px;
         }
 
         /* Tabulator 자체(=#devicesTable) 보더/라운드 제거 (패널이 대신 감쌈) */
@@ -295,8 +283,7 @@
                                         width: 120,
                                         formatter: function (cell) {
                                             let enabled = cell.getValue() === 1;
-                                            let cls = enabled ? 'btn-success' : 'btn-danger';
-                                            return '<button class="btn ' + cls + '" style="width:60px;height:20px;padding:0"></button>';
+                                            return '<button class="cts-toggle' + (enabled ? ' on' : '') + '" aria-label="' + (enabled ? 'Enabled' : 'Disabled') + '"></button>';
                                         },
                                         cellClick: function (e, cell) {
                                             let d = cell.getRow().getData();
@@ -1139,12 +1126,14 @@
             <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: 1rem; min-height:0; padding: 0 1rem 1rem 1rem;">
                 <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
                     <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
-                        <div class="card-header flex-shrink-0">
+                        <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                             <h3 class="card-title">Groups and devices</h3>
+                            <input id="treeSearchInput" type="search"
+                                   class="form-control form-control-sm ml-auto"
+                                   placeholder="Search by name..." style="width:180px; min-width:0;">
                         </div>
                         <!-- ./card-header -->
-                        <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
-                            <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
+                        <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
                             <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
                         </div>
                         <!-- /.card-body -->
@@ -1152,26 +1141,25 @@
                     <!-- /.card -->
                 </div>
                 <div class="d-flex flex-column cts-split-main" style="flex: 7 1 0; min-width: 0; min-height: 0;">
-                    <div class="card card-primary mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
-                        <div class="card-header flex-shrink-0">
+                    <div class="card card-primary cts-main-card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                        <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                             <h3 class="card-title mb-0" id="group-title"></h3>
+                            <div id="devicesToolbar" class="ml-auto flex-shrink-0"
+                                 style="display:flex; gap:0.25rem; align-items:center; flex-wrap:nowrap;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                                <select id="devicesSearchField" class="form-control form-control-sm" style="width:auto;">
+                                    <option value="name">Name</option>
+                                    <option value="address">Address</option>
+                                    <option value="protocol">Protocol</option>
+                                </select>
+                                <input id="devicesSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:180px; min-width:0;">
+                            </div>
                         </div>
                         <!-- /.card-header -->
-                        <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0.5rem 0.5rem 0 0.5rem;">
+                        <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
                             <div class="devices-panel flex-grow-1 d-flex flex-column" style="min-height:0;">
-                                <div id="devicesToolbar" class="flex-shrink-0" style="display:flex; gap:0.25rem; align-items:center; flex-wrap:nowrap;">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
-                                    <div class="ml-auto d-flex" style="gap:0.25rem; min-width:0;">
-                                        <select id="devicesSearchField" class="form-control form-control-sm" style="width:auto;">
-                                            <option value="name">Name</option>
-                                            <option value="address">Address</option>
-                                            <option value="protocol">Protocol</option>
-                                        </select>
-                                        <input id="devicesSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:180px; min-width:0;">
-                                    </div>
-                                </div>
                                 <div id="devicesTable" class="flex-grow-1" style="min-height:0;"></div>
                             </div>
                         </div>

@@ -1,0 +1,88 @@
+/*
+ * CTS 공통 톤 : devices / simulations / errors / settings 페이지에 공통 적용.
+ * - 모든 .card > .card-header 를 흰 배경 + 얇은 하단 구분선 + 작은 UPPERCASE 타이틀 로 통일.
+ * - AdminLTE 의 .card-primary / .card-info 등 variant 가 입히는 상단 액센트 배경을 중화한다.
+ */
+
+.card > .card-header {
+    background-color: #fff !important;
+    background-image: none !important;
+    color: #495057 !important;
+    padding: 6px 10px;
+    min-height: 42px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    align-items: center;
+}
+
+/* AdminLTE 가 solid variant 의 header 글자색을 흰색으로 강제하는 걸 되돌린다. */
+.card.card-primary:not(.card-outline) > .card-header,
+.card.card-secondary:not(.card-outline) > .card-header,
+.card.card-info:not(.card-outline) > .card-header,
+.card.card-success:not(.card-outline) > .card-header,
+.card.card-warning:not(.card-outline) > .card-header,
+.card.card-danger:not(.card-outline) > .card-header,
+.card.card-dark:not(.card-outline) > .card-header {
+    background-color: #fff !important;
+    color: #495057 !important;
+}
+
+/* 타이틀 : settings 와 동일 (0.875rem, bold, UPPERCASE, 회색) */
+.card > .card-header .card-title,
+.card > .card-header h3.card-title,
+.card > .card-header h4.card-title {
+    margin: 0;
+    padding: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #495057;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+    /* flex 헤더에서 긴 타이틀이 우측 툴을 밀어내지 않도록 */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 우측 툴 영역: card-tools 가 있으면 자동 우측 정렬 */
+.card > .card-header .card-tools {
+    margin-left: auto;
+}
+
+/* ── 공용 Enabled 토글 스위치 ─────────────────────────────
+   Tabulator 셀의 enabled on/off 버튼. 부트스트랩 네모 버튼 대체. */
+.cts-toggle {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background-color: #ced4da;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    vertical-align: middle;
+    transition: background-color 0.15s ease;
+}
+.cts-toggle::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease;
+}
+.cts-toggle.on {
+    background-color: #28a745;
+}
+.cts-toggle.on::before {
+    transform: translateX(16px);
+}
+.cts-toggle:hover { filter: brightness(0.95); }
+.cts-toggle:focus { outline: none; box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2); }
