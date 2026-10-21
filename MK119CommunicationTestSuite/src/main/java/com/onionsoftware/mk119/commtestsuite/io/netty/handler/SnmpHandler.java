@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+
+import org.slf4j.LoggerFactory;
 import com.ireasoning.protocol.snmp.*;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
@@ -10,7 +12,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.SnmpPdu;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.SnmpData;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -125,7 +126,7 @@ public class SnmpHandler extends MkHandler {
                 try {
                     snmpData.setServerData(simulation, valueToWrite, ServerDataChangeSource.PROTOCOL_WRITE);
                 } catch (Exception e) {
-                    MkLogger.log("io", e, "SNMP setServerData failed for OID {0}", oid.toString());
+                    LoggerFactory.getLogger("io").error("SNMP setServerData failed for OID {}", oid.toString(), e);
                 }
                 simulationService.applyStopOnControl(simulation);
             } else {

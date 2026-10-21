@@ -1,10 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
@@ -25,7 +25,7 @@ public class XGTUDPDecoder extends MkUDPDecoder {
         XGT xgt = ByteBufUtils.parseXGTPacket(in);
         if (xgt != null) {
             out.add(xgt);
-        } else MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
+        } else LoggerFactory.getLogger("io").warn("Invalid packet received device {}({})", target.getDevice().getName(), target.getDevice().getId());
         ByteBufUtils.clear(in);
     }
 }

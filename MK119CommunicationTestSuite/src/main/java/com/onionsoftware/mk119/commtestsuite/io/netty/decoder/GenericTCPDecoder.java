@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
+
+import org.slf4j.LoggerFactory;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
@@ -7,8 +9,6 @@ import java.util.List;
 import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import com.google.gson.Gson;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.GenericTCPUDPPacket;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
@@ -40,7 +40,7 @@ public class GenericTCPDecoder extends MkDecoder {
 
         if (packet == null) {
             ByteBufUtils.clear(in);
-            MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
+            LoggerFactory.getLogger("io").warn("Invalid packet received device {}({})", target.getDevice().getName(), target.getDevice().getId());
         } else {
             out.add(packet);
         }

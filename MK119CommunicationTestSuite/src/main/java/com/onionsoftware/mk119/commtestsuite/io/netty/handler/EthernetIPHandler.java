@@ -1,12 +1,12 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import etherip.protocol.*;
 import etherip.types.CIPData;
 import etherip.types.CNService;
@@ -95,10 +95,10 @@ public class EthernetIPHandler extends MkHandler {
                                 Simulation hit = ethernetIPData.simulationFor(tag);
                                 if (hit != null) processWrite(hit, value);
                             } catch (Exception e) {
-                                MkLogger.log("io", LogLevel.ERROR, "Error while process enip write deivce {0} tag {1}", getTarget().getDevice().getName(), tag);
+                                LoggerFactory.getLogger("io").error("Error while process enip write deivce {} tag {}", getTarget().getDevice().getName(), tag);
                             }
                         } else {
-                            MkLogger.log("io", LogLevel.WARNING, "Simulation target {0} for {1} is not exist.", path.getElements().get(0).toString(), target.getDevice().getName());
+                            LoggerFactory.getLogger("io").warn("Simulation target {} for {} is not exist.", path.getElements().get(0).toString(), target.getDevice().getName());
                         }
                     } else {
                         MessageRouterProtocol mr_res = new MessageRouterProtocol(service, null, new ProtocolAdapter());
@@ -124,7 +124,7 @@ public class EthernetIPHandler extends MkHandler {
         try {
             data.setServerData(s, value, ServerDataChangeSource.PROTOCOL_WRITE);
         } catch (Exception e) {
-            MkLogger.log("io", e, "EthernetIP setServerData failed for target {0}", s.getTarget());
+            LoggerFactory.getLogger("io").error("EthernetIP setServerData failed for target {}", s.getTarget(), e);
         }
 
         simulationService.applyStopOnControl(s);

@@ -1,12 +1,12 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusRTU;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ModbusTCP;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
@@ -31,7 +31,7 @@ public class ModbusUDPDecoder extends MkUDPDecoder {
         if (modbus != null) {
             out.add(modbus);
         } else {
-            MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
+            LoggerFactory.getLogger("io").warn("Invalid packet received device {}({})", target.getDevice().getName(), target.getDevice().getId());
         }
 
         ByteBufUtils.clear(in);

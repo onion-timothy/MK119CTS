@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
@@ -11,7 +13,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ModbusData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.Checksum;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
@@ -92,7 +93,7 @@ public class ModbusHandler extends MkHandler {
                             modbus.getRequestSize() == (short) 0xff00 ? 1.0 : 0.0,
                             null, ServerDataChangeSource.PROTOCOL_WRITE);
                 } catch (Exception e) {
-                    MkLogger.log("io", e, "Modbus FC_05 setServerData failed for register {0}", modbus.getRegister());
+                    LoggerFactory.getLogger("io").error("Modbus FC_05 setServerData failed for register {}", modbus.getRegister(), e);
                 }
                 applyStopOnControlFor(modbusData, "1_" + modbus.getRegister());
                 break;
@@ -105,7 +106,7 @@ public class ModbusHandler extends MkHandler {
                             (double) modbus.getRequestSize(), DataType.SI16AB,
                             ServerDataChangeSource.PROTOCOL_WRITE);
                 } catch (Exception e) {
-                    MkLogger.log("io", e, "Modbus FC_06 setServerData failed for register {0}", modbus.getRegister());
+                    LoggerFactory.getLogger("io").error("Modbus FC_06 setServerData failed for register {}", modbus.getRegister(), e);
                 }
                 applyStopOnControlFor(modbusData, "3_" + modbus.getRegister());
                 break;

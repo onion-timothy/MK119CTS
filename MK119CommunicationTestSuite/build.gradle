@@ -47,7 +47,13 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.28'
     implementation files('lib/ireasoningsnmp.jar')
     implementation files('lib/etherip-1.0.0.jar')
-    developmentOnly("org.springframework.boot:spring-boot-devtools")
+    // Spring Boot DevTools 는 뺀다. 켜 두면 애플리케이션 class 가 RestartClassLoader 에서
+    // 로드되는데, logback 이 설정 시점에 올려두는 어펜더(WebRealtimeAppender)와 Spring 이
+    // 스캔한 Component(LogBroadcaster) 가 서로 다른 ClassLoader 에 걸려 static 필드가 분리된다.
+    // 그러면 어펜더가 쌓은 ring buffer 와 WebSocket 핸들러가 조회하는 ring buffer 가 서로 달라
+    // Settings 화면의 실시간 로그가 늘 빈 배열로 온다. 자동 재시작이 필요하면 다시 넣기 전에
+    // META-INF/spring-devtools.properties 로 web.logs 패키지를 base classloader 로 올려야 한다.
+    // developmentOnly("org.springframework.boot:spring-boot-devtools")
 }
 
 test {

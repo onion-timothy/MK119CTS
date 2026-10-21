@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.simulation;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Distribution;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
@@ -11,8 +13,6 @@ import com.onionsoftware.mk119.commtestsuite.io.db.DBDeviceService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.Getter;
 
 import java.sql.Connection;
@@ -121,8 +121,7 @@ public class GroupedSimulationJob implements Runnable {
                         serverData.setServerData(simulation, value, ServerDataChangeSource.VALUE_SIMULATION);
                         executedIds.add(simulation.getId());
                     } catch (Exception e) {
-                        MkLogger.log("simulation", e, "Simulation {0} execution failed on device {1}({2})",
-                                simulation.getId(), device.getName(), device.getId());
+                        LoggerFactory.getLogger("simulation").error("Simulation {} execution failed on device {}({})", simulation.getId(), device.getName(), device.getId(), e);
                     }
                 }
             });
@@ -140,18 +139,14 @@ public class GroupedSimulationJob implements Runnable {
                         PreparedStatement pstmt = connection.prepareStatement(replaced);
                         int res = pstmt.executeUpdate();
                         if (res == 0) {
-                            MkLogger.log("simulation", LogLevel.WARNING,
-                                    "DB simulation device {0} target {1} has no effect.", simulation.getTarget(),
-                                    device.getName());
+                            LoggerFactory.getLogger("simulation").warn("DB simulation device {} target {} has no effect.", simulation.getTarget(), device.getName());
                         }
                         executedIds.add(simulation.getId());
                     } catch (SQLException e) {
-                        MkLogger.log("simulation", e, "DB simulation device {0} SQL Error : {1}", device.getName(),
-                                simulation.getTarget());
+                        LoggerFactory.getLogger("simulation").error("DB simulation device {} SQL Error : {}", device.getName(), simulation.getTarget(), e);
                     }
                 } else {
-                    MkLogger.log("simulation", LogLevel.WARNING, "DB simulation device {0} target {1} has no effect.",
-                            simulation.getTarget(), device.getName());
+                    LoggerFactory.getLogger("simulation").warn("DB simulation device {} target {} has no effect.", simulation.getTarget(), device.getName());
                 }
             }
         }
@@ -169,7 +164,7 @@ public class GroupedSimulationJob implements Runnable {
                         .map(String::valueOf)
                         .collect(java.util.stream.Collectors.joining(", "));
             }
-            MkLogger.log("simulation", LogLevel.INFO, "Simulation executed : {0}", logMsg);
+            LoggerFactory.getLogger("simulation").info("Simulation executed : {}", logMsg);
         }
     }
 
@@ -179,16 +174,14 @@ public class GroupedSimulationJob implements Runnable {
         if (policy == Policy.STATIC) {
             Double v = simulationPolicy.numericValue();
             if (v == null) {
-                MkLogger.log("simulation", LogLevel.ERROR,
-                        "STATIC simulation {0} has no numeric value.", simulation.getId());
+                LoggerFactory.getLogger("simulation").error("STATIC simulation {} has no numeric value.", simulation.getId());
                 return Double.NaN;
             }
             value = v;
         } else if (policy == Policy.SEQUENCE) {
             List<Double> series = simulationPolicy.sequenceValues();
             if (series == null) {
-                MkLogger.log("simulation", LogLevel.ERROR,
-                        "SEQUENCE simulation {0} has no numeric array in value.", simulation.getId());
+                LoggerFactory.getLogger("simulation").error("SEQUENCE simulation {} has no numeric array in value.", simulation.getId());
                 return Double.NaN;
             }
             // 직전 인덱스의 다음 칸으로 진행하고, 끝에 닿으면 처음으로 되돌아간다.

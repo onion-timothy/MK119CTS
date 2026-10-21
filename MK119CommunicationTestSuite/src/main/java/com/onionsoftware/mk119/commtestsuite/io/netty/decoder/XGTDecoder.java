@@ -1,11 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
+
+import org.slf4j.LoggerFactory;
 import java.util.List;
 
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
-
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
 
@@ -25,7 +24,7 @@ public class XGTDecoder extends MkDecoder {
         if (xgt != null) {
             out.add(xgt);
         } else {
-            MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
+            LoggerFactory.getLogger("io").warn("Invalid packet received device {}({})", target.getDevice().getName(), target.getDevice().getId());
         }
         ByteBufUtils.clear(in);
     }

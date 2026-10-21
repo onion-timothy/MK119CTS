@@ -1,10 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataListener;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.Getter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,12 +62,12 @@ public class IOServerInstances {
      */
     @PreDestroy
     public void shutdownAll() {
-        MkLogger.log("io", LogLevel.INFO, "Shutting down {0} IOServer instance(s) on context close.", servers.size());
+        LoggerFactory.getLogger("io").info("Shutting down {} IOServer instance(s) on context close.", servers.size());
         for (IOServer server : servers.values()) {
             try {
                 server.stopServer();
             } catch (Exception e) {
-                MkLogger.log("io", e, "Error stopping IOServer for device {0}", server.getDevice().getName());
+                LoggerFactory.getLogger("io").error("Error stopping IOServer for device {}", server.getDevice().getName(), e);
             }
         }
         servers.clear();
@@ -78,9 +78,9 @@ public class IOServerInstances {
         for(IOServer server : servers.values()) {
             if(server.getServerData() instanceof EthernetIPData) {
                 EthernetIPData data = (EthernetIPData) server.getServerData();
-                MkLogger.log("io", LogLevel.INFO, "Enip session count : {0}", data.getSession_counter());
+                LoggerFactory.getLogger("io").info("Enip session count : {}", data.getSession_counter());
                 for(Integer session : data.getSessions()) {
-                    MkLogger.log("io", LogLevel.INFO, "Enip session : {0}", session);
+                    LoggerFactory.getLogger("io").info("Enip session : {}", session);
                 }
             }
         }

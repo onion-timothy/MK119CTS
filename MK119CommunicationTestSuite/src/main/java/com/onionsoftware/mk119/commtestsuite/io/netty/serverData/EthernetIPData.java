@@ -1,6 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.serverData;
 
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
+
+import org.slf4j.LoggerFactory;
 import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.Setter;
@@ -68,7 +69,7 @@ public class EthernetIPData extends ServerData {
             data.set(0, value);
             tagValueMap.put(tokens[1], data);
         } catch (Exception e) {
-            MkLogger.log("simulation", e, "Error while set ethernet/ip simulation value {0}", tag);
+            LoggerFactory.getLogger("simulation").error("Error while set ethernet/ip simulation value {}", tag, e);
             throw new IllegalArgumentException(
                     "Failed to encode EthernetIP value for target=" + tag + ": " + e.getMessage(), e);
         }

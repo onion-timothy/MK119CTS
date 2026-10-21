@@ -1,10 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.OPCAgent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.buffer.ByteBuf;
@@ -26,7 +26,7 @@ public class OPCAgentUDPDecoder extends MkUDPDecoder {
             if (agent != null) {
                 out.add(agent);
             } else {
-                MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
+                LoggerFactory.getLogger("io").warn("Invalid packet received device {}({})", target.getDevice().getName(), target.getDevice().getId());
             }
         }
         ByteBufUtils.clear(in);

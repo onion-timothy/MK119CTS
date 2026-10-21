@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
@@ -8,7 +10,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGT;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.XGTVariable;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.XGTData;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
@@ -99,7 +100,7 @@ public class XGTHandler extends MkHandler {
                         Simulation hit = xgtData.simulationFor(variable.getVarname());
                         if (hit != null) simulationService.applyStopOnControl(hit);
                     } catch (Exception e) {
-                        MkLogger.log("io", e, "XGTPLC Error on execute control.");
+                        LoggerFactory.getLogger("io").error("XGTPLC Error on execute control.", e);
                     }
                 }
             }

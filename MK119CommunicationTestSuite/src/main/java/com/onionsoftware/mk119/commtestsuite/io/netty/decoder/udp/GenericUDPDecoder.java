@@ -1,13 +1,13 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp;
 
+
+import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.GenericTCPUDPPacket;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.DatagramPacket;
@@ -40,7 +40,7 @@ public class GenericUDPDecoder extends MkUDPDecoder {
 
         if (packet == null) {
             ByteBufUtils.clear(in);
-            MkLogger.log("io", LogLevel.WARNING, "Invalid packet received device {0}({1})", target.getDevice().getName(), target.getDevice().getId());
+            LoggerFactory.getLogger("io").warn("Invalid packet received device {}({})", target.getDevice().getName(), target.getDevice().getId());
         } else {
             out.add(packet);
         }

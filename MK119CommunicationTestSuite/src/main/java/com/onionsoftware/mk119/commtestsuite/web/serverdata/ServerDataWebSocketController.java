@@ -1,12 +1,12 @@
 package com.onionsoftware.mk119.commtestsuite.web.serverdata;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataSnapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -53,11 +53,9 @@ public class ServerDataWebSocketController {
         String wsSessionId = headers.getSessionId();
         Principal principal = headers.getUser();
         String user = ServerDataSessionRegistry.userOf(principal);
-        MkLogger.log("serverdata", LogLevel.INFO,
-                "ENTER received: device={0}, user={1}, wsSession={2}", deviceId, user, wsSessionId);
+        LoggerFactory.getLogger("serverdata").info("ENTER received: device={}, user={}, wsSession={}", deviceId, user, wsSessionId);
         if (user == null) {
-            MkLogger.log("serverdata", LogLevel.WARNING,
-                    "ENTER without Principal (HandshakeHandler misconfigured?)");
+            LoggerFactory.getLogger("serverdata").warn("ENTER without Principal (HandshakeHandler misconfigured?)");
             return;
         }
         Optional<IOServer> serverOpt = ioServerInstances.getServerInstance(deviceId);
@@ -118,9 +116,7 @@ public class ServerDataWebSocketController {
             resp.put("ts", System.currentTimeMillis());
             replyToUser(user, resp);
         } catch (Exception e) {
-            MkLogger.log("serverdata", e,
-                    "API_WRITE failed: device={0}, target={1}, value={2}, dataType={3}",
-                    deviceId, req.target, req.value, req.dataType);
+            LoggerFactory.getLogger("serverdata").error("API_WRITE failed: device={}, target={}, value={}, dataType={}", deviceId, req.target, req.value, req.dataType, e);
             replyWriteError(user, req, e.getMessage());
         }
     }
@@ -142,9 +138,7 @@ public class ServerDataWebSocketController {
                     SimpMessageHeaderAccessor headers) {
         String user = ServerDataSessionRegistry.userOf(headers.getUser());
         String activeUser = sessionRegistry.getActive(deviceId).map(i -> i.user).orElse("<none>");
-        MkLogger.log("serverdata", LogLevel.INFO,
-                "ACK received: device={0}, user={1}, activeUser={2}, wsSession={3}",
-                deviceId, user, activeUser, headers.getSessionId());
+        LoggerFactory.getLogger("serverdata").info("ACK received: device={}, user={}, activeUser={}, wsSession={}", deviceId, user, activeUser, headers.getSessionId());
         if (user == null || !sessionRegistry.isActiveEditor(deviceId, user)) return;
         sessionRegistry.touchByUser(user);
     }
@@ -162,9 +156,7 @@ public class ServerDataWebSocketController {
         if (!serverOpt.isPresent() || serverOpt.get().getServerData() == null) return;
         long seq = info.seq.incrementAndGet();
         ServerDataSnapshot snap = ServerDataSnapshot.of(seq, serverOpt.get().getServerData());
-        MkLogger.log("serverdata", LogLevel.INFO,
-                "SNAPSHOT push: device={0}, user={1}, seq={2}, lastAckAgo={3}ms",
-                deviceId, info.user, seq, System.currentTimeMillis() - info.lastAckTs);
+        LoggerFactory.getLogger("serverdata").info("SNAPSHOT push: device={}, user={}, seq={}, lastAckAgo={}ms", deviceId, info.user, seq, System.currentTimeMillis() - info.lastAckTs);
         replyToUser(info.user, snap);
     }
 

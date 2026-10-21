@@ -1,9 +1,9 @@
 package com.onionsoftware.mk119.commtestsuite.web.serverdata;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -72,9 +72,7 @@ public class ServerDataSessionRegistry {
         }
         byWsSessionId.put(wsSessionId, created);
         byUser.put(user, created);
-        MkLogger.log("serverdata", LogLevel.INFO,
-                "ServerData edit session claimed: device={0}, user={1}, wsSession={2}",
-                deviceId, user, wsSessionId);
+        LoggerFactory.getLogger("serverdata").info("ServerData edit session claimed: device={}, user={}, wsSession={}", deviceId, user, wsSessionId);
         return Optional.of(created);
     }
 
@@ -111,9 +109,7 @@ public class ServerDataSessionRegistry {
         if (wsSessionId != null) byWsSessionId.remove(wsSessionId, info);
         else byWsSessionId.values().removeIf(v -> v == info);
         clearDeviceLocks(info.deviceId);
-        MkLogger.log("serverdata", LogLevel.INFO,
-                "ServerData edit session invalidated: device={0}, user={1}, reason={2}",
-                info.deviceId, info.user, reason);
+        LoggerFactory.getLogger("serverdata").info("ServerData edit session invalidated: device={}, user={}, reason={}", info.deviceId, info.user, reason);
         try {
             java.util.Map<String, Object> msg = new java.util.HashMap<>();
             msg.put("type", "invalidated");

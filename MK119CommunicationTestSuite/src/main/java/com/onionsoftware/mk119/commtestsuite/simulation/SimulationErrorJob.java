@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.simulation;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
@@ -10,8 +12,6 @@ import com.onionsoftware.mk119.commtestsuite.io.db.DBDeviceService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.RequiredArgsConstructor;
 
 import java.sql.Connection;
@@ -51,19 +51,14 @@ public class SimulationErrorJob implements Runnable {
         } else if (protocol == Protocol.BACNET || Protocol.NETTY_PROTOCOLS.contains(protocol)) {
             applied = applyToServerData(simulation, errorValue);
         } else {
-            MkLogger.log("simulation", LogLevel.WARNING,
-                    "SimulationErrorJob: unsupported protocol {0} for error {1}",
-                    protocol, error.getId());
+            LoggerFactory.getLogger("simulation").warn("SimulationErrorJob: unsupported protocol {} for error {}", protocol, error.getId());
             return;
         }
 
         // 쓰지 못했으면 발생하지 않은 것이다. 로그도 정지도 남기지 않는다.
         if (!applied) return;
 
-        MkLogger.log("simulation", LogLevel.INFO,
-                "Simulation error occurred on device {0}({1}) target {2} with value {3}",
-                simulation.getDevice().getName(), simulation.getDevice().getId(),
-                simulation.getTarget(), errorValue);
+        LoggerFactory.getLogger("simulation").info("Simulation error occurred on device {}({}) target {} with value {}", simulation.getDevice().getName(), simulation.getDevice().getId(), simulation.getTarget(), errorValue);
 
         // simulation_stop 은 쓰기 보호로 건다. API write 의 lock 과 같은 수단이라
         // 정지 중에는 ACCUMULATE 누적과 SEQUENCE 위치도 나아가지 않는다.
@@ -72,10 +67,7 @@ public class SimulationErrorJob implements Runnable {
         int simStop = error.getSimulation_stop() == null ? 0 : error.getSimulation_stop();
         if (simStop > 0 && protocol != Protocol.DB) {
             simulationService.stopSimulationFor(simulation.getDevice(), simulation, simStop);
-            MkLogger.log("simulation", LogLevel.INFO,
-                    "Simulation stopped for device {0}({1}) target {2} for {3}s.",
-                    simulation.getDevice().getName(), simulation.getDevice().getId(),
-                    simulation.getTarget(), simStop);
+            LoggerFactory.getLogger("simulation").info("Simulation stopped for device {}({}) target {} for {}s.", simulation.getDevice().getName(), simulation.getDevice().getId(), simulation.getTarget(), simStop);
         }
     }
 
@@ -96,17 +88,11 @@ public class SimulationErrorJob implements Runnable {
                                 ServerDataChangeSource.ERROR_SIMULATION)) {
                             return true;
                         }
-                        MkLogger.log("simulation", LogLevel.WARNING,
-                                "Simulation error rejected on device {0}({1}) target {2}: "
-                                        + "the target is locked. The error value was not written.",
-                                simulation.getDevice().getName(), simulation.getDevice().getId(),
-                                simulation.getTarget());
+                        LoggerFactory.getLogger("simulation").warn("Simulation error rejected on device {}({}) target {}: "
+                                        + "the target is locked. The error value was not written.", simulation.getDevice().getName(), simulation.getDevice().getId(), simulation.getTarget());
                         return false;
                     } catch (Exception e) {
-                        MkLogger.log("simulation", e,
-                                "SimulationErrorJob setServerData failed on device {0}({1}) target {2}",
-                                simulation.getDevice().getName(), simulation.getDevice().getId(),
-                                simulation.getTarget());
+                        LoggerFactory.getLogger("simulation").error("SimulationErrorJob setServerData failed on device {}({}) target {}", simulation.getDevice().getName(), simulation.getDevice().getId(), simulation.getTarget(), e);
                         return false;
                     }
                 }).orElse(false);
@@ -115,8 +101,7 @@ public class SimulationErrorJob implements Runnable {
     private boolean applyToDb(Simulation simulation, double value) {
         Connection connection = dbDeviceService.getConnection(simulation.getDevice());
         if (connection == null) {
-            MkLogger.log("simulation", LogLevel.WARNING,
-                    "SimulationErrorJob: no DB connection for device {0}", simulation.getDevice().getName());
+            LoggerFactory.getLogger("simulation").warn("SimulationErrorJob: no DB connection for device {}", simulation.getDevice().getName());
             return false;
         }
         String replaced = simulation.getTarget();
@@ -127,15 +112,11 @@ public class SimulationErrorJob implements Runnable {
             PreparedStatement pstmt = connection.prepareStatement(replaced);
             int res = pstmt.executeUpdate();
             if (res == 0) {
-                MkLogger.log("simulation", LogLevel.WARNING,
-                        "SimulationErrorJob DB device {0} target {1} has no effect.",
-                        simulation.getDevice().getName(), simulation.getTarget());
+                LoggerFactory.getLogger("simulation").warn("SimulationErrorJob DB device {} target {} has no effect.", simulation.getDevice().getName(), simulation.getTarget());
             }
             return true;
         } catch (SQLException e) {
-            MkLogger.log("simulation", e,
-                    "SimulationErrorJob DB device {0} SQL error : {1}",
-                    simulation.getDevice().getName(), simulation.getTarget());
+            LoggerFactory.getLogger("simulation").error("SimulationErrorJob DB device {} SQL error : {}", simulation.getDevice().getName(), simulation.getTarget(), e);
             return false;
         }
     }

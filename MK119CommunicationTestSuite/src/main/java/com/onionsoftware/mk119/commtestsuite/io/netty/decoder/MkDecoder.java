@@ -1,10 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -43,6 +43,6 @@ public abstract class MkDecoder extends ByteToMessageDecoder implements MkDecode
         Writer buffer = new StringWriter();
         PrintWriter pw = new PrintWriter(buffer);
         cause.printStackTrace(pw);
-        MkLogger.log("io", LogLevel.ERROR, "[{0}] packet decode error {1}\n{2}", this.getClass().getSimpleName(), cause, buffer.toString());
+        LoggerFactory.getLogger("io").error("[{}] packet decode error {}\n{}", this.getClass().getSimpleName(), cause, buffer.toString());
     }
 }

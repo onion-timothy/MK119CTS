@@ -1,9 +1,9 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.serverData;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.tool.ByteBufUtils;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Getter;
@@ -29,7 +29,7 @@ public class ModbusData extends ServerData {
 
     public void setInput_registers(Double value, DataType type, int startRegister) {
         if(type == null){
-            MkLogger.log("simulation", LogLevel.ERROR, "Invalid data type for simulation.");
+            LoggerFactory.getLogger("simulation").error("Invalid data type for simulation.");
             return;
         }
         try {
@@ -37,7 +37,7 @@ public class ModbusData extends ServerData {
             ByteBufUtils.writeData(buf, type, value);
             writeByteBufToRegisters(buf, input_registers, startRegister);
         } catch (Exception e) {
-            MkLogger.log("simulation", e, "Reflection error write modbus simluation value.");
+            LoggerFactory.getLogger("simulation").error("Reflection error write modbus simluation value.", e);
         }
     }
 
@@ -53,7 +53,7 @@ public class ModbusData extends ServerData {
      */
     public void setHolding_registers(Double value, DataType type, int startRegister) {
         if(type == null){
-            MkLogger.log("simulation", LogLevel.ERROR, "Invalid data type for simulation.");
+            LoggerFactory.getLogger("simulation").error("Invalid data type for simulation.");
             return;
         }
         try {
@@ -61,7 +61,7 @@ public class ModbusData extends ServerData {
             ByteBufUtils.writeData(buf, type, value);
             writeByteBufToRegisters(buf, holding_registers, startRegister);
         } catch (Exception e) {
-            MkLogger.log("simulation", e, "Reflection error write modbus simluation value.");
+            LoggerFactory.getLogger("simulation").error("Reflection error write modbus simluation value.", e);
         }
     }
 

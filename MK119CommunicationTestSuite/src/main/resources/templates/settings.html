@@ -5,179 +5,510 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MK119 CTS</title>
 
-    <!-- Google Font: Source Sans Pro -->
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <!-- Theme style -->
     <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <!-- jTree -->
-    <link rel="stylesheet" href="../../css/style.min.css"/>
-    <!-- DataTables -->
-    <link rel="stylesheet" href="../../plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
-    <link rel="stylesheet" href="../../plugins/jquery-contextmenu/css/jquery.contextMenu.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
+    <!-- Tabulator -->
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+        .content-header { flex-shrink: 0; }
+        .content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+        /* Landscape (default): 좌측 column 에 Socket(상)·Clients(하), 우측 column 에 Logs 전체 세로. */
+        .content > .container-fluid {
+            flex: 1 1 auto; min-height: 0; display: grid; gap: 1rem;
+            padding: 0 1rem 1rem 1rem;
+            grid-template-columns: minmax(420px, 1fr) 1.4fr;
+            grid-template-rows: 1fr 1fr;
+            grid-template-areas:
+                "socket  logs"
+                "clients logs";
+        }
+        .panel-socket  { grid-area: socket;  }
+        .panel-clients { grid-area: clients; }
+        .panel-logs    { grid-area: logs;    }
+
+        /* Portrait: 세로로 쭉 쌓고, Socket/Clients 는 아담하게, Logs 는 남는 공간 전부. */
+        @media (orientation: portrait) {
+            .content > .container-fluid {
+                display: flex; flex-direction: column;
+                grid-template-columns: none; grid-template-rows: none; grid-template-areas: none;
+            }
+        }
+
+        /* 공통 패널: devices.html 톤에 맞춘다 */
+        .cts-panel {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #fff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        /* 다른 페이지들의 .table-toolbar 와 톤을 맞춘다. 제목은 toolbar 좌측에 작게 넣는다. */
+        .cts-panel-header {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+            padding: 6px 10px;
+            display: flex; align-items: center; gap: 0.25rem;
+            flex-shrink: 0;
+            min-height: 42px;
+        }
+        .cts-panel-title {
+            margin: 0 0.5rem 0 0; padding: 0;
+            font-size: 0.875rem; font-weight: 600; color: #495057;
+            text-transform: uppercase; letter-spacing: 0.02em;
+        }
+        .cts-panel-tools { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; flex-wrap: nowrap; }
+        .cts-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+        .cts-panel-footer {
+            background-color: #fff;
+            border-top: 1px solid #dee2e6;
+            padding: 6px 10px;
+            display: flex; align-items: center; gap: 0.25rem;
+            flex-shrink: 0;
+            min-height: 42px;
+        }
+
+        /* Tabulator 공통 (devices.html 테마 재사용) */
+        .cts-tabulator { border: none !important; border-radius: 0 !important; font-size: 0.9rem; flex: 1 1 auto; min-height: 0; }
+        .cts-tabulator .tabulator-header {
+            background-color: #fff;
+            border-bottom: 2px solid #007bff;
+            font-weight: 600;
+            color: #495057;
+        }
+        .cts-tabulator .tabulator-header .tabulator-col { background-color: transparent; border-right: none; }
+        .cts-tabulator .tabulator-cell { border-right: none; padding: 10px 12px; }
+        .cts-tabulator .tabulator-row { border-bottom: 1px solid #f1f3f5; transition: background-color 0.12s ease; }
+        .cts-tabulator .tabulator-row.tabulator-row-even { background-color: #fbfcfd; }
+        .cts-tabulator .tabulator-row:hover { background-color: #eef5ff !important; }
+        .cts-tabulator .tabulator-row.tabulator-selected { background-color: #d6e8ff !important; }
+        .cts-tabulator .tabulator-footer,
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
+            background: #fff !important; background-image: none !important;
+        }
+        .cts-tabulator .tabulator-footer { border-top: 1px solid #dee2e6 !important; padding: 0; }
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents { padding: 6px 10px; }
+        .cts-tabulator .tabulator-footer .tabulator-page { border-radius: 3px; margin: 0 2px; transition: background-color 0.12s ease; }
+        .cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover { background-color: #eef5ff; border-color: #b8dcff; }
+        .cts-tabulator .tabulator-footer .tabulator-page.active { background-color: #007bff; color: #fff; border-color: #007bff; }
+        .cts-tabulator .tabulator-footer .tabulator-page.disabled { opacity: 0.4; }
+
+        /* Realtime logs: 콘솔 뷰 */
+        .logs-view {
+            flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto;
+            background-color: #1e1f22; color: #d7d9db;
+            font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+            font-size: 12px; line-height: 1.45;
+            padding: 6px 10px;
+        }
+        .logs-view .log-line { white-space: pre-wrap; word-break: break-word; }
+        .logs-view .log-line + .log-line { margin-top: 1px; }
+        .logs-view .log-time { color: #7f848e; }
+        .logs-view .log-subject { color: #8a9bb0; }
+        .logs-view .log-badge {
+            display: inline-block; min-width: 48px; text-align: center;
+            padding: 0 6px; margin: 0 6px;
+            border-radius: 3px; font-weight: 600; font-size: 11px;
+        }
+        .logs-view .log-badge.lvl-ERROR { background: #4a1f1f; color: #ff8080; }
+        .logs-view .log-badge.lvl-WARN,
+        .logs-view .log-badge.lvl-WARNING { background: #4a3f1f; color: #ffcf6b; }
+        .logs-view .log-badge.lvl-INFO { background: #1f3a4a; color: #7cc5ff; }
+        .logs-view .log-badge.lvl-DEBUG,
+        .logs-view .log-badge.lvl-TRACE { background: #2b2b2b; color: #999; }
+        .logs-view .log-line.lvl-ERROR { color: #ffb3b3; }
+        .logs-view .log-line.lvl-WARN,
+        .logs-view .log-line.lvl-WARNING { color: #f0d08a; }
+        .logs-view .log-line.lvl-INFO { color: #d7d9db; }
+
+        .logs-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .logs-toolbar .btn { padding: 2px 10px; font-size: 12px; }
+        .logs-toolbar .lvl-btn.active { box-shadow: inset 0 0 0 2px rgba(0,0,0,0.3); }
+        .logs-toolbar .logs-count { margin-left: 8px; color: #6c757d; font-size: 12px; }
+        .logs-toolbar .form-check-inline { margin: 0 4px; }
+
+        /* Portrait flex 모드의 세로 비율: Socket / Clients / Logs 를 1:1:1 로 균등 분배.
+           Landscape grid 모드에서는 fr 비율이 지배하므로 아래 값은 적용되지 않는다. */
+        @media (orientation: portrait) {
+            .panel-socket, .panel-clients, .panel-logs { flex: 1 1 0; min-height: 0; }
+        }
+
+        .selected-device-tag { font-size: 12px; color: #6c757d; }
+        .selected-device-tag b { color: #495057; }
+    </style>
 
     <script>
-        let level = 'ALL'
-
-        function changeLevel(_level) {
-            level = _level;
-        }
-
-        function socketTest(host, port) {
-            $.ajax({
-                url: '/api/socketTest?host_transport=' + host + '&port=' + port,
-                type: 'GET',
-                success: function (data) {
-                    if (data) {
-                        alert(host + ":" + port + ' is listening now.');
-                    } else {
-                        alert(host + ":" + port + ' isn\'t listening');
-                    }
-                }
-            });
-        }
-
-        let clientsTable;
-        let selectedServer;
-
         /*<![CDATA[*/
-        window.onload = function () {
-            $.ajax({
-                url: '/api/device/devices',
-                type: 'GET',
-                success: function (data) {
-                    let table = $('#devicesTable');
-                    $('#devicesTable > tbody').empty();
 
-                    for (let i = 0; i < data.length; i++) {
-                        let button = "<td><button class='btn btn-info' id='" + data[i].host + "_" + data[i].transport + "' onclick='socketTest(this.id," + data[i].port + ")'></button></td>"
-                        let markup = "<tr onclick='viewClients(this.id)' id='" + data[i].id + "'><td>" + data[i].id + "</td><td>" + data[i].transport + "</td><td>" + data[i].protocol + "</td><td>" + data[i].host + "</td><td>" + data[i].port + "</td><td>" + data[i].name + "</td>" + button + "</tr>"
-                        table.append(markup);
-                    }
+        // ── Realtime logs (WebSocket /topic/logs) ──────────────────────
+        const LOG_VIEW_LIMIT = 2000;  // DOM/메모리 폭주 방지
+        let logs = [];
+        let logLevel = 'ALL';
+        let logStompClient = null;
+        let autoscroll = true;
+        let logSearch = '';
+        let logSearchField = 'all';
 
-                    devicesTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
-                }
-            });
-            clientsTable = $('#clientsTable').DataTable({
-                "paging": true,
-                "lengthChange": false,
-                "searching": false,
-                "ordering": true,
-                "info": true,
-                "autoWidth": false,
-                "responsive": true,
-            });
-            reloadLogsTable()
-            setInterval(reloadLogsTable, 1000)
+        const timeFmt = new Intl.DateTimeFormat('en-GB', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            fractionalSecondDigits: 3, hour12: false, timeZone: 'Asia/Seoul'
+        });
+
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        let logsTable;
+        function levelMatches(evLevel) {
+            if (logLevel === 'ALL') return true;
+            if (logLevel === 'WARN') return evLevel === 'WARN' || evLevel === 'WARNING';
+            return evLevel === logLevel;
+        }
 
-        let formatter = new Intl.DateTimeFormat('ko-KR',
-            {
-                dateStyle: 'medium',
-                timeStyle: 'medium',
-                timeZone: 'Asia/Seoul'
+        function textMatches(e) {
+            if (!logSearch) return true;
+            const subj = (e.subject || '').toLowerCase();
+            const msg  = (e.message || '').toLowerCase();
+            if (logSearchField === 'subject') return subj.indexOf(logSearch) !== -1;
+            if (logSearchField === 'message') return msg.indexOf(logSearch) !== -1;
+            return subj.indexOf(logSearch) !== -1 || msg.indexOf(logSearch) !== -1;
+        }
+
+        function logLineHtml(e) {
+            const t = timeFmt.format(new Date(e.timestamp));
+            return '<div class="log-line lvl-' + e.level + '">' +
+                '<span class="log-time">' + t + '</span>' +
+                '<span class="log-badge lvl-' + e.level + '">' + e.level + '</span>' +
+                '<span class="log-subject">' + escapeHtml(e.subject) + '</span>' +
+                '  ' + escapeHtml(e.message) +
+                '</div>';
+        }
+
+        function isAtBottom(el, slack) {
+            return (el.scrollHeight - el.scrollTop - el.clientHeight) <= (slack || 4);
+        }
+
+        function appendLogLine(e) {
+            const view = document.getElementById('logsView');
+            if (!view) return;
+            const stickToBottom = autoscroll && isAtBottom(view, 24);
+            view.insertAdjacentHTML('beforeend', logLineHtml(e));
+            // DOM 상한: 초과 시 head 쪽부터 잘라냄
+            const extra = view.childElementCount - LOG_VIEW_LIMIT;
+            if (extra > 0) {
+                for (let i = 0; i < extra; i++) view.removeChild(view.firstChild);
             }
-        )
+            if (stickToBottom) view.scrollTop = view.scrollHeight;
+            updateLogsCount();
+        }
 
-        function reloadLogsTable() {
+        function renderAll() {
+            const view = document.getElementById('logsView');
+            if (!view) return;
+            const html = [];
+            for (let i = 0; i < logs.length; i++) {
+                if (!levelMatches(logs[i].level)) continue;
+                if (!textMatches(logs[i])) continue;
+                html.push(logLineHtml(logs[i]));
+            }
+            view.innerHTML = html.join('');
+            if (autoscroll) view.scrollTop = view.scrollHeight;
+            updateLogsCount();
+        }
+
+        function updateLogsCount() {
+            const el = document.getElementById('logsCount');
+            if (!el) return;
+            const view = document.getElementById('logsView');
+            el.textContent = (view ? view.childElementCount : 0) + ' / ' + logs.length;
+        }
+
+        function pushLogEvent(e) {
+            logs.push(e);
+            if (logs.length > LOG_VIEW_LIMIT) logs.splice(0, logs.length - LOG_VIEW_LIMIT);
+            if (levelMatches(e.level) && textMatches(e)) appendLogLine(e);
+        }
+
+        function setLevel(level) {
+            logLevel = level;
+            document.querySelectorAll('.logs-toolbar .lvl-btn').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-level') === level);
+            });
+            renderAll();
+        }
+
+        function clearLogs() {
+            logs = [];
+            const view = document.getElementById('logsView');
+            if (view) view.innerHTML = '';
+            updateLogsCount();
+        }
+
+        function toggleAutoscroll() {
+            autoscroll = !autoscroll;
+            syncAutoscrollBtn();
+            if (autoscroll) {
+                const view = document.getElementById('logsView');
+                if (view) view.scrollTop = view.scrollHeight;
+            }
+        }
+
+        function syncAutoscrollBtn() {
+            const btn = document.getElementById('logsAutoscrollBtn');
+            if (!btn) return;
+            btn.classList.toggle('btn-primary', autoscroll);
+            btn.classList.toggle('btn-outline-secondary', !autoscroll);
+            btn.setAttribute('aria-pressed', autoscroll ? 'true' : 'false');
+        }
+
+        function setLogSearch(val) {
+            logSearch = (val || '').trim().toLowerCase();
+            renderAll();
+        }
+
+        function setLogSearchField(field) {
+            logSearchField = field || 'all';
+            renderAll();
+        }
+
+        function copyLogs() {
+            const view = document.getElementById('logsView');
+            if (!view) return;
+            const lines = [];
+            const nodes = view.querySelectorAll('.log-line');
+            for (let i = 0; i < nodes.length; i++) {
+                lines.push(nodes[i].innerText || nodes[i].textContent || '');
+            }
+            const text = lines.join('\n');
+            const done = function () {
+                const btn = document.getElementById('logsCopyBtn');
+                if (!btn) return;
+                const prev = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied';
+                setTimeout(function () { btn.innerHTML = prev; }, 900);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+            } else {
+                fallbackCopy(text);
+                done();
+            }
+        }
+
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+        }
+
+        function connectLogSocket() {
+            const sock = new SockJS('/ws');
+            logStompClient = StompJs.Stomp.over(function () { return sock; });
+            logStompClient.reconnectDelay = 5000;
+            logStompClient.debug = function () {};
+            logStompClient.onConnect = function () {
+                logStompClient.subscribe('/topic/logs', function (msg) {
+                    pushLogEvent(JSON.parse(msg.body));
+                });
+            };
+            logStompClient.onStompError = function (frame) { console.error('[logs] stompError', frame); };
+            logStompClient.onWebSocketClose = function (e) { console.warn('[logs] ws closed', e); };
+            logStompClient.activate();
+        }
+
+        // ── Socket Test ────────────────────────────────────────────────
+        let socketTable;
+        function socketTest(host, port, transport) {
             $.ajax({
-                url: '/api/logs/' + level,
+                url: '/api/socketTest?host=' + encodeURIComponent(host) + '&transport=' + encodeURIComponent(transport) + '&port=' + port,
                 type: 'GET',
                 success: function (data) {
-                    if (logsTable)
-                        logsTable.destroy();
-                    let table = $('#logsTable');
-                    $('#logsTable > tbody').empty();
-
-                    for (let i = 0; i < data.length; i++) {
-                        let markup = "<tr><td>" + data[i].subject + "</td><td>" + data[i].level + "</td><td>" + data[i].message + "</td><td>" + formatter.format(new Date(data[i].timestamp)) + "</td></tr>"
-                        table.append(markup);
-                    }
-
-                    logsTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": false,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
+                    const label = host + ':' + port + ' (' + transport + ')';
+                    alert(data ? (label + ' is listening now.') : (label + ' isn\'t listening.'));
                 }
             });
         }
 
-        function viewClients(id) {
-            $.ajax({
-                url: '/api/sessions/' + id,
-                type: 'GET',
-                success: function (data) {
-                    if (clientsTable)
-                        clientsTable.destroy()
-                    let table = $('#clientsTable');
-                    $('#clientsTable > tbody').empty();
-
-                    for (let i = 0; i < data.length; i++) {
-                        let button = "<td><button class='btn btn-danger' id='" + data[i].remoteHost + ":" + data[i].remotePort + "' onclick='disconnect(this.id)'></button></td>"
-                        let markup = "<tr><td>" + data[i].remoteHost + "</td><td>" + data[i].remotePort + "</td><td>" + data[i].tx + "</td><td>" + data[i].rx + "</td><td>" + sessionTimeFormat(data[i].uptime) + "</td>" + button + "</tr>"
-                        table.append(markup);
+        function buildSocketTable(devices) {
+            socketTable = new Tabulator('#socketTable', {
+                data: devices,
+                layout: 'fitColumns',
+                height: '100%',
+                pagination: true,
+                paginationSize: 10,
+                selectableRows: 1,
+                columnDefaults: { resizable: false },
+                placeholder: 'No devices',
+                columns: [
+                    { title: 'ID', field: 'id', width: 70, hozAlign: 'right' },
+                    { title: 'Name', field: 'name' },
+                    { title: 'Transport', field: 'transport', width: 110 },
+                    { title: 'Protocol', field: 'protocol', width: 130 },
+                    { title: 'Host', field: 'host' },
+                    { title: 'Port', field: 'port', width: 90, hozAlign: 'right' },
+                    {
+                        title: 'Action', field: '_action', width: 110, headerSort: false, hozAlign: 'center',
+                        formatter: function (cell) {
+                            const d = cell.getRow().getData();
+                            return '<button class="btn btn-sm btn-info sock-test-btn" data-host="' + escapeHtml(d.host) +
+                                '" data-port="' + d.port + '" data-transport="' + escapeHtml(d.transport) + '">' +
+                                '<i class="fas fa-plug"></i> Test</button>';
+                        }
                     }
+                ]
+            });
+            socketTable.on('rowClick', function (e, row) {
+                // row 클릭 시 클라이언트 뷰 자동 로드. 단, 액션 버튼 클릭은 아래 리스너가 처리.
+                if (e.target.closest('button')) return;
+                loadClientsFor(row.getData());
+            });
+        }
 
-                    clientsTable = table.DataTable({
-                        "paging": true,
-                        "lengthChange": false,
-                        "searching": false,
-                        "ordering": true,
-                        "info": true,
-                        "autoWidth": false,
-                        "responsive": true,
-                    });
+        function bindSocketSearch() {
+            const fieldEl = document.getElementById('socketSearchField');
+            const inputEl = document.getElementById('socketSearchInput');
+            if (!fieldEl || !inputEl) return;
+            fieldEl.addEventListener('change', applySocketSearch);
+            inputEl.addEventListener('input', applySocketSearch);
+        }
 
-                    selectedServer = id;
+        function applySocketSearch() {
+            if (!socketTable) return;
+            const field = document.getElementById('socketSearchField').value;
+            const val = document.getElementById('socketSearchInput').value.trim();
+            if (!val) { socketTable.clearFilter(); return; }
+            if (field === 'address') {
+                const needle = val.toLowerCase();
+                socketTable.setFilter(function (data) {
+                    const addr = ((data.transport || '') + ' ' + (data.host || '') + ':' + (data.port || '')).toLowerCase();
+                    return addr.indexOf(needle) !== -1;
+                });
+            } else {
+                socketTable.setFilter(field, 'like', val);
+            }
+        }
+
+        // Tabulator가 formatter 로 뽑은 버튼의 클릭 이벤트는 cellClick 보다 외부 delegate 가 깔끔
+        function bindSocketActions() {
+            document.getElementById('socketTable').addEventListener('click', function (e) {
+                const t = e.target.closest('.sock-test-btn');
+                if (t) {
+                    socketTest(t.getAttribute('data-host'), parseInt(t.getAttribute('data-port'), 10), t.getAttribute('data-transport'));
                 }
             });
         }
 
-        function sessionTimeFormat(msec) {
-            var sec_num = parseInt(msec / 1000);
-            var hours = Math.floor(sec_num / 3600);
-            var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
-            var seconds = sec_num - (hours * 3600) - (minutes * 60);
+        // ── Clients ────────────────────────────────────────────────────
+        let clientsTable;
+        let selectedServer = null;
+        let clientsReloadTimer = null;
 
-            if (hours < 10) {
-                hours = "0" + hours;
-            }
-            if (minutes < 10) {
-                minutes = "0" + minutes;
-            }
-            if (seconds < 10) {
-                seconds = "0" + seconds;
-            }
-            return hours + ' : ' + minutes + ' : ' + seconds;
+        function buildClientsTable() {
+            clientsTable = new Tabulator('#clientsTable', {
+                data: [],
+                layout: 'fitColumns',
+                height: '100%',
+                columnDefaults: { resizable: false },
+                placeholder: 'Select a device above to view connected clients',
+                columns: [
+                    { title: 'Remote Host', field: 'remoteHost' },
+                    { title: 'Remote Port', field: 'remotePort', width: 120, hozAlign: 'right' },
+                    { title: 'TX', field: 'tx', width: 100, hozAlign: 'right' },
+                    { title: 'RX', field: 'rx', width: 100, hozAlign: 'right' },
+                    {
+                        title: 'Uptime', field: 'uptime', width: 120, hozAlign: 'right',
+                        formatter: function (cell) { return sessionTimeFormat(cell.getValue()); }
+                    },
+                    {
+                        title: 'Action', field: '_action', width: 140, headerSort: false, hozAlign: 'center',
+                        formatter: function (cell) {
+                            const d = cell.getRow().getData();
+                            return '<button class="btn btn-sm btn-danger client-disc-btn" data-addr="' +
+                                escapeHtml(d.remoteHost) + ':' + d.remotePort + '">' +
+                                '<i class="fas fa-times"></i> Disconnect</button>';
+                        }
+                    }
+                ]
+            });
+        }
+
+        function bindClientsActions() {
+            document.getElementById('clientsTable').addEventListener('click', function (e) {
+                const b = e.target.closest('.client-disc-btn');
+                if (!b || selectedServer == null) return;
+                disconnect(b.getAttribute('data-addr'));
+            });
+        }
+
+        function loadClientsFor(device) {
+            selectedServer = device.id;
+            document.getElementById('selectedDeviceTag').innerHTML =
+                '<b>' + escapeHtml(device.name) + '</b> &middot; ' +
+                escapeHtml(device.transport) + ' ' + escapeHtml(device.host) + ':' + device.port;
+            fetchClients();
+            if (clientsReloadTimer) clearInterval(clientsReloadTimer);
+            clientsReloadTimer = setInterval(fetchClients, 2000);
+        }
+
+        function fetchClients() {
+            if (selectedServer == null) return;
+            $.ajax({
+                url: '/api/sessions/' + selectedServer,
+                type: 'GET',
+                success: function (data) { if (clientsTable) clientsTable.replaceData(data || []); }
+            });
         }
 
         function disconnect(remoteAddr) {
             $.ajax({
                 url: '/api/disconnect/' + selectedServer + '/' + remoteAddr,
                 type: 'DELETE',
-                success: function (data) {
-                    if (data)
-                        viewClients(selectedServer);
-                }
+                success: function (ok) { if (ok) fetchClients(); }
             });
         }
+
+        function sessionTimeFormat(msec) {
+            const sec = Math.max(0, Math.floor((msec || 0) / 1000));
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            const pad = function (n) { return n < 10 ? ('0' + n) : ('' + n); };
+            return pad(h) + ':' + pad(m) + ':' + pad(s);
+        }
+
+        // ── bootstrap ─────────────────────────────────────────────────
+        window.onload = function () {
+            buildClientsTable();
+            bindClientsActions();
+            $.ajax({
+                url: '/api/device/devices',
+                type: 'GET',
+                success: function (data) {
+                    buildSocketTable(data);
+                    bindSocketActions();
+                    bindSocketSearch();
+                }
+            });
+            setLevel('ALL');
+            syncAutoscrollBtn();
+            const searchInput = document.getElementById('logsSearchInput');
+            if (searchInput) searchInput.addEventListener('input', function () { setLogSearch(this.value); });
+            const searchFieldEl = document.getElementById('logsSearchField');
+            if (searchFieldEl) searchFieldEl.addEventListener('change', function () { setLogSearchField(this.value); });
+            connectLogSocket();
+        };
 
         /*]]>*/
     </script>
@@ -192,7 +523,6 @@
 
     <!-- Navbar -->
     <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <!-- Left navbar links -->
         <ul class="navbar-nav">
             <li class="nav-item">
                 <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
@@ -200,35 +530,8 @@
             <li class="nav-item d-none d-sm-inline-block">
                 <a href="/" class="nav-link">Home</a>
             </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
         </ul>
-
-        <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
-            <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
-                </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </li>
             <li class="nav-item">
                 <a class="nav-link" data-widget="fullscreen" href="#" role="button">
                     <i class="fas fa-expand-arrows-alt"></i>
@@ -236,214 +539,137 @@
             </li>
         </ul>
     </nav>
-    <!-- /.navbar -->
 
-    <!-- Main Sidebar Container -->
+    <!-- Sidebar -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <!-- Brand Logo -->
         <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
             <span class="brand-text font-weight-light">MK119 CTS</span>
         </a>
-        <!-- Sidebar -->
         <div class="sidebar">
-            <!-- Sidebar Menu -->
             <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <!-- Add icons to the links using the .nav-icon class
-                         with font-awesome or any other icon font library -->
-
-                    <li class="nav-item">
-                        <a href="/" class="nav-link">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>
-                                Devices
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>
-                                Value Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>
-                                Error Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link active">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Settings
-                            </p>
-                        </a>
-                    </li>
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link active"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
                 </ul>
             </nav>
-            <!-- /.sidebar-menu -->
         </div>
-        <!-- /.sidebar -->
     </aside>
 
-    <!-- Content Wrapper. Contains page content -->
+    <!-- Content -->
     <div class="content-wrapper">
-        <!-- Content Header (Page header) -->
         <div class="content-header">
             <div class="container-fluid">
                 <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0">Settings</h1>
-                    </div><!-- /.col -->
+                    <div class="col-sm-6"><h1 class="m-0">Settings</h1></div>
                     <div class="col-sm-6">
                         <ol class="breadcrumb float-sm-right">
                             <li class="breadcrumb-item"><a href="/">Home</a></li>
                             <li class="breadcrumb-item active">Settings</li>
                         </ol>
-                    </div><!-- /.col -->
-                </div><!-- /.row -->
-            </div><!-- /.container-fluid -->
+                    </div>
+                </div>
+            </div>
         </div>
-        <!-- /.content-header -->
 
-        <!-- Main content -->
         <section class="content">
             <div class="container-fluid">
-                <!-- Small boxes (Stat box) -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Socket Test</h3>
-                            </div>
-                            <!-- ./card-header -->
-                            <div class="card-body p-2">
-                                <table id="devicesTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>ID</th>
-                                    <th>Transport</th>
-                                    <th>Protocol</th>
-                                    <th>Host</th>
-                                    <th>Port</th>
-                                    <th>Name</th>
-                                    <th>Test</th>
-                                    </thead>
-                                    <tbody>
 
-                                    </tbody>
-                                </table>
-                            </div>
-                            <!-- /.card-body -->
+                <!-- Socket Test -->
+                <div class="cts-panel panel-socket">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title">Socket Test</h3>
+                        <div class="cts-panel-tools" style="gap:0.25rem;">
+                            <select id="socketSearchField" class="form-control form-control-sm" style="width:auto;">
+                                <option value="name">Name</option>
+                                <option value="address">Address</option>
+                                <option value="protocol">Protocol</option>
+                            </select>
+                            <input id="socketSearchInput" type="search" class="form-control form-control-sm"
+                                   placeholder="Search..." style="width:180px; min-width:0;">
                         </div>
-                        <!-- /.card -->
+                    </div>
+                    <div class="cts-panel-body">
+                        <div id="socketTable" class="cts-tabulator"></div>
                     </div>
                 </div>
-                <!-- /.row -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Clients List</h3>
-                            </div>
-                            <!-- ./card-header -->
-                            <div class="card-body p-2">
-                                <table id="clientsTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>Remote Host</th>
-                                    <th>Remote Port</th>
-                                    <th>TX</th>
-                                    <th>RX</th>
-                                    <th>Uptime</th>
-                                    <th>Invalidate</th>
-                                    </thead>
-                                    <tbody>
 
-                                    </tbody>
-                                </table>
-                            </div>
-                            <!-- /.card-body -->
+                <!-- Clients -->
+                <div class="cts-panel panel-clients">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title">Clients</h3>
+                        <div class="cts-panel-tools">
+                            <span id="selectedDeviceTag" class="selected-device-tag">No device selected</span>
                         </div>
-                        <!-- /.card -->
+                    </div>
+                    <div class="cts-panel-body">
+                        <div id="clientsTable" class="cts-tabulator"></div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Realtime Logs</h3>
-                            </div>
-                            <!-- ./card-header -->
-                            <div class="card-body p-2">
-                                <button class="btn btn-success" onclick="changeLevel('ALL')">ALL</button>
-                                <button class="btn btn-danger" onclick="changeLevel('ERROR')">ERROR</button>
-                                <button class="btn btn-warning" onclick="changeLevel('WARNING')">WARNING</button>
-                                <button class="btn btn-primary" onclick="changeLevel('INFO')">INFO</button>
-                                <table id="logsTable" class="table table-bordered table-hover">
-                                    <thead>
-                                    <th>Subject</th>
-                                    <th>Level</th>
-                                    <th>Message</th>
-                                    <th>Timestamp</th>
-                                    </thead>
-                                    <tbody>
 
-                                    </tbody>
-                                </table>
+                <!-- Realtime Logs -->
+                <div class="cts-panel panel-logs">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title">Realtime Logs</h3>
+                        <div class="cts-panel-tools logs-toolbar">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-secondary lvl-btn" data-level="ALL" onclick="setLevel('ALL')">All</button>
+                                <button class="btn btn-outline-danger lvl-btn" data-level="ERROR" onclick="setLevel('ERROR')">Error</button>
+                                <button class="btn btn-outline-warning lvl-btn" data-level="WARN" onclick="setLevel('WARN')">Warn</button>
+                                <button class="btn btn-outline-primary lvl-btn" data-level="INFO" onclick="setLevel('INFO')">Info</button>
                             </div>
-                            <!-- /.card-body -->
+                            <select id="logsSearchField" class="form-control form-control-sm" style="width:auto;">
+                                <option value="all">All</option>
+                                <option value="subject">Subject</option>
+                                <option value="message">Message</option>
+                            </select>
+                            <input id="logsSearchInput" type="search" class="form-control form-control-sm"
+                                   placeholder="Search..." style="width:160px; min-width:0;">
                         </div>
-                        <!-- /.card -->
+                    </div>
+                    <div class="cts-panel-body">
+                        <div id="logsView" class="logs-view"></div>
+                    </div>
+                    <div class="cts-panel-footer logs-toolbar">
+                        <button id="logsAutoscrollBtn" type="button" class="btn btn-sm btn-primary"
+                                aria-pressed="true" onclick="toggleAutoscroll()">
+                            <i class="fas fa-angle-double-down"></i> Auto-scroll
+                        </button>
+                        <button id="logsCopyBtn" class="btn btn-sm btn-outline-secondary" onclick="copyLogs()">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                        <span class="logs-count ml-auto" title="shown / buffered">
+                            <i class="far fa-eye"></i> <span id="logsCount">0 / 0</span>
+                        </span>
                     </div>
                 </div>
-            </div><!-- /.container-fluid -->
+
+            </div>
         </section>
-        <!-- /.content -->
     </div>
-    <!-- /.content-wrapper -->
+
     <footer class="main-footer">
         <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
         All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 1.0.1
-        </div>
+        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
     </footer>
 </div>
-<!-- ./wrapper -->
 
 <!-- jQuery -->
 <script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
+<!-- Bootstrap -->
 <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
+<!-- AdminLTE -->
 <script src="../../js/adminlte.js"></script>
-<script src="../../js/jstree.min.js"></script>
-<!-- DataTables  & Plugins -->
-<script src="../../plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../../plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script src="../../plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
-<script src="../../plugins/pdfmake/vfs_fonts.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.html5.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.print.min.js"></script>
-<script src="../../plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
-
-<script src="../../plugins/jquery-contextmenu/js/jquery.contextMenu.min.js"></script>
-<script src="../../plugins/jquery-contextmenu/js/jquery.ui.position.js"></script>
+<!-- Tabulator -->
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<!-- WebSocket / STOMP -->
+<script src="../../plugins/sockjs/sockjs.min.js"></script>
+<script src="../../plugins/stomp/stomp.umd.min.js"></script>
 </body>
 </html>

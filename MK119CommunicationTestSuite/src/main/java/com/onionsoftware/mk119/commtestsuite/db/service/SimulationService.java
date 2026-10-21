@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.db.service;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.repository.SimulationRepository;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
@@ -12,8 +14,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.simulation.GroupedSimulationJob;
 import com.onionsoftware.mk119.commtestsuite.simulation.JitteredTrigger;
 import com.onionsoftware.mk119.commtestsuite.simulation.SimulationJobFactory;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.PeriodicTrigger;
@@ -52,8 +52,7 @@ public class SimulationService {
 
     @PostConstruct
     public void init() {
-        MkLogger.log("simulation", LogLevel.INFO, "ThreadPoolTaskScheduler pool size: {0}",
-                threadPoolTaskScheduler.getPoolSize());
+        LoggerFactory.getLogger("simulation").info("ThreadPoolTaskScheduler pool size: {}", threadPoolTaskScheduler.getPoolSize());
     }
 
     /**
@@ -88,9 +87,7 @@ public class SimulationService {
 
                 adjustPoolSize();
 
-                MkLogger.log("simulation", LogLevel.INFO,
-                        "New simulation group [{0}] created with simulation {1}.",
-                        groupKey, simulation.getId());
+                LoggerFactory.getLogger("simulation").info("New simulation group [{}] created with simulation {}.", groupKey, simulation.getId());
             }
         }
 
@@ -122,12 +119,9 @@ public class SimulationService {
                     }
                     groupedJobs.remove(targetKey);
                     adjustPoolSize();
-                    MkLogger.log("simulation", LogLevel.INFO,
-                            "Simulation group [{0}] removed (empty).", targetKey);
+                    LoggerFactory.getLogger("simulation").info("Simulation group [{}] removed (empty).", targetKey);
                 } else {
-                    MkLogger.log("simulation", LogLevel.INFO,
-                            "Simulation {0} removed from group [{1}]. Remaining: {2}",
-                            simulation.getId(), targetKey, groupJob.size());
+                    LoggerFactory.getLogger("simulation").info("Simulation {} removed from group [{}]. Remaining: {}", simulation.getId(), targetKey, groupJob.size());
                 }
             }
         }
@@ -151,14 +145,10 @@ public class SimulationService {
         if (stopOnControl < 0) {
             simulation.setEnabled(Simulation.DISABLED);
             updateSimulation(simulation);
-            MkLogger.log("simulation", LogLevel.INFO,
-                    "Simulation {0} permanently disabled by stopOnControl (device {1}({2}), target {3}).",
-                    simulation.getId(), device.getName(), device.getId(), simulation.getTarget());
+            LoggerFactory.getLogger("simulation").info("Simulation {} permanently disabled by stopOnControl (device {}({}), target {}).", simulation.getId(), device.getName(), device.getId(), simulation.getTarget());
         } else {
             stopSimulationFor(device, simulation, stopOnControl);
-            MkLogger.log("simulation", LogLevel.INFO,
-                    "Simulation {0} stopped for {1}s by stopOnControl (device {2}({3}), target {4}).",
-                    simulation.getId(), stopOnControl, device.getName(), device.getId(), simulation.getTarget());
+            LoggerFactory.getLogger("simulation").info("Simulation {} stopped for {}s by stopOnControl (device {}({}), target {}).", simulation.getId(), stopOnControl, device.getName(), device.getId(), simulation.getTarget());
         }
     }
 
@@ -292,9 +282,7 @@ public class SimulationService {
         int currentPoolSize = threadPoolTaskScheduler.getPoolSize();
         if (newPoolSize != currentPoolSize) {
             threadPoolTaskScheduler.setPoolSize(newPoolSize);
-            MkLogger.log("simulation", LogLevel.INFO,
-                    "ThreadPool size adjusted: {0} -> {1} (active groups: {2})",
-                    currentPoolSize, newPoolSize, activeGroups);
+            LoggerFactory.getLogger("simulation").info("ThreadPool size adjusted: {} -> {} (active groups: {})", currentPoolSize, newPoolSize, activeGroups);
         }
     }
 }

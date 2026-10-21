@@ -1,5 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
+
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
@@ -10,8 +12,6 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.bacnet.*;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.BACnetData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
-import com.onionsoftware.mk119.commtestsuite.web.bean.LogLevel;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -57,7 +57,7 @@ public class BACnetHandler extends MkHandler {
                     if (buf != null) {
                         sendBuffer = buf.copy();
                     } else {
-                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readProperty {0}", getSender());
+                        LoggerFactory.getLogger("io").error("BACnet error occur process readProperty {}", getSender());
                         BACnetError error = getBACnetError();
                         sendBuffer = error.encodeBACnetError(
                                 myDevice,
@@ -80,8 +80,7 @@ public class BACnetHandler extends MkHandler {
                     if (buf != null) {
                         sendBuffer = buf.copy();
                     } else {
-                        MkLogger.log("io", LogLevel.ERROR, "BACnet error occur process readPropertyMultiple {0}",
-                                getSender());
+                        LoggerFactory.getLogger("io").error("BACnet error occur process readPropertyMultiple {}", getSender());
                         BACnetError error = getBACnetError();
                         sendBuffer = error.encodeBACnetError(
                                 myDevice,
@@ -115,14 +114,12 @@ public class BACnetHandler extends MkHandler {
                                                 (double) writeProperty.getValue().getValue(),
                                                 ServerDataChangeSource.PROTOCOL_WRITE);
                                     } catch (Exception ex) {
-                                        MkLogger.log("io", ex,
-                                                "BACnet setServerData failed for target {0}", s.getTarget());
+                                        LoggerFactory.getLogger("io").error("BACnet setServerData failed for target {}", s.getTarget(), ex);
                                     }
                                     if (buf != null) {
                                         sendBuffer = buf.copy();
                                     } else {
-                                        MkLogger.log("io", LogLevel.ERROR,
-                                                "BACnet error occur process writePropertyMultiple {0}", getSender());
+                                        LoggerFactory.getLogger("io").error("BACnet error occur process writePropertyMultiple {}", getSender());
                                         BACnetError bacnetError = getBACnetError();
                                         sendBuffer = bacnetError.encodeBACnetError(
                                                 myDevice,
