@@ -124,6 +124,12 @@ public class WebController {
         return "error_editor";
     }
 
+    @RequestMapping("/errors/batch")
+    public String batchAddErrors(@RequestParam("device") Integer deviceId, Model model) {
+        model.addAttribute("device", deviceService.selectDevice(deviceId));
+        return "batchAddErrors";
+    }
+
     @RequestMapping("/editError/{error_id}")
     public String editError(Model model, @PathVariable Integer error_id) {
         Error error = errorService.selectErrorById(error_id);

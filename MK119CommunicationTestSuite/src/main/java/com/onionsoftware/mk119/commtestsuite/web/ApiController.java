@@ -19,7 +19,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
-import com.onionsoftware.mk119.commtestsuite.web.bean.MkLogger;
+import com.onionsoftware.mk119.commtestsuite.web.bean.ErrorStateStats;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataSnapshot;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataWriteRequest;
 import com.onionsoftware.mk119.commtestsuite.web.bean.Session;
@@ -229,9 +229,7 @@ public class ApiController {
                     + " (" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + ")");
             return ResponseEntity.badRequest().body(resp);
         } catch (Exception e) {
-            MkLogger.log("serverdata", e,
-                    "REST API_WRITE failed: device={0}, target={1}, value={2}, dataType={3}",
-                    device_id, req.getTarget(), req.getValue(), req.getDataType());
+            LoggerFactory.getLogger("serverdata").error("REST API_WRITE failed: device={}, target={}, value={}, dataType={}", device_id, req.getTarget(), req.getValue(), req.getDataType(), e);
             resp.put("ok", false);
             resp.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(resp);
@@ -1017,10 +1015,9 @@ public class ApiController {
     }
 
     @RequestMapping(value = "/socketTest", method = RequestMethod.GET)
-    public Boolean socketTest(@RequestParam("host_transport") String host_transport, @RequestParam("port") Integer port) throws IOException {
-        String[] tokens = host_transport.split("_");
-        String host = tokens[0];
-        String transport = tokens[1];
+    public Boolean socketTest(@RequestParam("host") String host,
+                              @RequestParam("transport") String transport,
+                              @RequestParam("port") Integer port) throws IOException {
 
         try {
             if (SystemUtils.IS_OS_MAC) {
@@ -1110,20 +1107,20 @@ public class ApiController {
         return ret.get();
     }
 
-    @RequestMapping(value = "/logs/{level}", method = RequestMethod.GET)
-    public List<MkLogger> logs(@PathVariable String level) {
-        List<MkLogger> logs = new ArrayList<>(MkLogger.LATEST_LOGS);
-        Collections.sort(logs);
-
-        if (level.equals("ALL")) {
-            return logs;
-        }
-        return logs.stream().filter(e -> e.getLevel().name().toUpperCase().equals(level)).collect(Collectors.toList());
-    }
-
     @RequestMapping(value = "/error/errors/{device_id}", method = RequestMethod.GET)
     public List<Error> gerError(@PathVariable Integer device_id) {
         return errorService.selectErrorsByDeviceId(device_id);
+    }
+
+    /**
+     * 디바이스 서버 기동 이후 에러 상태별 누적 점유 시간 (ms).
+     * 서버가 떠 있지 않으면 비어있는 통계를 반환한다.
+     */
+    @RequestMapping(value = "/error/stats/{device_id}", method = RequestMethod.GET)
+    public ErrorStateStats errorStateStats(@PathVariable Integer device_id) {
+        IOServer server = ioServerInstances.getServers().get(device_id);
+        if (server == null) return new ErrorStateStats();
+        return server.getErrorStateStats();
     }
 
     @RequestMapping(value = "/error/addError", method = RequestMethod.PUT)
@@ -1172,6 +1169,172 @@ public class ApiController {
             }
         }
         return "success";
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  Error batch add — 이미 등록된 device 하나에 error 를 대량 추가한다.
+    //  batchAddErrors.html 이 같은 규칙을 JS 로 들고 있어 입력 즉시 피드백을 주고,
+    //  이 메서드는 batchInsert 직전에 DB 를 지키는 최종 관문 역할을 한다.
+    // ──────────────────────────────────────────────────────────────────────
+
+    @RequestMapping(value = "/error/batchValidate", method = RequestMethod.POST)
+    public Map<String, Object> errorBatchValidate(@RequestBody Map<String, Object> body) {
+        Integer deviceId = ((Number) body.get("deviceId")).intValue();
+        return validateErrorBatch(deviceId, asRowList(body.get("errors")));
+    }
+
+    private Map<String, Object> validateErrorBatch(Integer deviceId,
+                                                   List<Map<String, Object>> rows) {
+        Map<String, Simulation> simsByName = new HashMap<>();
+        for (Simulation s : simulationService.selectSimulationsByDeviceId(deviceId)) {
+            simsByName.put(s.getName(), s);
+        }
+        boolean isDbProtocol = false;
+        Device dev = deviceOf(deviceId);
+        if (dev != null && dev.getProtocol() != null) {
+            isDbProtocol = "DB".equals(dev.getProtocol().name());
+        }
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> row = new LinkedHashMap<>(r);
+            String err = validateErrorBatchRow(r, simsByName, isDbProtocol);
+            row.put("error", err);
+            out.add(row);
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("errors", out);
+        return response;
+    }
+
+    /** 에러마다 독립 스케줄로 자기 interval 마다 Bernoulli 시행 — frequency 합계 캡은 없다. */
+    private String validateErrorBatchRow(Map<String, Object> r,
+                                         Map<String, Simulation> simsByName,
+                                         boolean isDbProtocol) {
+        String modeRaw = asString(r.get("mode"));
+        if (modeRaw == null || modeRaw.trim().isEmpty()) return "Missing mode.";
+        com.onionsoftware.mk119.commtestsuite.enums.ErrorMode mode;
+        try {
+            mode = com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.valueOf(modeRaw.trim().toUpperCase());
+        } catch (Exception e) {
+            return "Invalid mode: " + modeRaw;
+        }
+
+        Double freq = num(r.get("frequency"));
+        if (freq == null) return "frequency must be a number.";
+        if (freq < 0 || freq > 100) return "frequency must be 0~100.";
+
+        Double interval = num(r.get("interval"));
+        if (interval == null) return "interval must be a number.";
+        if (interval < 1) return "interval must be >= 1.";
+
+        if (mode != com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.SIMULATION) {
+            Double d = num(r.get("errorDuration"));
+            if (d == null) return "errorDuration must be a number.";
+            if (d < 1) return "errorDuration must be >= 1.";
+        }
+
+        if (mode == com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.TIMEOUT) {
+            Double t = num(r.get("timeout"));
+            if (t == null) return "TIMEOUT requires numeric timeout.";
+            if (t < 0 || t > 10) return "timeout must be 0~10.";
+        } else if (mode == com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.GARBAGE) {
+            Double g = num(r.get("garbageLength"));
+            if (g == null) return "GARBAGE requires numeric garbageLength.";
+            if (g < 1 || g > 1024) return "garbageLength must be 1~1024.";
+        } else if (mode == com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.SIMULATION) {
+            String simName = asString(r.get("simulationName"));
+            if (simName == null || simName.trim().isEmpty()) return "SIMULATION requires simulationName.";
+            if (!simsByName.containsKey(simName)) {
+                return "SIMULATION target '" + simName + "' not found on this device.";
+            }
+            if (num(r.get("errorValue")) == null) return "SIMULATION requires numeric errorValue.";
+            if (!isDbProtocol) {
+                Double st = num(r.get("simulation_stop"));
+                if (st == null) return "SIMULATION requires numeric simulation_stop.";
+                if (st < 0 || st > 60) return "simulation_stop must be 0~60.";
+            }
+        }
+
+        return null;
+    }
+
+    @RequestMapping(value = "/error/batchInsert", method = RequestMethod.POST)
+    public Map<String, Object> errorBatchInsert(@RequestBody Map<String, Object> body) {
+        Integer deviceId = ((Number) body.get("deviceId")).intValue();
+        List<Map<String, Object>> rows = asRowList(body.get("errors"));
+
+        // 화면 검증이 우회되거나 그 사이 다른 등록이 끼어들었어도 DB 를 지킨다
+        List<Map<String, Object>> checks =
+                asRowList(validateErrorBatch(deviceId, rows).get("errors"));
+
+        Device device = deviceService.selectDevice(deviceId);
+        Map<String, Simulation> simsByName = new HashMap<>();
+        for (Simulation s : simulationService.selectSimulationsByDeviceId(deviceId)) {
+            simsByName.put(s.getName(), s);
+        }
+
+        List<Map<String, Object>> created = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+
+        for (int i = 0; i < rows.size(); i++) {
+            Map<String, Object> r = rows.get(i);
+            String label = "error #" + (i + 1) + " (" + asString(r.get("mode")) + ")";
+            String invalid = i < checks.size() ? asString(checks.get(i).get("error")) : null;
+            if (invalid != null) {
+                failures.add(label + ": " + invalid);
+                continue;
+            }
+            try {
+                Error e = buildErrorFromMap(r, device, simsByName);
+                errorService.insertError(e);
+                ioServerInstances.getServerInstance(deviceId).ifPresent(
+                        s -> s.setErrors(errorService.selectEnabledErrorsByDeviceId(deviceId)));
+                errorService.startErrorSchedule(e);
+                Map<String, Object> info = new LinkedHashMap<>();
+                info.put("id", e.getId());
+                info.put("mode", e.getMode());
+                created.add(info);
+            } catch (Exception ex) {
+                failures.add(label + ": " + ex.getMessage());
+            }
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("created", created);
+        response.put("failures", failures);
+        return response;
+    }
+
+    private Error buildErrorFromMap(Map<String, Object> r, Device device,
+                                    Map<String, Simulation> simsByName) {
+        Error e = new Error();
+        e.setDevice(device);
+        com.onionsoftware.mk119.commtestsuite.enums.ErrorMode mode =
+                com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.valueOf(
+                        asString(r.get("mode")).trim().toUpperCase());
+        e.setMode(mode);
+        e.setFrequency(num(r.get("frequency")).intValue());
+        e.setInterval(num(r.get("interval")).intValue());
+        Double enabled = num(r.get("enabled"));
+        e.setEnabled(enabled == null ? Error.ERROR_ENABLED : enabled.intValue());
+
+        if (mode == com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.SIMULATION) {
+            String simName = asString(r.get("simulationName"));
+            e.setSimulation(simsByName.get(simName));
+            e.setErrorValue(num(r.get("errorValue")));
+            Double stopVal = num(r.get("simulation_stop"));
+            e.setSimulation_stop(stopVal == null ? 0 : stopVal.intValue());
+            // errorDuration 은 SIMULATION 에선 쓰이지 않지만 int 필드라 0 으로 둔다
+        } else {
+            e.setErrorDuration(num(r.get("errorDuration")).intValue());
+            if (mode == com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.TIMEOUT) {
+                e.setTimeout(num(r.get("timeout")).intValue());
+            } else if (mode == com.onionsoftware.mk119.commtestsuite.enums.ErrorMode.GARBAGE) {
+                e.setGarbageLength(num(r.get("garbageLength")).intValue());
+            }
+        }
+        return e;
     }
 
     @RequestMapping(value = "/error/setEnabled/{error_id}/{enabled}")
