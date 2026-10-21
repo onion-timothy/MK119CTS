@@ -31,8 +31,9 @@ public class Error {
     private int timeout;
     private int garbageLength;
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(name = "simulation_id")
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     private Simulation simulation;
     private Double errorValue;
     private Integer simulation_stop;

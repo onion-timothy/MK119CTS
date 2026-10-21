@@ -1,6 +1,5 @@
 package com.onionsoftware.mk119.commtestsuite.db.bean;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.onionsoftware.mk119.commtestsuite.db.bean.converter.JsonStringPolicyListConverter;
 import lombok.Getter;
 import lombok.Setter;
@@ -37,10 +36,6 @@ public class Simulation implements Cloneable {
      * N < 0: 영구 정지 (DB에 enabled=DISABLED 기록).
      */
     int stopOnControl;
-
-    @OneToOne(mappedBy = "simulation", cascade = CascadeType.REMOVE)
-    @JsonIgnore
-    private Error error;
 
     public static final int ENABLED = 1;
     public static final int DISABLED = 0;

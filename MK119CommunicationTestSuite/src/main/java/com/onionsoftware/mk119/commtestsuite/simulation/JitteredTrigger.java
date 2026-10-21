@@ -37,16 +37,23 @@ public final class JitteredTrigger {
      * 두 번째 실행부터는 주기 그대로이므로 전체 실행 횟수는 달라지지 않는다.
      */
     public static PeriodicTrigger ofSeconds(int intervalSeconds) {
+        return ofSecondsWithInitialDelay(intervalSeconds, jitterMs((long) intervalSeconds * 1000L));
+    }
+
+    /**
+     * 호출자가 초기 지연(ms)을 직접 지정하는 오버로드. 호출자가 로드 순서 등으로
+     * 지터 슬롯을 미리 계산해서 넘길 때 쓴다. 지연은 [0, periodMs) 로 clamp.
+     */
+    public static PeriodicTrigger ofSecondsWithInitialDelay(int intervalSeconds, long initialDelayMs) {
         long periodMs = (long) intervalSeconds * 1000L;
-        // 초기 지연은 트리거의 TimeUnit 으로 해석된다. 초 단위로 두면 지터를 1초 미만으로
-        // 줄 수 없으므로 ms 단위 트리거로 만든다.
         PeriodicTrigger trigger = new PeriodicTrigger(periodMs, TimeUnit.MILLISECONDS);
-        trigger.setInitialDelay(jitterMs(periodMs));
+        long clamped = Math.min(Math.max(0L, periodMs - 1L), Math.max(0L, initialDelayMs));
+        trigger.setInitialDelay(clamped);
         return trigger;
     }
 
     /** 0 이상 min(periodMs, MAX_JITTER_MS) 미만의 초기 지연. */
-    static long jitterMs(long periodMs) {
+    public static long jitterMs(long periodMs) {
         long window = Math.min(periodMs, MAX_JITTER_MS);
         if (window <= 0L) return 0L;
         return ThreadLocalRandom.current().nextLong(window);

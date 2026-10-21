@@ -25,9 +25,6 @@
         let simulation_stop;
         let error_duration;
 
-        let system_frequency_occupied = 0;
-        let simulation_frequency_occupied = 0;
-
         function onload() {
             device = [[${ device }]];
             error = [[${ simulation }]] == null ? undefined : [[${ simulation }]];
@@ -68,38 +65,8 @@
                 }
             }
 
-            $.ajax({
-                url: '/api/error/errors/' + device.id,
-                type: 'GET',
-                contentType: 'application/json',
-                success: function (data) {
-                    let system_errors = data.filter(e => e.mode !== 'SIMULATION')
-                    let simulation_errors = data.filter(e => e.mode === 'SIMULATION')
-
-                    system_errors.forEach(function (error) {
-                        system_frequency_occupied += error.frequency;
-                    })
-                    simulation_errors.forEach(function (error) {
-                        simulation_frequency_occupied += error.frequency;
-                    })
-
-                    frequency.on('change', function () {
-                        let errorMode = $('#errorMode').val()
-                        let frequency_remain = 100 - (errorMode === '4' ? simulation_frequency_occupied : system_frequency_occupied)
-
-                        if (error) {
-                            frequency_remain += error.frequency;
-                        }
-
-                        if (frequency.bootstrapSlider('getValue') >= frequency_remain) {
-                            frequency.bootstrapSlider('setValue', frequency_remain)
-                        }
-                    })
-                },
-                error: function (request) {
-                    alert(request.status + request.responseText);
-                }
-            });
+            // 과거엔 트랜잭션당 하나의 에러만 추첨됐어서 frequency 합을 100% 로 캡했지만,
+            // 지금은 각 에러가 자기 interval 로 독립 스케줄링된다. 합계 제한은 더 이상 의미가 없다.
         }
 
         function doSubmit() {
@@ -152,11 +119,6 @@
             let simulationSelect = $('#simulation');
 
             let mode = parseInt(value);
-
-            let frequency_remain = 100 - (mode === 4 ? simulation_frequency_occupied : system_frequency_occupied)
-            if (frequency.bootstrapSlider('getValue') >= frequency_remain) {
-                frequency.bootstrapSlider('setValue', frequency_remain)
-            }
 
             if (mode === 0 || mode === 3) {
                 formTimeout.hide();
