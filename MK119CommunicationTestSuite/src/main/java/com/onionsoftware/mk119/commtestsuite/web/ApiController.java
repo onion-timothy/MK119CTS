@@ -17,13 +17,11 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
-import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
-import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ErrorStateStats;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataSnapshot;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataWriteRequest;
 import com.onionsoftware.mk119.commtestsuite.web.bean.Session;
-import com.onionsoftware.mk119.commtestsuite.web.serverdata.ServerDataSessionRegistry;
+import com.onionsoftware.mk119.commtestsuite.web.serverdata.ServerDataWriteService;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.SystemUtils;
@@ -53,7 +51,7 @@ public class ApiController {
     private final SimulationService simulationService;
     private final IOServerInstances ioServerInstances;
     private final ErrorService errorService;
-    private final ServerDataSessionRegistry serverDataSessionRegistry;
+    private final ServerDataWriteService serverDataWriteService;
     private final SimulationTargetValidator simulationTargetValidator;
     private final Logger logger = LoggerFactory.getLogger("api");
 
@@ -129,111 +127,20 @@ public class ApiController {
     }
 
     /**
-     * 외부 시스템 연동용 ServerData 쓰기 (REST).
-     * 페이지 자체 UI 는 WS 로 write 하고, 이 엔드포인트는 서드파티/스크립트/CI 연동을 위해 존재한다.
-     * 내부적으로는 WS write 와 동일하게 {@code API_WRITE} 소스로 처리되며,
+     * ServerData 쓰기 (REST). Server Data 화면과 서드파티/스크립트/CI 가 쓴다.
+     * 검증과 쓰기는 {@link ServerDataWriteService} 가 하고(Test Plan 과 같은 경로),
+     * 여기서는 그 결과를 그대로 응답한다. {@code API_WRITE} 소스로 처리되며,
      * {@code ServerDataBridge} 를 통해 접속중인 WS 구독자에게도 자동 브로드캐스트된다.
      */
     @RequestMapping(value = "/devices/{device_id}/serverdata", method = RequestMethod.POST)
     public ResponseEntity<Map<String, Object>> writeServerData(
             @PathVariable Integer device_id,
             @RequestBody ServerDataWriteRequest req) {
-        Map<String, Object> resp = new LinkedHashMap<>();
-        if (req == null || req.getTarget() == null || req.getTarget().isEmpty()) {
-            resp.put("ok", false);
-            resp.put("error", "target is required");
-            return ResponseEntity.badRequest().body(resp);
-        }
-        Optional<IOServer> serverOpt = ioServerInstances.getServerInstance(device_id);
-        if (!serverOpt.isPresent() || serverOpt.get().getServerData() == null) {
-            resp.put("ok", false);
-            resp.put("error", "device_not_available");
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(resp);
-        }
-        // 만료 없는 lock 은 그 디바이스에 살아있는 편집 세션이 있을 때만 접수한다.
-        // 세션이 있으면 종료/ack timeout 시 clearDeviceLocks 가 반드시 회수하므로 lock 이 영구히 박히지 않는다.
-        // 세션 없는 호출(외부 스크립트/CI)은 만료 있는 lockSeconds > 0 을 써야 한다.
-        if (ServerData.isPermanentLockRequest(req.getLockSeconds())
-                && !serverDataSessionRegistry.hasActiveSession(device_id)) {
-            resp.put("ok", false);
-            resp.put("error", "permanent lock requires an active ServerData editing session on this device");
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(resp);
-        }
-        ServerData sd = serverOpt.get().getServerData();
-
-        // SNMP / GENERIC 은 맵 기반 저장이라 어떤 문자열이든 새 엔트리를 만들어버린다. 그래서
-        // 등록된 simulation 의 target 집합에 없는 쓰기는 거절한다. 판정 기준은 SNMP SET 경로
-        // (SnmpHandler.processSetRequest 는 미등록 OID 에 noSuchName 을 돌려준다)와 같게 맞췄다.
-        Device writeDevice = deviceOf(device_id);
-        if (writeDevice != null
-                && (writeDevice.getProtocol() == Protocol.SNMP
-                    || writeDevice.getProtocol() == Protocol.GENERIC)) {
-            // ServerData 의 색인을 쓴다. 핸들러가 보는 것과 같은 것을 봐야
-            // "화면에선 되는데 API 로는 안 된다" 같은 어긋남이 생기지 않는다.
-            boolean known = sd.simulationFor(req.getTarget()) != null;
-            if (!known) {
-                resp.put("ok", false);
-                resp.put("error", "No " + (writeDevice.getProtocol() == Protocol.SNMP ? "OID" : "field")
-                        + " for target \"" + req.getTarget()
-                        + "\". A simulation with that exact target must exist on this device.");
-                return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(resp);
-            }
-        }
-
-        // dataType 파싱은 쓰기와 분리한다. 한 try 로 묶으면 target 파싱 실패(NumberFormatException)도
-        // IllegalArgumentException 이라서 "invalid dataType" 으로 잘못 보고됐다.
-        DataType dt;
-        try {
-            dt = (req.getDataType() == null || req.getDataType().isEmpty())
-                    ? null : DataType.valueOf(req.getDataType());
-        } catch (IllegalArgumentException e) {
-            resp.put("ok", false);
-            resp.put("error", "invalid dataType: " + req.getDataType());
-            return ResponseEntity.badRequest().body(resp);
-        }
-        try {
-            sd.setServerData(req.getTarget(), req.getValue(), dt,
-                    ServerDataChangeSource.API_WRITE, req.getLockSeconds());
-            List<String> affected = sd.computeAffectedTargets(req.getTarget(), dt);
-            Map<String, Object> targetValues = new LinkedHashMap<>();
-            for (String t : affected) {
-                Number v = sd.readValueAt(t);
-                if (v != null) targetValues.put(t, v);
-            }
-            boolean locked = ServerData.isLockRequest(req.getLockSeconds());
-            boolean permanent = ServerData.isPermanentLockRequest(req.getLockSeconds());
-            resp.put("ok", true);
-            resp.put("target", req.getTarget());
-            resp.put("value", req.getValue());
-            resp.put("dataType", req.getDataType());
-            resp.put("source", ServerDataChangeSource.API_WRITE.name());
-            resp.put("affectedTargets", affected);
-            resp.put("targetValues", targetValues);
-            // lock 을 걸지 않았다면 다음 interval 에 simulation 이 값을 되돌린다는 점을 응답으로 알린다
-            resp.put("locked", locked);
-            resp.put("lockSeconds", locked ? req.getLockSeconds() : null);
-            // 영구 lock 은 편집 세션 종료 또는 lockSeconds=0 재전송으로만 풀린다
-            resp.put("lockPermanent", permanent);
-            resp.put("ts", System.currentTimeMillis());
-            return ResponseEntity.ok(resp);
-        } catch (UnsupportedOperationException e) {
-            // 이 프로토콜·이 target 은 target 기반 쓰기를 지원하지 않는다 (BACNET, 쓰기 불가 Modbus FC 등).
-            // 예전에는 조용히 no-op 하고 200 + lock 이 나갔다.
-            resp.put("ok", false);
-            resp.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(resp);
-        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
-            // target 형식 오류나 주소 범위 초과. 호출자가 고칠 수 있는 입력 문제이므로 400 으로 알린다.
-            resp.put("ok", false);
-            resp.put("error", "invalid target: " + req.getTarget()
-                    + " (" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + ")");
-            return ResponseEntity.badRequest().body(resp);
-        } catch (Exception e) {
-            LoggerFactory.getLogger("serverdata").error("REST API_WRITE failed: device={}, target={}, value={}, dataType={}", device_id, req.getTarget(), req.getValue(), req.getDataType(), e);
-            resp.put("ok", false);
-            resp.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(resp);
-        }
+        ServerDataWriteService.Result result = req == null
+                ? serverDataWriteService.write(device_id, null, 0, null, null)
+                : serverDataWriteService.write(device_id, req.getTarget(), req.getValue(),
+                        req.getDataType(), req.getLockSeconds());
+        return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
 
     @RequestMapping(value = "/group/addGroup", method = RequestMethod.PUT)
