@@ -88,27 +88,30 @@ public class ModbusHandler extends MkHandler {
                 length = 3;
                 out.writeShort(modbus.getRegister());
                 out.writeShort(modbus.getRequestSize());
+                // 응답은 쓰기 결과와 상관없이 그대로 나간다. lock 에 막혀 쓰지 못했으면 정지도 걸지 않는다.
+                boolean coilApplied = false;
                 try {
-                    modbusData.setServerData("1_" + modbus.getRegister(),
+                    coilApplied = modbusData.setServerData("1_" + modbus.getRegister(),
                             modbus.getRequestSize() == (short) 0xff00 ? 1.0 : 0.0,
                             null, ServerDataChangeSource.PROTOCOL_WRITE);
                 } catch (Exception e) {
                     LoggerFactory.getLogger("io").error("Modbus FC_05 setServerData failed for register {}", modbus.getRegister(), e);
                 }
-                applyStopOnControlFor(modbusData, "1_" + modbus.getRegister());
+                if (coilApplied) applyStopOnControlFor(modbusData, "1_" + modbus.getRegister());
                 break;
             case Modbus.FC_06:
                 length = 3;
                 out.writeShort(modbus.getRegister());
                 out.writeShort(modbus.getRequestSize());
+                boolean registerApplied = false;
                 try {
-                    modbusData.setServerData("3_" + modbus.getRegister(),
+                    registerApplied = modbusData.setServerData("3_" + modbus.getRegister(),
                             (double) modbus.getRequestSize(), DataType.SI16AB,
                             ServerDataChangeSource.PROTOCOL_WRITE);
                 } catch (Exception e) {
                     LoggerFactory.getLogger("io").error("Modbus FC_06 setServerData failed for register {}", modbus.getRegister(), e);
                 }
-                applyStopOnControlFor(modbusData, "3_" + modbus.getRegister());
+                if (registerApplied) applyStopOnControlFor(modbusData, "3_" + modbus.getRegister());
                 break;
             case Modbus.FC_16:
                 out.writeShort(modbus.getRegister());

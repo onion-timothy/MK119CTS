@@ -95,9 +95,10 @@ public class XGTHandler extends MkHandler {
                         dataType = DataType.SI32DA;
                     }
                     try {
-                        xgtData.setServerData(variable.getVarname(), (double) variable.getValue(),
+                        // lock 에 막혀 쓰지 못했으면 정지도 걸지 않는다. 응답은 그대로 나간다.
+                        boolean applied = xgtData.setServerData(variable.getVarname(), (double) variable.getValue(),
                                 dataType, ServerDataChangeSource.PROTOCOL_WRITE);
-                        Simulation hit = xgtData.simulationFor(variable.getVarname());
+                        Simulation hit = applied ? xgtData.simulationFor(variable.getVarname()) : null;
                         if (hit != null) simulationService.applyStopOnControl(hit);
                     } catch (Exception e) {
                         LoggerFactory.getLogger("io").error("XGTPLC Error on execute control.", e);

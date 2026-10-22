@@ -85,7 +85,7 @@ public class ServerDataSessionRegistry {
      * <p>
      * {@link #getActive(int)} 가 package-private {@code SessionInfo} 를 노출하므로
      * 다른 패키지(REST 컨트롤러)에서는 이 메서드를 쓴다.
-     * 세션이 있으면 종료/무효화 시 {@link #clearDeviceLocks(int)} 가 lock 을 회수하므로,
+     * 세션이 있으면 종료/무효화 시 {@link #clearDeviceLocks(int)} 가 만료 없는 lock 을 회수하므로,
      * 만료 없는 lock 요청을 받아줄 수 있는지 판단하는 기준이 된다.
      */
     public boolean hasActiveSession(int deviceId) {
@@ -118,11 +118,12 @@ public class ServerDataSessionRegistry {
         } catch (Exception ignored) { }
     }
 
+    /** 세션이 건 만료 없는 lock 만 푼다. 초 단위 lock 은 만료될 때까지 둔다. */
     private void clearDeviceLocks(int deviceId) {
         Optional<IOServer> opt = ioServerInstances.getServerInstance(deviceId);
         opt.ifPresent(s -> {
             if (s.getServerData() != null) {
-                s.getServerData().clearAllLocks();
+                s.getServerData().clearPermanentLocks();
             }
         });
     }

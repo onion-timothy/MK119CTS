@@ -11,6 +11,7 @@ import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.simulation.GroupedSimulationJob;
 import com.onionsoftware.mk119.commtestsuite.simulation.JitteredTrigger;
 import com.onionsoftware.mk119.commtestsuite.simulation.SimulationJobFactory;
@@ -147,7 +148,7 @@ public class SimulationService {
             updateSimulation(simulation);
             LoggerFactory.getLogger("simulation").info("Simulation {} permanently disabled by stopOnControl (device {}({}), target {}).", simulation.getId(), device.getName(), device.getId(), simulation.getTarget());
         } else {
-            stopSimulationFor(device, simulation, stopOnControl);
+            stopSimulationFor(device, simulation, stopOnControl, ServerDataChangeSource.PROTOCOL_WRITE);
             LoggerFactory.getLogger("simulation").info("Simulation {} stopped for {}s by stopOnControl (device {}({}), target {}).", simulation.getId(), stopOnControl, device.getName(), device.getId(), simulation.getTarget());
         }
     }
@@ -155,8 +156,11 @@ public class SimulationService {
     /**
      * target 을 seconds 초 동안 쓰기 보호해 그 Simulation 을 멈춘다.
      * ServerData 가 없는 장비(DB 프로토콜)는 걸 대상이 없으므로 아무 일도 하지 않는다.
+     *
+     * @param authority 정지를 건 경로 (stopOnControl 은 PROTOCOL_WRITE, simulation_stop 은 ERROR_SIMULATION)
      */
-    public void stopSimulationFor(Device device, Simulation simulation, int seconds) {
+    public void stopSimulationFor(Device device, Simulation simulation, int seconds,
+                                  ServerDataChangeSource authority) {
         if (seconds <= 0) return;
         ioServerInstances.getServerInstance(device.getId()).ifPresent(server -> {
             ServerData serverData = server.getServerData();
@@ -164,7 +168,7 @@ public class SimulationService {
             List<SimulationPolicy> policies = simulation.getPolicies();
             DataType dataType = (policies == null || policies.isEmpty())
                     ? null : policies.get(0).getData_type();
-            serverData.stopSimulationFor(simulation.getTarget(), seconds, dataType);
+            serverData.stopSimulationFor(simulation.getTarget(), seconds, dataType, authority);
         });
     }
 

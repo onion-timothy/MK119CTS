@@ -107,15 +107,18 @@ public class BACnetHandler extends MkHandler {
                                 .filter(e -> BACnetObjectIdentifier.matches(e.getTarget(), writeProperty.getOid()))
                                 .findAny().ifPresent(s -> {
                                     ByteBuf buf = writeProperty.encodeBACnetWritePropertyResponse(myDevice);
-                                    simulationService.applyStopOnControl(s);
+                                    // 쓰기 먼저, 정지는 실제로 썼을 때만. 예전에는 정지를 먼저 걸어서
+                                    // lock 에 막혀 쓰지 못한 제어에도 정지가 남았다. 응답은 그대로 나간다.
+                                    boolean applied = false;
                                     try {
                                         BACnetData bacnetData = (BACnetData) getTarget().getServerData();
-                                        bacnetData.setServerData(s,
+                                        applied = bacnetData.setServerData(s,
                                                 (double) writeProperty.getValue().getValue(),
                                                 ServerDataChangeSource.PROTOCOL_WRITE);
                                     } catch (Exception ex) {
                                         LoggerFactory.getLogger("io").error("BACnet setServerData failed for target {}", s.getTarget(), ex);
                                     }
+                                    if (applied) simulationService.applyStopOnControl(s);
                                     if (buf != null) {
                                         sendBuffer = buf.copy();
                                     } else {

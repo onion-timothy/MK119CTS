@@ -121,12 +121,14 @@ public class EthernetIPHandler extends MkHandler {
 
     private void processWrite(Simulation s, double value) {
         EthernetIPData data = (EthernetIPData) getTarget().getServerData();
+        // lock 에 막혀 쓰지 못했으면 정지도 걸지 않는다. 응답은 호출한 쪽이 그대로 보낸다.
+        boolean applied = false;
         try {
-            data.setServerData(s, value, ServerDataChangeSource.PROTOCOL_WRITE);
+            applied = data.setServerData(s, value, ServerDataChangeSource.PROTOCOL_WRITE);
         } catch (Exception e) {
             LoggerFactory.getLogger("io").error("EthernetIP setServerData failed for target {}", s.getTarget(), e);
         }
 
-        simulationService.applyStopOnControl(s);
+        if (applied) simulationService.applyStopOnControl(s);
     }
 }

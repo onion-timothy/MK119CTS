@@ -8,6 +8,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Modbus;
 import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,17 +27,26 @@ public abstract class ServerData {
     protected IOServer ioServer;
 
     /**
-     * 쓰기 보호 중인 target 집합. 값은 만료 시각.
+     * 쓰기 보호 중인 target 과 그 lock 의 authority·만료 시각.
      * <p>
-     * 거는 쪽은 둘이다. 사용자의 API/WS 편집(API_WRITE)과, Error/제어 수용의 정지(simulation_stop,
-     * stopOnControl). 둘을 구분해 담지 않는다 — 누가 걸었든 SIMULATION 계열 쓰기를 똑같이 막고,
-     * 사용자의 unlock/세션 종료는 똑같이 전부 푼다. 구분을 두면 화면에 "내가 못 푸는 잠금"이
-     * 생겨 사용자가 상태를 설명할 수 없게 된다.
+     * 거는 쪽은 셋이다. 사용자의 API 편집(API_WRITE — REST, 편집 세션, Test Plan),
+     * 제어 수용의 정지(stopOnControl, PROTOCOL_WRITE), Error 의 정지(simulation_stop, ERROR_SIMULATION).
+     * 누가 걸었는지에 따라 막는 쓰기가 다르다 — {@link ServerDataChangeSource#isBlockedBy}.
      */
-    private final Map<String, Long> lockedTargets = new ConcurrentHashMap<>();
+    private final Map<String, LockEntry> lockedTargets = new ConcurrentHashMap<>();
 
-    /** 만료 없는 lock(WS 편집 세션)에 쓰는 표식. 세션 종료 시 clearAllLocks 로 해제된다. */
+    /** 만료 없는 lock(편집 세션)에 쓰는 표식. 세션 종료 시 clearPermanentLocks 로 해제된다. */
     private static final long LOCK_NO_EXPIRY = Long.MAX_VALUE;
+
+    private static final class LockEntry {
+        final ServerDataChangeSource authority;
+        final long until;
+
+        LockEntry(ServerDataChangeSource authority, long until) {
+            this.authority = authority;
+            this.until = until;
+        }
+    }
 
     /** lockSeconds 로 이 값(또는 아무 음수)을 보내면 만료 없는 lock 이 된다. */
     public static final int PERMANENT_LOCK_SECONDS = -1;
@@ -196,11 +206,16 @@ public abstract class ServerData {
      * 쓰기 보호와 같은 수단을 쓰므로 정지 중에는 값이 멈출 뿐 아니라
      * ACCUMULATE 누적이나 SEQUENCE 위치도 나아가지 않는다.
      * 0 이하는 "정지 없음" 으로 본다 — 음수 동작은 정의하지 않는다.
+     *
+     * @param authority 정지를 건 경로. stopOnControl 은 PROTOCOL_WRITE, simulation_stop 은 ERROR_SIMULATION.
+     *                  더 높은 authority 의 lock 이 걸린 칸은 덮지 않는다.
      */
-    public void stopSimulationFor(String target, Integer seconds, DataType dataType) {
+    public void stopSimulationFor(String target, Integer seconds, DataType dataType,
+                                  ServerDataChangeSource authority) {
         if (seconds == null || seconds <= 0) return;
+        long until = System.currentTimeMillis() + seconds * 1000L;
         for (String t : computeAffectedTargets(target, dataType)) {
-            lock(t, seconds);
+            putLock(t, until, authority);
         }
     }
 
@@ -308,40 +323,96 @@ public abstract class ServerData {
         return out;
     }
 
-    /** SIMULATION 계열 소스에서 lock 대상 target 을 만나면 조용히 skip. */
+    /**
+     * 쓰기가 lock 에 막히는지. 규칙은 {@link ServerDataChangeSource#isBlockedBy} 가 정한다.
+     * <p>
+     * 시뮬레이션 계열은 조용히 skip 한다. PROTOCOL_WRITE 는 핸들러가 응답을 평소대로 보내므로
+     * 값을 쓰지 않았다는 사실이 여기 로그로만 남는다.
+     */
     protected boolean isBlockedByLock(String target, ServerDataChangeSource source) {
-        return (source == ServerDataChangeSource.VALUE_SIMULATION
-                || source == ServerDataChangeSource.ERROR_SIMULATION)
-                && isLocked(target);   // 만료된 lock 은 여기서 자동으로 걸러진다
-    }
-
-    /** 만료 없는 lock. WS 편집 세션이 쓰며, 세션 종료 시 {@link #clearAllLocks()} 로 풀린다. */
-    public void lock(String target) {
-        lockedTargets.put(target, LOCK_NO_EXPIRY);
+        for (String key : lockKeysOf(target)) {
+            LockEntry entry = liveLock(key);   // 만료된 lock 은 여기서 자동으로 걸러진다
+            if (entry == null || !source.isBlockedBy(entry.authority)) continue;
+            if (source == ServerDataChangeSource.PROTOCOL_WRITE) {
+                LoggerFactory.getLogger("serverdata").info(
+                        "PROTOCOL_WRITE ignored on device {}: target {} is locked by {}.",
+                        deviceLabel(), key, entry.authority);
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
-     * 초 단위 만료가 있는 lock.
+     * target 의 lock 을 찾을 때 볼 키. lock 은 값이 실제로 사는 칸에 걸리므로 그 칸으로 찾는다.
+     * <p>
+     * XGT 는 byte 번지가 그 칸이다. 쓰기와 정지가 {@link #computeAffectedTargets} 로
+     * {@code %DB100}, {@code %DB101} 처럼 byte 단위로 lock 을 거는데, 예전에는 판정을
+     * {@code %DW50} 그대로 해서 lock 을 못 찾고 시뮬레이션이 잠긴 값을 덮었다.
+     * 그래서 W/D target 은 차지하는 byte 를 모두 보고, 하나라도 잠겨 있으면 잠긴 것으로 본다.
+     * 다른 프로토콜은 target 그대로다.
+     */
+    private List<String> lockKeysOf(String target) {
+        if (this instanceof XGTData && target != null) {
+            try {
+                return computeAffectedTargets(target, null);
+            } catch (RuntimeException e) {
+                // 번지를 읽을 수 없는 target. 쓰기 쪽이 형식 오류로 따로 거절한다.
+            }
+        }
+        return Collections.singletonList(target);
+    }
+
+    /** 만료 없는 API_WRITE lock. 편집 세션이 끝날 때 {@link #clearPermanentLocks()} 로 풀린다. */
+    public void lock(String target) {
+        putLock(target, LOCK_NO_EXPIRY, ServerDataChangeSource.API_WRITE);
+    }
+
+    /**
+     * API_WRITE 의 lock. 초 단위 만료를 지정한다.
      * <ul>
-     *   <li>{@code seconds > 0} : 해당 초 후 자동 해제. 세션이 없는 외부 REST 호출용.</li>
+     *   <li>{@code seconds > 0} : 해당 초 후 자동 해제. 세션이 없는 외부 REST 호출과 Test Plan 용.</li>
      *   <li>{@code seconds < 0} ({@link #PERMANENT_LOCK_SECONDS} 가 표준값) : 만료 없는 lock.
      *       호출자에게 살아있는 편집 세션이 있을 때만 접수되며, 세션 종료 시
-     *       {@link #clearAllLocks()} 로 함께 풀린다.
+     *       {@link #clearPermanentLocks()} 로 풀린다.
      *       음수 전체를 같게 보는 이유는 {@code -2} 같은 값이 조용히 "lock 안 함" 으로
      *       떨어져 호출자 의도와 어긋나는 걸 막기 위한 것이다.</li>
-     *   <li>{@code null} 또는 {@code 0} : lock 하지 않는다 (기존 lock 이 있으면 해제한다).</li>
+     *   <li>{@code null} 또는 {@code 0} : lock 하지 않는다 (기존 lock 이 있으면 해제한다).
+     *       API_WRITE 가 최상위 authority 라서 누가 건 lock 이든 풀린다.</li>
      * </ul>
      */
     public void lock(String target, Integer seconds) {
         if (isPermanentLockRequest(seconds)) {
-            lockedTargets.put(target, LOCK_NO_EXPIRY);
+            putLock(target, LOCK_NO_EXPIRY, ServerDataChangeSource.API_WRITE);
             return;
         }
         if (seconds == null || seconds <= 0) {
             lockedTargets.remove(target);
             return;
         }
-        lockedTargets.put(target, System.currentTimeMillis() + seconds * 1000L);
+        putLock(target, System.currentTimeMillis() + seconds * 1000L, ServerDataChangeSource.API_WRITE);
+    }
+
+    /**
+     * lock 을 건다. 살아 있는 lock 의 authority 가 더 높으면 덮지 않는다 —
+     * 낮은 쪽이 높은 쪽의 lock 을 줄이거나 바꾸지 못하게 하기 위해서다.
+     * 같은 authority 면 나중 것으로 갱신한다(만료 시각 포함).
+     */
+    private void putLock(String target, long until, ServerDataChangeSource authority) {
+        long now = System.currentTimeMillis();
+        lockedTargets.compute(target, (k, cur) -> {
+            if (cur != null && (cur.until == LOCK_NO_EXPIRY || now < cur.until)
+                    && cur.authority.authority() > authority.authority()) {
+                return cur;
+            }
+            return new LockEntry(authority, until);
+        });
+    }
+
+    /** 로그용 장비 표기. ioServer 가 아직 wire 되지 않았으면 "?" . */
+    private String deviceLabel() {
+        if (ioServer == null || ioServer.getDevice() == null) return "?";
+        return ioServer.getDevice().getName() + "(" + ioServer.getDevice().getId() + ")";
     }
 
     /** 만료 없는 lock 요청인지. 음수는 모두 영구 lock 요청으로 본다. */
@@ -359,27 +430,40 @@ public abstract class ServerData {
     }
 
     public boolean isLocked(String target) {
-        Long until = lockedTargets.get(target);
-        if (until == null) return false;
-        if (until != LOCK_NO_EXPIRY && System.currentTimeMillis() >= until) {
-            lockedTargets.remove(target);   // 만료분은 조회 시점에 치운다
-            return false;
+        for (String key : lockKeysOf(target)) {
+            if (liveLock(key) != null) return true;
         }
-        return true;
+        return false;
     }
 
-    public void clearAllLocks() {
-        lockedTargets.clear();
+    /** 살아 있는 lock. 없거나 만료됐으면 null 이고, 만료분은 조회 시점에 치운다. */
+    private LockEntry liveLock(String target) {
+        LockEntry entry = lockedTargets.get(target);
+        if (entry == null) return null;
+        if (entry.until != LOCK_NO_EXPIRY && System.currentTimeMillis() >= entry.until) {
+            lockedTargets.remove(target, entry);
+            return null;
+        }
+        return entry;
+    }
+
+    /**
+     * 만료 없는 lock 만 푼다. 편집 세션이 끝날 때 부른다.
+     * 만료 없는 lock 은 편집 세션만 걸 수 있으므로 곧 세션 자신의 lock 이다.
+     * 초 단위 lock 은 누가 걸었든 — 세션 자신이라도 — 만료될 때까지 둔다.
+     */
+    public void clearPermanentLocks() {
+        lockedTargets.values().removeIf(e -> e.until == LOCK_NO_EXPIRY);
     }
 
     /** 만료된 항목을 제외한 현재 lock 목록. */
     public Set<String> getLockedTargets() {
         long now = System.currentTimeMillis();
         Set<String> live = new HashSet<>();
-        Iterator<Map.Entry<String, Long>> it = lockedTargets.entrySet().iterator();
+        Iterator<Map.Entry<String, LockEntry>> it = lockedTargets.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, Long> e = it.next();
-            if (e.getValue() != LOCK_NO_EXPIRY && now >= e.getValue()) {
+            Map.Entry<String, LockEntry> e = it.next();
+            if (e.getValue().until != LOCK_NO_EXPIRY && now >= e.getValue().until) {
                 it.remove();
             } else {
                 live.add(e.getKey());

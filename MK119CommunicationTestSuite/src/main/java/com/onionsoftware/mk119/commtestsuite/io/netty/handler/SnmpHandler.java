@@ -123,12 +123,14 @@ public class SnmpHandler extends MkHandler {
                 Simulation simulation = found;
                 ret.add(snmpVarBind);
                 double valueToWrite = Double.parseDouble(snmpVarBind.getValue().toString());
+                // 응답(varbind)은 쓰기 결과와 상관없이 그대로 나간다. lock 에 막혀 쓰지 못했으면 정지도 걸지 않는다.
+                boolean applied = false;
                 try {
-                    snmpData.setServerData(simulation, valueToWrite, ServerDataChangeSource.PROTOCOL_WRITE);
+                    applied = snmpData.setServerData(simulation, valueToWrite, ServerDataChangeSource.PROTOCOL_WRITE);
                 } catch (Exception e) {
                     LoggerFactory.getLogger("io").error("SNMP setServerData failed for OID {}", oid.toString(), e);
                 }
-                simulationService.applyStopOnControl(simulation);
+                if (applied) simulationService.applyStopOnControl(simulation);
             } else {
                 packet.setErrorIndex(1);
                 packet.setErrorStatus(2);

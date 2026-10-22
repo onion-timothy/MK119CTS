@@ -66,7 +66,8 @@ public class SimulationErrorJob implements Runnable {
         // DB 장비는 ServerData 가 없어 걸 대상이 없으므로 그대로 넘어간다.
         int simStop = error.getSimulation_stop() == null ? 0 : error.getSimulation_stop();
         if (simStop > 0 && protocol != Protocol.DB) {
-            simulationService.stopSimulationFor(simulation.getDevice(), simulation, simStop);
+            simulationService.stopSimulationFor(simulation.getDevice(), simulation, simStop,
+                    ServerDataChangeSource.ERROR_SIMULATION);
             LoggerFactory.getLogger("simulation").info("Simulation stopped for device {}({}) target {} for {}s.", simulation.getDevice().getName(), simulation.getDevice().getId(), simulation.getTarget(), simStop);
         }
     }
