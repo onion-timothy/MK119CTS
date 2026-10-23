@@ -43,6 +43,12 @@ public class XGTData extends ServerData {
         }
     }
 
+    /** XGT target 은 대문자로 관리한다. {@code %dw10} 과 {@code %DW10} 은 같은 번지다. */
+    @Override
+    protected String canonicalTarget(String target) {
+        return target == null ? null : target.toUpperCase(java.util.Locale.ROOT);
+    }
+
     @Override
     public void resetServerData() {
         Arrays.fill(mblock, (byte) 0);

@@ -84,7 +84,7 @@ public abstract class ServerData {
         Map<String, Simulation> exact = new ConcurrentHashMap<>();
         Map<String, Simulation> covered = new ConcurrentHashMap<>();
         for (Simulation s : simulations) {
-            String target = s.getTarget();
+            String target = canonicalTarget(s.getTarget());
             if (target == null || target.isEmpty()) continue;
             exact.putIfAbsent(target, s);
             List<SimulationPolicy> policies = s.getPolicies();
@@ -115,6 +115,7 @@ public abstract class ServerData {
      */
     public Simulation simulationFor(String target) {
         if (target == null) return null;
+        target = canonicalTarget(target);
         Simulation hit = indexExact.get(target);
         return hit != null ? hit : indexCovered.get(target);
     }
@@ -131,6 +132,15 @@ public abstract class ServerData {
      */
     protected Collection<String> aliasesOf(Simulation simulation) {
         return Collections.emptyList();
+    }
+
+    /**
+     * target 의 내부 표기. 같은 번지를 가리키는 표기가 여럿이면 하나로 모은다.
+     * 쓰기·색인·lock·값 읽기가 모두 이걸 거치므로, 들어오는 경로(REST, 시뮬레이션,
+     * 프로토콜, Test Plan)가 어떤 표기를 쓰든 같은 칸으로 판정된다. 기본은 그대로다.
+     */
+    protected String canonicalTarget(String target) {
+        return target;
     }
 
     public abstract void resetServerData();
@@ -154,7 +164,7 @@ public abstract class ServerData {
      * @return 실제로 썼으면 true, lock 에 막혀 아무것도 안 했으면 false
      */
     public boolean setServerData(Simulation simulation, double value, ServerDataChangeSource source) throws Exception {
-        String target = simulation.getTarget();
+        String target = canonicalTarget(simulation.getTarget());
         if (isBlockedByLock(target, source)) return false;
 
         List<SimulationPolicy> policies = simulation.getPolicies();
@@ -175,6 +185,7 @@ public abstract class ServerData {
      * @return 실제로 썼으면 true, lock 에 막혀 아무것도 안 했으면 false
      */
     public boolean setServerData(String target, double value, DataType dataType, ServerDataChangeSource source) throws Exception {
+        target = canonicalTarget(target);
         if (isBlockedByLock(target, source)) return false;
         applySetServerData(target, value, dataType);
         List<String> affected = computeAffectedTargets(target, dataType);
@@ -191,6 +202,7 @@ public abstract class ServerData {
      */
     public boolean setServerData(String target, double value, DataType dataType,
                                  ServerDataChangeSource source, Integer lockSeconds) throws Exception {
+        target = canonicalTarget(target);
         if (isBlockedByLock(target, source)) return false;
         applySetServerData(target, value, dataType);
         List<String> affected = computeAffectedTargets(target, dataType);
@@ -230,6 +242,7 @@ public abstract class ServerData {
      */
     public Number readValueAt(String target) {
         if (target == null) return null;
+        target = canonicalTarget(target);
         if (this instanceof ModbusData && target.contains("_")) {
             ModbusData m = (ModbusData) this;
             String[] tk = target.split("_");
@@ -292,6 +305,7 @@ public abstract class ServerData {
     }
 
     public List<String> computeAffectedTargets(String baseTarget, DataType dataType) {
+        baseTarget = canonicalTarget(baseTarget);
         List<String> out = new ArrayList<>();
         if (this instanceof ModbusData && baseTarget != null && baseTarget.contains("_")) {
             String[] tk = baseTarget.split("_");
@@ -426,7 +440,7 @@ public abstract class ServerData {
     }
 
     public void unlock(String target) {
-        lockedTargets.remove(target);
+        lockedTargets.remove(canonicalTarget(target));
     }
 
     public boolean isLocked(String target) {

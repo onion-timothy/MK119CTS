@@ -8,6 +8,7 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataValueRules;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -117,6 +118,14 @@ public class ServerDataWriteService {
             dt = (dataType == null || dataType.isEmpty()) ? null : DataType.valueOf(dataType);
         } catch (IllegalArgumentException e) {
             return Result.fail(HttpStatus.BAD_REQUEST, "invalid dataType: " + dataType);
+        }
+        // 타입에 맞지 않는 값은 거절한다. 쓰기 경로는 그런 값을 조용히 잘라 쓰거나(소수, 범위 초과)
+        // 아무것도 하지 않은 채 성공으로 끝냈다(dataType 없는 Modbus 레지스터).
+        Protocol protocol = writeDevice == null ? null : writeDevice.getProtocol();
+        String typeError = ServerDataValueRules.dataTypeError(protocol, target, dt);
+        if (typeError == null) typeError = ServerDataValueRules.valueError(protocol, target, dt, value);
+        if (typeError != null) {
+            return Result.fail(HttpStatus.BAD_REQUEST, typeError);
         }
         try {
             sd.setServerData(target, value, dt, ServerDataChangeSource.API_WRITE, lockSeconds);

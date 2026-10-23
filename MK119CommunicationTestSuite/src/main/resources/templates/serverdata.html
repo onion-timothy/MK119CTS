@@ -2634,7 +2634,7 @@
             target: $('#editTarget').val(),
             value: validated.value,
             // -1 = permanent lock: simulations must not overwrite what the editor just wrote.
-            // Released when this editing session ends (disconnect or ack timeout → clearAllLocks).
+            // Released when this editing session ends (disconnect or ack timeout → clearPermanentLocks).
             lockSeconds: -1
         };
         if ($('#editDataTypeGroup').is(':visible')) {

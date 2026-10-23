@@ -193,43 +193,59 @@ public class ByteBufUtils {
     }
 
     public static void writeSI32AD(ByteBuf out, Double value) {
-        out.writeInt(value.intValue());
+        writeInt32AD(out, value.intValue());
     }
 
     public static void writeSI32CB(ByteBuf out, Double value) {
-        int v = value.intValue();
+        writeInt32CB(out, value.intValue());
+    }
+
+    public static void writeSI32BC(ByteBuf out, Double value) {
+        writeInt32BC(out, value.intValue());
+    }
+
+    public static void writeSI32DA(ByteBuf out, Double value) {
+        writeInt32DA(out, value.intValue());
+    }
+
+    // UI32 는 long 으로 바꾼 뒤 하위 32비트를 쓴다. 예전에는 SI32 와 같이 intValue() 를 써서
+    // 2147483647 을 넘는 값이 전부 0x7FFFFFFF 로 잘렸다 (double -> int 변환은 범위 밖을 끝값으로 붙인다).
+    public static void writeUI32AD(ByteBuf out, Double value) {
+        writeInt32AD(out, (int) value.longValue());
+    }
+
+    public static void writeUI32CB(ByteBuf out, Double value) {
+        writeInt32CB(out, (int) value.longValue());
+    }
+
+    public static void writeUI32BC(ByteBuf out, Double value) {
+        writeInt32BC(out, (int) value.longValue());
+    }
+
+    public static void writeUI32DA(ByteBuf out, Double value) {
+        writeInt32DA(out, (int) value.longValue());
+    }
+
+    private static void writeInt32AD(ByteBuf out, int v) {
+        out.writeInt(v);
+    }
+
+    private static void writeInt32CB(ByteBuf out, int v) {
         int a = (v >> 16) & 0xffff;
         int b = v & 0xffff;
         out.writeShort(b);
         out.writeShort(a);
     }
 
-    public static void writeSI32BC(ByteBuf out, Double value) {
-        int v = value.intValue();
+    private static void writeInt32BC(ByteBuf out, int v) {
         int a = (v >> 16) & 0xffff;
         int b = v & 0xffff;
         out.writeShortLE(a);
         out.writeShortLE(b);
     }
 
-    public static void writeSI32DA(ByteBuf out, Double value) {
-        out.writeIntLE(value.intValue());
-    }
-
-    public static void writeUI32AD(ByteBuf out, Double value) {
-        writeSI32AD(out, value);
-    }
-
-    public static void writeUI32CB(ByteBuf out, Double value) {
-        writeSI32CB(out, value);
-    }
-
-    public static void writeUI32BC(ByteBuf out, Double value) {
-        writeSI32BC(out, value);
-    }
-
-    public static void writeUI32DA(ByteBuf out, Double value) {
-        writeSI32DA(out, value);
+    private static void writeInt32DA(ByteBuf out, int v) {
+        out.writeIntLE(v);
     }
 
     public static void writeSI64AH(ByteBuf out, Double value) {
