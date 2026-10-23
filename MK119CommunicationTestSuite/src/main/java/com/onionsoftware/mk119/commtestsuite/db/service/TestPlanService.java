@@ -133,7 +133,7 @@ public class TestPlanService {
     // ── 실행 이력 ────────────────────────────────────────────────────────
 
     public List<TestPlanRun> selectRuns(Integer planId, int limit) {
-        return testPlanRunRepository.findByPlanIdOrderByIdDesc(planId, PageRequest.of(0, Math.max(1, limit)));
+        return testPlanRunRepository.findByPlan_IdOrderByIdDesc(planId, PageRequest.of(0, Math.max(1, limit)));
     }
 
     public Optional<TestPlanRun> selectRun(Long runId) {
