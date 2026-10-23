@@ -4,7 +4,9 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
+import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
 import org.springframework.stereotype.Component;
 
 import java.util.regex.Pattern;
@@ -82,6 +84,9 @@ public class SimulationTargetValidator {
         if (device == null || device.getProtocol() == null) return null;
         if (target == null || target.trim().isEmpty()) return "Missing target.";
         String t = target.trim();
+        if ((dataType == DataType.BOOL || dataType == DataType.BITS) && device.getProtocol() != Protocol.ETHERNET_IP) {
+            return "Data type " + dataType + " is for EtherNet/IP only.";
+        }
 
         switch (device.getProtocol()) {
             case BACNET:
@@ -194,17 +199,20 @@ public class SimulationTargetValidator {
                 return null;
 
             case ETHERNET_IP: {
-                int at = t.indexOf('@');
-                if (at <= 0 || at == t.length() - 1) {
-                    return "Invalid EtherNet/IP target \"" + t + "\". Expected \"<CIPType>@<Tag>\""
-                            + " (e.g. \"REAL@TAG1\").";
+                // target 은 태그 이름이다. 타입은 data_type 이 정하고 패킷이 나갈 때 CIP 타입으로 바뀐다.
+                // 예전 형식(REAL@TAG1)도 받는다 — 저장할 때 접두어를 떼고 그 타입을 data_type 으로 옮긴다
+                String prefix = EthernetIPTypes.legacyPrefixOf(t);
+                String tag = EthernetIPTypes.tagOf(t);
+                if (tag.isEmpty() || tag.indexOf('@') >= 0 || tag.indexOf(' ') >= 0) {
+                    return "Invalid EtherNet/IP target \"" + t + "\". Use the tag name"
+                            + " (e.g. \"TAG1\" or \"sys_runtime_acc[0]\").";
                 }
-                String type = t.substring(0, at);
-                if (etherip.types.CIPData.Type.forName(type) == null) {
-                    return "Unknown CIP type \"" + type + "\" in \"" + t
-                            + "\". Supported types: BOOL, SINT, INT, DINT, REAL.";
+                if (prefix != null) return cipTypeMismatch(prefix, dataType, t);
+                if (dataType != null && EthernetIPTypes.cipTypeOf(dataType) == null) {
+                    return "Data type " + dataType + " cannot be sent over EtherNet/IP. Use "
+                            + EthernetIPTypes.SUPPORTED + ".";
                 }
-                return cipTypeMismatch(type, dataType, t);
+                return null;
             }
 
             // GENERIC: tx 필드명은 자유 형식이라 등록을 막지 않는다 (API 쓰기 시점에 존재 확인).
@@ -237,17 +245,23 @@ public class SimulationTargetValidator {
 
         switch (cipType.toUpperCase()) {
             case "BOOL":
+                expected = "BOOL";
+                if (dataType == DataType.BOOL || (!real && bytes == 1)) return null;
+                break;
             case "SINT":
                 expected = "UI8 or SI8";
-                if (!real && bytes == 1) return null;
+                if (dataType != DataType.BOOL && !real && bytes == 1) return null;
                 break;
             case "INT":
                 expected = "a 16-bit integer type (UI16AB, SI16AB, ...)";
                 if (!real && bytes == 2) return null;
                 break;
             case "DINT":
-            case "BITS":
                 expected = "a 32-bit integer type (UI32AD, SI32AD, ...)";
+                if (dataType != DataType.BITS && !real && bytes == 4) return null;
+                break;
+            case "BITS":
+                expected = "BITS or a 32-bit integer type";
                 if (!real && bytes == 4) return null;
                 break;
             case "REAL":

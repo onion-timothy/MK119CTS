@@ -2,8 +2,10 @@ package com.onionsoftware.mk119.commtestsuite.db.service;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
 import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlan;
 import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanAction;
+import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.enums.ScheduleType;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +28,7 @@ class TestPlanValidatorTest {
     private TestPlanValidator validator;
     private TestPlanService testPlanService;
 
-    private static final int MODBUS = 1, XGT = 2, SNMP = 3, DB = 4, DAEYUN = 5, BACNET = 6;
+    private static final int MODBUS = 1, XGT = 2, SNMP = 3, DB = 4, DAEYUN = 5, BACNET = 6, EIP = 7;
 
     @BeforeEach
     void setUp() {
@@ -39,7 +41,12 @@ class TestPlanValidatorTest {
                 device(SNMP, "snmp", Protocol.SNMP, null),
                 device(DB, "db", Protocol.DB, null),
                 device(DAEYUN, "dy", Protocol.DAEYUN_RCU, null),
-                device(BACNET, "bac", Protocol.BACNET, null)));
+                device(BACNET, "bac", Protocol.BACNET, null),
+                device(EIP, "eip", Protocol.ETHERNET_IP, null)));
+        when(simulationService.selectSimulationsByDeviceId(EIP)).thenReturn(Arrays.asList(
+                simulation("TAG1", DataType.FP32AD),
+                simulation("REAL@OLD", DataType.FP32AD),      // 아직 옮기지 않은 예전 형식
+                simulation("FLAG", DataType.BOOL)));
         when(simulationService.selectSimulationsByDeviceId(SNMP)).thenReturn(
                 Collections.singletonList(simulation("1.3.6.1.4.1.1.0")));
         when(simulationService.selectSimulationsByDeviceId(BACNET)).thenReturn(
@@ -216,6 +223,34 @@ class TestPlanValidatorTest {
     }
 
     @Test
+    void ethernetIpWritesRegisteredTagsWithTheirType() {
+        // 태그 이름만, dataType 없이: 태그의 타입(REAL)으로 쓴다
+        TestPlanValidator.Outcome ok = validator.validatePlan(plan("E", action(EIP, "TAG1", 1.5, null, null, 0, null)), null);
+        assertTrue(ok.isOk(), () -> rules(ok).toString());
+        assertEquals("TAG1", ok.getPlan().getActions().get(0).getTarget());
+        // 예전 형식도 받고 태그 이름으로 저장한다. 아직 옮기지 않은 Simulation(REAL@OLD) 도 태그로 찾는다
+        TestPlanValidator.Outcome legacy = validator.validatePlan(plan("E", action(EIP, "REAL@OLD", 2, null, null, 0, null)), null);
+        assertTrue(legacy.isOk(), () -> rules(legacy).toString());
+        assertEquals("OLD", legacy.getPlan().getActions().get(0).getTarget());
+        // A4 등록되지 않은 태그
+        assertRule("A4", validator.validatePlan(plan("E", action(EIP, "NOPE", 1, null, null, 0, null)), null));
+        // A6 태그와 다른 타입: 접두어로 말하든 dataType 으로 말하든
+        assertRule("A6", validator.validatePlan(plan("E", action(EIP, "INT@TAG1", 1, null, null, 0, null)), null));
+        assertRule("A6", validator.validatePlan(plan("E", action(EIP, "TAG1", 1, "SI16AB", null, 0, null)), null));
+        // A3 EtherNet/IP 로 보낼 수 없는 타입
+        assertRule("A3", validator.validatePlan(plan("E", action(EIP, "TAG1", 1, "FP64AH", null, 0, null)), null));
+        // A10 dataType 이 없으면 태그의 타입으로 값을 본다: BOOL 태그에 2
+        assertRule("A10", validator.validatePlan(plan("E", action(EIP, "FLAG", 2, null, null, 0, null)), null));
+        assertTrue(validator.validatePlan(plan("E", action(EIP, "FLAG", 1, null, null, 0, null)), null).isOk());
+    }
+
+    @Test
+    void boolAndBitsAreForEthernetIpOnly() {
+        assertRule("A3", validator.validatePlan(plan("B", action(MODBUS, "3_1", 1, "BOOL", null, 0, null)), null));
+        assertRule("A3", validator.validatePlan(plan("B", action(XGT, "%DD1", 1, "BITS", null, 0, null)), null));
+    }
+
+    @Test
     void a9ValueMustBeFiniteNumber() {
         assertRule("A9", validator.validatePlan(plan("A9", action(MODBUS, "3_1", null, "UI16AB", null, 0, null)), null));
         Map<String, Object> text = action(MODBUS, "3_1", null, "UI16AB", null, 0, null);
@@ -381,6 +416,14 @@ class TestPlanValidatorTest {
     private static Simulation simulation(String target) {
         Simulation s = new Simulation();
         s.setTarget(target);
+        return s;
+    }
+
+    private static Simulation simulation(String target, DataType dataType) {
+        Simulation s = simulation(target);
+        SimulationPolicy p = new SimulationPolicy();
+        p.setData_type(dataType);
+        s.setPolicies(Collections.singletonList(p));
         return s;
     }
 

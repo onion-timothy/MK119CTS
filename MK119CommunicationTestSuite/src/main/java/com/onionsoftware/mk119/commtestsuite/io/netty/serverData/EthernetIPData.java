@@ -2,6 +2,8 @@ package com.onionsoftware.mk119.commtestsuite.io.netty.serverData;
 
 
 import org.slf4j.LoggerFactory;
+import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,16 +25,24 @@ public class EthernetIPData extends ServerData {
     private int implicit_t_o_addr;
 
     /**
-     * EtherNet/IP 는 패킷에 태그 이름만 실려 온다. target 은 {@code REAL@TAG1} 형식이므로
-     * {@code TAG1} 로도 찾을 수 있도록 보조 키를 단다.
+     * EtherNet/IP 의 칸은 태그다. 예전 target 의 CIP 타입 접두어({@code REAL@TAG1})는 떼고 태그 이름으로 모은다.
+     * 쓰기·색인·lock·값 읽기가 모두 이걸 거치므로, 패킷에 태그 이름만 실려 와도 같은 칸으로 판정된다.
      */
     @Override
-    protected Collection<String> aliasesOf(
-            com.onionsoftware.mk119.commtestsuite.db.bean.Simulation simulation) {
-        String target = simulation.getTarget();
-        int at = target == null ? -1 : target.indexOf('@');
-        if (at < 0 || at + 1 >= target.length()) return Collections.emptyList();
-        return Collections.singletonList(target.substring(at + 1));
+    protected String canonicalTarget(String target) {
+        return EthernetIPTypes.tagOf(target);
+    }
+
+    /** 태그의 CTS DataType. 그 태그로 등록된 Simulation 의 첫 정책이 정한다. 없으면 null. */
+    public DataType dataTypeOf(String tag) {
+        Simulation s = simulationFor(tag);
+        if (s == null || s.getPolicies() == null || s.getPolicies().isEmpty()) return null;
+        return s.getPolicies().get(0).getData_type();
+    }
+
+    /** 태그가 나갈 CIP 타입. 등록되지 않았거나 담을 수 없는 타입이면 null. */
+    public CIPData.Type cipTypeOf(String tag) {
+        return EthernetIPTypes.cipTypeOf(dataTypeOf(tag));
     }
 
     public EthernetIPData(Map<Object, Object> communicationSettings) {
@@ -42,36 +52,37 @@ public class EthernetIPData extends ServerData {
     }
 
     /**
-     * Simulation에서 값을 넣는다. Tag의 Type Prefix와 value로 CIPData를 Wrapping한다.
+     * 태그에 값을 넣는다. CTS DataType 을 CIP 타입으로 바꿔 담는다.
+     * dataType 이 없으면 그 태그로 등록된 Simulation 의 data_type 을 쓴다.
      * <p>
-     * 실패를 삼키지 않고 호출자에게 던진다. 예전에는 로그만 남겼기 때문에,
-     * {@code @} 가 없는 잘못된 target 을 REST 로 보내면 아무것도 쓰이지 않았는데도
+     * 실패를 삼키지 않고 호출자에게 던진다. 예전에는 로그만 남겨, 쓰지도 못한 REST 쓰기에
      * 200 이 나가고 lock 까지 걸렸다.
      *
-     * @param tag Type prefix@Ethernet/IP Tag
-     * @param value 시뮬레이션 값
-     * @throws IllegalArgumentException target 형식이 {@code <CIPType>@<Tag>} 가 아니거나 CIPType 이 없을 때
+     * @param target 태그 이름. 예전 형식의 접두어가 붙어 있으면 뗀다
+     * @throws IllegalArgumentException 태그가 비었거나, 타입을 정할 수 없거나, CIP 로 담을 수 없는 타입일 때
      */
-    public void putTagValue(String tag, Double value) {
-        String[] tokens = tag.split("@");
-        if (tokens.length < 2 || tokens[0].isEmpty() || tokens[1].isEmpty()) {
-            throw new IllegalArgumentException(
-                    "EthernetIP target must be \"<CIPType>@<Tag>\" (e.g. REAL@TAG1). target=" + tag);
+    public void putTagValue(String target, Double value, DataType dataType) {
+        String tag = EthernetIPTypes.tagOf(target);
+        if (tag == null || tag.isEmpty()) {
+            throw new IllegalArgumentException("EtherNet/IP target must be a tag name. target=" + target);
         }
-
-        CIPData.Type type = CIPData.Type.forName(tokens[0]);
+        DataType dt = dataType != null ? dataType : dataTypeOf(tag);
+        CIPData.Type type = EthernetIPTypes.cipTypeOf(dt);
         if (type == null) {
-            throw new IllegalArgumentException("Unknown CIP type \"" + tokens[0] + "\". target=" + tag);
+            throw new IllegalArgumentException(dt == null
+                    ? "No data type for EtherNet/IP tag \"" + tag + "\". Register a simulation for the tag first."
+                    : "Data type " + dt + " cannot be sent over EtherNet/IP. Use " + EthernetIPTypes.SUPPORTED + ".");
         }
-
         try {
             CIPData data = new CIPData(type, 1);
-            data.set(0, value);
-            tagValueMap.put(tokens[1], data);
+            // UI16 은 DINT, BITS 는 32비트로 나간다. 부호 없는 값이 int 범위를 넘을 수 있어 long 을 거친다
+            Number n = (type == CIPData.Type.REAL) ? (Number) value.floatValue() : (Number) (int) value.longValue();
+            data.set(0, n);
+            tagValueMap.put(tag, data);
         } catch (Exception e) {
             LoggerFactory.getLogger("simulation").error("Error while set ethernet/ip simulation value {}", tag, e);
             throw new IllegalArgumentException(
-                    "Failed to encode EthernetIP value for target=" + tag + ": " + e.getMessage(), e);
+                    "Failed to encode EthernetIP value for tag=" + tag + ": " + e.getMessage(), e);
         }
     }
 

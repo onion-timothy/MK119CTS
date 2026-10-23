@@ -46,6 +46,15 @@ public class ServiceInitializer {
             logger.error("Failed to register test plan schedules at boot.", e);
         }
 
+        // 예전 형식(REAL@TAG1)의 EtherNet/IP Simulation 을 태그 이름 + data_type 으로 옮긴다.
+        // 장비가 뜨기 전에 해야 색인이 처음부터 태그 이름으로 만들어진다
+        try {
+            int migrated = simulationService.migrateEthernetIpTargets();
+            if (migrated > 0) logger.info("Migrated {} EtherNet/IP simulation target(s) to tag names.", migrated);
+        } catch (Exception e) {
+            logger.error("Failed to migrate EtherNet/IP simulation targets at boot.", e);
+        }
+
         List<Device> devices = deviceService.selectDevices();
         for (Device device : devices) {
             if (!device.isDeviceEnabled()) continue;

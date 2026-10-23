@@ -26,7 +26,11 @@ public enum DataType {
     FP64AH(23),    // A B C D E F G H
     FP64GB(24),    // G H E F C D A B
     FP64BG(25),    // B A D C F E H G
-    FP64HA(26);    // H G F E D C B A
+    FP64HA(26),    // H G F E D C B A
+    /** EtherNet/IP 전용. CIP BOOL 로 나간다. 값은 0/1. */
+    BOOL(27),
+    /** EtherNet/IP 전용. CIP BITS(32비트 비트 배열)로 나간다. */
+    BITS(28);
 
     final private int value;
 
@@ -39,6 +43,8 @@ public enum DataType {
     }
 
     public int getByteCount() {
+        if (this == BOOL) return 1;
+        if (this == BITS) return 4;
         if (name().contains("8")) return 1;
         if (name().contains("16")) return 2;
         if (name().contains("32")) return 4;

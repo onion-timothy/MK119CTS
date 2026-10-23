@@ -1,12 +1,14 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
 
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ethernetip.SymbolPadding;
 import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ethernetip.CipErrorReply;
 import etherip.protocol.*;
 import etherip.types.CIPData;
 import etherip.types.CNService;
@@ -79,7 +81,8 @@ public class EthernetIPHandler extends MkHandler {
                     service = mr_body.getService();
                     EthernetIPData ethernetIPData = (EthernetIPData) getTarget().getServerData();
                     CNSymbolPath path = (CNSymbolPath) mr_body.getPath();
-                    String tag = path.getElements().get(0).toString();
+                    // 홀수 길이 이름은 디코더가 채움 바이트까지 이름으로 읽게 했다(SymbolPadding). 그 NUL 을 뗀다
+                    String tag = SymbolPadding.stripPadding(path.getElements().get(0).toString());
                     CIPData cipData = ethernetIPData.getTagValue(tag);
 
                     if (cipData != null) {
@@ -89,22 +92,29 @@ public class EthernetIPHandler extends MkHandler {
                         } else if (service == CNService.CIP_WriteData) {
                             try {
                                 CIPWriteDataProtocol cipWriteDataProtocol = (CIPWriteDataProtocol) mr_body.getBody();
-                                double value = cipWriteDataProtocol.getData().getNumber(0).doubleValue();
-                                // target 은 REAL@TAG1 형식이고 패킷에는 TAG1 만 온다.
-                                // EthernetIPData 가 태그 이름을 보조 키로 색인해 둔다.
-                                Simulation hit = ethernetIPData.simulationFor(tag);
-                                if (hit != null) processWrite(hit, value);
+                                CIPData.Type requested = cipWriteDataProtocol.getData().getType();
+                                CIPData.Type expected = ethernetIPData.cipTypeOf(tag);
+                                if (expected != null && requested != expected) {
+                                    // 실제 Logix 와 같게 거절한다: 일반 상태 0xFF, 확장 상태 0x2107
+                                    // (요청의 데이터 타입이 태그의 데이터 타입과 다름). 값은 쓰지 않는다.
+                                    LoggerFactory.getLogger("io").info("EtherNet/IP write rejected on device {}: tag {} is {} but the request is {}.",
+                                            getTarget().getDevice().getName(), tag, expected, requested);
+                                    unconnectedSendProtocol.setBody(new CipErrorReply(service, 0xFF, 0x2107));
+                                } else {
+                                    double value = cipWriteDataProtocol.getData().getNumber(0).doubleValue();
+                                    // 색인은 태그 이름으로 되어 있다(EthernetIPData.canonicalTarget)
+                                    Simulation hit = ethernetIPData.simulationFor(tag);
+                                    if (hit != null) processWrite(hit, value);
+                                }
                             } catch (Exception e) {
                                 LoggerFactory.getLogger("io").error("Error while process enip write deivce {} tag {}", getTarget().getDevice().getName(), tag);
                             }
                         } else {
-                            LoggerFactory.getLogger("io").warn("Simulation target {} for {} is not exist.", path.getElements().get(0).toString(), target.getDevice().getName());
+                            LoggerFactory.getLogger("io").warn("Simulation target {} for {} is not exist.", tag, target.getDevice().getName());
                         }
                     } else {
-                        MessageRouterProtocol mr_res = new MessageRouterProtocol(service, null, new ProtocolAdapter());
-                        mr_res.setStatus(4);
-                        mr_res.setExt_status(new int[]{0});
-                        unconnectedSendProtocol.setBody(mr_res);
+                        // 없는 태그: Path segment error(0x04)
+                        unconnectedSendProtocol.setBody(new CipErrorReply(service, 4, 0));
                     }
                 }
                 try {

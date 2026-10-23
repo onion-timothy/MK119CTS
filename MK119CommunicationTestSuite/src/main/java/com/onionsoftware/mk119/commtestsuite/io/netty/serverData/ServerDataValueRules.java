@@ -28,6 +28,15 @@ public final class ServerDataValueRules {
      */
     public static String dataTypeError(Protocol protocol, String target, DataType dataType) {
         if (protocol == null || target == null) return null;
+        if ((dataType == DataType.BOOL || dataType == DataType.BITS) && protocol != Protocol.ETHERNET_IP) {
+            return "Data type " + dataType + " is for EtherNet/IP only.";
+        }
+        if (protocol == Protocol.ETHERNET_IP) {
+            if (dataType != null && EthernetIPTypes.cipTypeOf(dataType) == null) {
+                return "Data type " + dataType + " cannot be sent over EtherNet/IP. Use " + EthernetIPTypes.SUPPORTED + ".";
+            }
+            return null;
+        }
         if (protocol == Protocol.MODBUS) {
             if ((target.startsWith("3_") || target.startsWith("4_")) && dataType == null) {
                 return "Modbus register target \"" + target + "\" needs a data type (e.g. UI16AB).";
@@ -50,10 +59,11 @@ public final class ServerDataValueRules {
      * 값이 target·dataType 에 맞는지.
      * <ul>
      *   <li>유한한 숫자여야 한다.</li>
-     *   <li>비트 target 은 0 또는 1. Modbus FC1/FC2, Daeyun 디지털 입력, EtherNet/IP BOOL.</li>
+     *   <li>비트는 0 또는 1. Modbus FC1/FC2, Daeyun 디지털 입력, dataType BOOL.</li>
      *   <li>정수형은 소수가 없어야 하고 그 폭의 범위 안이어야 한다. dataType 으로 정하거나,
-     *       target 이 정한다 (Daeyun 아날로그 입력은 16비트 부호, EtherNet/IP SINT/INT/DINT).</li>
-     *   <li>실수형(FP32/FP64, EtherNet/IP REAL)과 타입을 정할 수 없는 쪽은 보지 않는다.</li>
+     *       target 이 정한다 (Daeyun 아날로그 입력은 16비트 부호). BITS 는 32비트 부호 없는 범위.</li>
+     *   <li>실수형(FP32/FP64)과 타입을 정할 수 없는 쪽은 보지 않는다.</li>
+     *   <li>EtherNet/IP 는 호출자가 태그의 dataType 을 채워서 넘긴다(target 에는 타입이 없다).</li>
      * </ul>
      *
      * @return 맞지 않으면 오류 메시지, 맞으면 null
@@ -62,20 +72,18 @@ public final class ServerDataValueRules {
         if (Double.isNaN(value) || Double.isInfinite(value)) return "Value must be a finite number.";
         if (protocol == null || target == null) return null;
 
-        if (isBitTarget(protocol, target)) {
+        if (isBitTarget(protocol, target) || dataType == DataType.BOOL) {
             return (value == 0 || value == 1) ? null
                     : "Target \"" + target + "\" is a bit. Value must be 0 or 1 (got " + fmt(value) + ").";
         }
         String type;
         double min, max;
-        if (dataType != null) {
+        if (dataType == DataType.BITS) {
+            type = "UI32";
+        } else if (dataType != null) {
             type = dataType.name();
         } else if (protocol == Protocol.DAEYUN_RCU && target.startsWith("@RCUAI_")) {
             type = "SI16";
-        } else if (protocol == Protocol.ETHERNET_IP && target.contains("@")) {
-            String cip = target.substring(0, target.indexOf('@')).toUpperCase(Locale.ROOT);
-            type = cip.equals("SINT") ? "SI8" : cip.equals("INT") ? "SI16" : cip.equals("DINT") ? "SI32" : null;
-            if (type == null) return null;
         } else {
             return null;
         }
@@ -104,8 +112,6 @@ public final class ServerDataValueRules {
                 return target.startsWith("1_") || target.startsWith("2_");
             case DAEYUN_RCU:
                 return target.startsWith("@RCUDI_");
-            case ETHERNET_IP:
-                return target.toUpperCase(Locale.ROOT).startsWith("BOOL@");
             default:
                 return false;
         }

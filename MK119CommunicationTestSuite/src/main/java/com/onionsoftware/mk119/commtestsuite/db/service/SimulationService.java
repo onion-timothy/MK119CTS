@@ -1,31 +1,34 @@
 package com.onionsoftware.mk119.commtestsuite.db.service;
 
-
-import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
-import com.onionsoftware.mk119.commtestsuite.db.repository.SimulationRepository;
-import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
+import com.onionsoftware.mk119.commtestsuite.db.repository.SimulationRepository;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
+import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.simulation.GroupedSimulationJob;
 import com.onionsoftware.mk119.commtestsuite.simulation.JitteredTrigger;
 import com.onionsoftware.mk119.commtestsuite.simulation.SimulationJobFactory;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.PeriodicTrigger;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
-import javax.persistence.EntityNotFoundException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
+import javax.annotation.PostConstruct;
+import javax.persistence.EntityNotFoundException;
 
 @Service
 @RequiredArgsConstructor
@@ -173,8 +176,9 @@ public class SimulationService {
     }
 
     public void insertSimulation(Simulation simulation) {
-        simulationRepository.save(simulation);
         Device device = deviceService.getDevice(simulation.getDevice().getId());
+        normalizeEthernetIp(simulation, device);
+        simulationRepository.save(simulation);
         startSimulation(device, simulation);
         reindexDevice(device.getId());
     }
@@ -184,6 +188,7 @@ public class SimulationService {
      * (batchInsert 가 simulation 수천 건을 넣을 때 SELECT 수천 회를 없앤다)
      */
     public void insertSimulation(Simulation simulation, Device device) {
+        normalizeEthernetIp(simulation, device);
         simulationRepository.save(simulation);
         startSimulation(device, simulation);
     }
@@ -212,6 +217,10 @@ public class SimulationService {
     public void updateSimulation(Simulation simulation) {
         Device device = simulation.getDevice();
         stopSimulation(simulation);
+        // 요청 본문의 device 는 보통 id 만 실려 와 protocol 을 모른다
+        Device full = (device == null || device.getProtocol() != null || device.getId() == null)
+                ? device : deviceService.getDevice(device.getId());
+        normalizeEthernetIp(simulation, full);
 
         Simulation updated = simulationRepository.save(simulation);
 
@@ -262,12 +271,92 @@ public class SimulationService {
         }
     }
 
+    // ── EtherNet/IP 태그 ─────────────────────────────────────────────────
+
+    /**
+     * EtherNet/IP target 을 태그 이름으로 맞춘다. 예전 형식({@code REAL@TAG1})이면 접두어를 떼고,
+     * 그 접두어가 뜻하던 CIP 타입이 그대로 나가도록 정책의 data_type 을 바꾼다
+     * ({@link EthernetIPTypes#dataTypeForLegacyPrefix}). 다른 프로토콜은 건드리지 않는다.
+     *
+     * @return 바꿨으면 true
+     */
+    public static boolean normalizeEthernetIp(Simulation simulation, Device device) {
+        if (simulation == null || device == null || device.getProtocol() != Protocol.ETHERNET_IP) return false;
+        String prefix = EthernetIPTypes.legacyPrefixOf(simulation.getTarget());
+        if (prefix == null) return false;
+        simulation.setTarget(EthernetIPTypes.tagOf(simulation.getTarget()));
+        if (simulation.getPolicies() != null) {
+            for (SimulationPolicy p : simulation.getPolicies()) {
+                if (p != null) p.setData_type(EthernetIPTypes.dataTypeForLegacyPrefix(prefix, p.getData_type()));
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 같은 장비에 같은 태그의 Simulation 이 이미 있는지. 실제 PLC 처럼 태그 하나는 하나만 둔다 —
+     * 태그 하나가 타입 하나이기 때문이다. EtherNet/IP 가 아니면 보지 않는다.
+     *
+     * @return 이미 있으면 오류 메시지, 아니면 null
+     */
+    public String duplicateTagError(Simulation simulation, Device device) {
+        if (simulation == null || device == null || device.getProtocol() != Protocol.ETHERNET_IP) return null;
+        String tag = EthernetIPTypes.tagOf(simulation.getTarget());
+        for (Simulation other : selectSimulationsByDeviceId(device.getId())) {
+            if (simulation.getId() != null && simulation.getId().equals(other.getId())) continue;
+            if (tag != null && tag.equals(EthernetIPTypes.tagOf(other.getTarget()))) {
+                return "Tag \"" + tag + "\" is already used by simulation \"" + other.getName()
+                        + "\" on this device. A tag has one data type, so it can be registered once.";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 기동 시 한 번 부른다. 예전 형식으로 저장된 EtherNet/IP Simulation 을 태그 이름 + data_type 으로 옮긴다.
+     * 장비가 뜨기 전에 불러야 색인이 처음부터 태그 이름으로 만들어진다.
+     *
+     * @return 옮긴 수
+     */
+    public int migrateEthernetIpTargets() {
+        int n = 0;
+        for (Device device : deviceService.selectDevices()) {
+            if (device.getProtocol() != Protocol.ETHERNET_IP) continue;
+            Set<String> tags = new HashSet<>();
+            for (Simulation s : simulationRepository.findSimulationsByDeviceId(device.getId())) {
+                String before = s.getTarget();
+                String typesBefore = dataTypesOf(s);
+                if (normalizeEthernetIp(s, device)) {
+                    simulationRepository.save(s);
+                    n++;
+                    LoggerFactory.getLogger("simulation").info(
+                            "EtherNet/IP simulation {} on device {}({}) migrated: target {} -> {}, data_type {} -> {}",
+                            s.getId(), device.getName(), device.getId(), before, s.getTarget(), typesBefore, dataTypesOf(s));
+                }
+                if (!tags.add(s.getTarget())) {
+                    LoggerFactory.getLogger("simulation").warn(
+                            "EtherNet/IP device {}({}) has more than one simulation for tag {}. Only the first is used; remove the others.",
+                            device.getName(), device.getId(), s.getTarget());
+                }
+            }
+        }
+        return n;
+    }
+
+    private static String dataTypesOf(Simulation s) {
+        if (s.getPolicies() == null) return "[]";
+        List<String> out = new ArrayList<>();
+        for (SimulationPolicy p : s.getPolicies()) out.add(p == null || p.getData_type() == null ? null : p.getData_type().name());
+        return out.toString();
+    }
+
     public void copySimulations(Integer copyTo, Integer device_id) {
         List<Simulation> orig = simulationRepository.findSimulationsByDeviceId(device_id);
         Device device = deviceService.selectDevice(copyTo);
         for (Simulation s : orig) {
             Simulation simulation = s.clone();
             simulation.setDevice(device);
+            normalizeEthernetIp(simulation, device);
             simulationRepository.save(simulation);
             if (simulation.getEnabled() == Simulation.ENABLED) {
                 startSimulation(device, simulation);

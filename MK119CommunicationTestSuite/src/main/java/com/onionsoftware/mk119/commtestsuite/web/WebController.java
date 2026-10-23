@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.web;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
@@ -160,8 +161,9 @@ public class WebController {
             // 에디터 페이지도 REST 경로와 같은 target 검증을 받아야 한다.
             // 이 경로만 빠져 있으면 UI 로는 잘못된 target 이 그대로 등록된다.
             if (simulation.getDevice() != null) {
-                String targetError = simulationTargetValidator.validate(
-                        deviceService.selectDevice(simulation.getDevice().getId()), simulation);
+                Device simulationDevice = deviceService.selectDevice(simulation.getDevice().getId());
+                String targetError = simulationTargetValidator.validate(simulationDevice, simulation);
+                if (targetError == null) targetError = simulationService.duplicateTagError(simulation, simulationDevice);
                 if (targetError != null) {
                     redirect.addFlashAttribute("saveError", targetError);
                     return "redirect:/simulations?device=" + simulation.getDevice().getId();

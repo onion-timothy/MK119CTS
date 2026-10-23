@@ -13,6 +13,7 @@ import com.onionsoftware.mk119.commtestsuite.enums.Transport;
 import com.google.gson.Gson;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.decoder.MkDecoderInterface;
 import com.onionsoftware.mk119.commtestsuite.io.netty.handler.MkHandler;
@@ -358,6 +359,14 @@ public class ApiController {
                 .map(Simulation::getName).collect(Collectors.toSet());
         Set<String> seenNames = new HashSet<>();
         Device batchDevice = deviceOf(deviceId);
+        // EtherNet/IP 는 태그 하나에 Simulation 하나다. 기존 것과 파일 안의 것을 함께 본다
+        boolean eip = batchDevice != null && batchDevice.getProtocol() == Protocol.ETHERNET_IP;
+        Set<String> usedTags = new HashSet<>();
+        if (eip) {
+            for (Simulation existing : simulationService.selectSimulationsByDeviceId(deviceId)) {
+                usedTags.add(EthernetIPTypes.tagOf(existing.getTarget()));
+            }
+        }
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> s : simulations) {
@@ -367,9 +376,16 @@ public class ApiController {
                 error = simulationTargetValidator.validate(
                         batchDevice, asString(s.get("target")), batchRowDataType(s));
             }
+            String tag = eip ? EthernetIPTypes.tagOf(asString(s.get("target"))) : null;
+            if (error == null && tag != null && usedTags.contains(tag)) {
+                error = "Tag \"" + tag + "\" is already used on this device. A tag has one data type, so it can be registered once.";
+            }
             row.put("error", error);
             out.add(row);
-            if (error == null) seenNames.add(asString(s.get("name")));
+            if (error == null) {
+                seenNames.add(asString(s.get("name")));
+                if (tag != null) usedTags.add(tag);
+            }
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -898,8 +914,9 @@ public class ApiController {
     /** 단건 등록/수정용 target 검증. device 는 보통 id 만 실려오므로 protocol 은 DB 에서 읽는다. */
     private String validateSimulationTarget(Simulation simulation) {
         if (simulation == null || simulation.getDevice() == null) return null;
-        return simulationTargetValidator.validate(
-                deviceOf(simulation.getDevice().getId()), simulation);
+        Device device = deviceOf(simulation.getDevice().getId());
+        String error = simulationTargetValidator.validate(device, simulation);
+        return error != null ? error : simulationService.duplicateTagError(simulation, device);
     }
 
     @RequestMapping(value = "/simulation/deleteSimulation/{id}", method = RequestMethod.DELETE)

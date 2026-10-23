@@ -593,7 +593,7 @@ public abstract class ServerData {
             snmpData.getOidValueMap().put(target, value);
         } else if (this instanceof EthernetIPData) {
             EthernetIPData ethernetIPData = (EthernetIPData) this;
-            ethernetIPData.putTagValue(target, value);
+            ethernetIPData.putTagValue(target, value, dataType);
         } else {
             // 분기가 없는 프로토콜(BACNET 등)은 여기서 멈춘다.
             // 예전에는 조용히 통과해서 호출자가 ok 를 받고, 그 뒤 lock 까지 걸려 simulation 이 멈췄다.

@@ -7,7 +7,9 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanAction;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.enums.ScheduleType;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataValueRules;
+import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -356,11 +358,19 @@ public class TestPlanValidator {
         if (target != null && device != null && device.getProtocol() == Protocol.XGT_PLC) {
             target = target.toUpperCase(Locale.ROOT);
         }
+        // EtherNet/IP target 은 태그 이름이다. 예전 형식의 접두어는 떼되, 타입 대조에는 쓴다
+        String legacyPrefix = null;
+        if (target != null && device != null && device.getProtocol() == Protocol.ETHERNET_IP) {
+            legacyPrefix = EthernetIPTypes.legacyPrefixOf(target);
+            target = EthernetIPTypes.tagOf(target);
+        }
+        // 값 검사에 쓸 타입. EtherNet/IP 는 비어 있으면 태그의 타입이다
+        DataType effectiveType = dataType;
         if (target == null) {
             err(out, "A3", "target", index, row, "Target is required.");
         } else {
             a.setTarget(target);
-            if (device != null) checkTarget(ctx, out, device, target, dataType, index, row);
+            if (device != null) effectiveType = checkTarget(ctx, out, device, target, legacyPrefix, dataType, index, row);
         }
 
         // A9·A10
@@ -373,7 +383,7 @@ public class TestPlanValidator {
         } else {
             a.setValue(value);
             if (device != null && target != null) {
-                String rangeError = ServerDataValueRules.valueError(device.getProtocol(), target, dataType, value);
+                String rangeError = ServerDataValueRules.valueError(device.getProtocol(), target, effectiveType, value);
                 if (rangeError != null) err(out, "A10", "value", index, row, rangeError);
             }
         }
@@ -421,21 +431,35 @@ public class TestPlanValidator {
         return out.errors.size() == before ? a : null;
     }
 
-    private void checkTarget(Context ctx, Outcome out, Device device, String target, DataType dataType,
-                             int index, Integer row) {
-        // A3·A5·A8 — 형식·주소 범위, Modbus FC 1~4, EtherNet/IP 의 CIP 타입
+    /** @return 값 검사에 쓸 타입. EtherNet/IP 에서 dataType 이 비어 있으면 태그의 타입 */
+    private DataType checkTarget(Context ctx, Outcome out, Device device, String target, String legacyPrefix,
+                                 DataType dataType, int index, Integer row) {
+        // A3·A5·A8 — 형식·주소 범위, Modbus FC 1~4, EtherNet/IP 가 보낼 수 있는 타입
         String formatError = simulationTargetValidator.validate(device, target, dataType);
         if (formatError != null) {
             err(out, "A3", "target", index, row, formatError);
-            return;
+            return dataType;
         }
         Protocol p = device.getProtocol();
-        // A4 — 맵 기반 저장이거나 시뮬레이션이 곧 object 인 프로토콜은 등록된 target 에만 쓴다
-        if (p == Protocol.SNMP || p == Protocol.GENERIC || p == Protocol.BACNET) {
-            if (!ctx.simulationTargets(device.getId()).contains(target)) {
+        // A4 — 맵 기반 저장이거나 시뮬레이션이 곧 object·태그인 프로토콜은 등록된 target 에만 쓴다
+        if (p == Protocol.SNMP || p == Protocol.GENERIC || p == Protocol.BACNET || p == Protocol.ETHERNET_IP) {
+            if (!ctx.simulationTargets(device).contains(target)) {
                 err(out, "A4", "target", index, row, "No simulation with target \"" + target + "\" on device \""
                         + device.getName() + "\". " + p + " can only write to a registered simulation target.");
+                return dataType;
             }
+        }
+        // A6 — EtherNet/IP 태그는 타입이 하나다. 다른 타입으로 쓰라는 요청은 거절한다(REST 쓰기와 같다)
+        if (p == Protocol.ETHERNET_IP) {
+            DataType tagType = ctx.tagType(device, target);
+            CIPData.Type tagCip = EthernetIPTypes.cipTypeOf(tagType);
+            CIPData.Type asked = legacyPrefix != null ? CIPData.Type.forName(legacyPrefix)
+                    : (dataType != null ? EthernetIPTypes.cipTypeOf(dataType) : tagCip);
+            if (tagCip != null && asked != tagCip) {
+                err(out, "A6", "dataType", index, row, "Tag \"" + target + "\" is " + tagCip + " (" + tagType
+                        + "). This action would write " + (asked == null ? dataType : asked) + ".");
+            }
+            if (dataType == null) return tagType;
         }
         // A6·A7 — Modbus 레지스터는 dataType 이 있어야 하고, XGT 는 크기 문자와 폭이 같아야 한다.
         // REST 쓰기와 같은 규칙(ServerDataValueRules)이다
@@ -443,6 +467,7 @@ public class TestPlanValidator {
         if (typeError != null) {
             err(out, p == Protocol.XGT_PLC ? "A7" : "A6", "dataType", index, row, typeError);
         }
+        return dataType;
     }
 
     // ── 공용 ─────────────────────────────────────────────────────────────
@@ -451,7 +476,7 @@ public class TestPlanValidator {
     private final class Context {
         private Map<Integer, Device> byId;
         private Map<String, Device> byName;
-        private final Map<Integer, Set<String>> targets = new HashMap<>();
+        private final Map<Integer, List<Simulation>> simulations = new HashMap<>();
 
         Map<Integer, Device> devicesById() {
             load();
@@ -473,14 +498,29 @@ public class TestPlanValidator {
             }
         }
 
-        Set<String> simulationTargets(Integer deviceId) {
-            return targets.computeIfAbsent(deviceId, id -> {
-                Set<String> s = new HashSet<>();
-                for (Simulation sim : simulationService.selectSimulationsByDeviceId(id)) {
-                    if (sim.getTarget() != null) s.add(sim.getTarget());
+        private List<Simulation> simulationsOf(Integer deviceId) {
+            return simulations.computeIfAbsent(deviceId, simulationService::selectSimulationsByDeviceId);
+        }
+
+        /** 장비에 등록된 target. EtherNet/IP 는 태그 이름으로 모은다. */
+        Set<String> simulationTargets(Device device) {
+            Set<String> s = new HashSet<>();
+            for (Simulation sim : simulationsOf(device.getId())) {
+                if (sim.getTarget() == null) continue;
+                s.add(device.getProtocol() == Protocol.ETHERNET_IP ? EthernetIPTypes.tagOf(sim.getTarget()) : sim.getTarget());
+            }
+            return s;
+        }
+
+        /** EtherNet/IP 태그의 타입. 그 태그로 등록된 Simulation 의 첫 정책이 정한다. */
+        DataType tagType(Device device, String tag) {
+            for (Simulation sim : simulationsOf(device.getId())) {
+                if (tag.equals(EthernetIPTypes.tagOf(sim.getTarget())) && sim.getPolicies() != null
+                        && !sim.getPolicies().isEmpty()) {
+                    return sim.getPolicies().get(0).getData_type();
                 }
-                return s;
-            });
+            }
+            return null;
         }
     }
 

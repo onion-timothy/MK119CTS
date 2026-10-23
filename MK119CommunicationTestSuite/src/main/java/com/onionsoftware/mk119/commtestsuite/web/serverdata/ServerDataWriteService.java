@@ -9,6 +9,9 @@ import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataChangeSource;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataValueRules;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPData;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
+import etherip.types.CIPData;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -123,6 +126,26 @@ public class ServerDataWriteService {
             dt = (dataType == null || dataType.isEmpty()) ? null : DataType.valueOf(dataType);
         } catch (IllegalArgumentException e) {
             return Result.fail(HttpStatus.BAD_REQUEST, "invalid dataType: " + dataType);
+        }
+        // EtherNet/IP 는 태그 하나가 타입 하나다(실제 Logix 와 같다). 등록된 태그에만 쓰고,
+        // 타입은 그 태그의 data_type 을 따른다. 요청이 다른 타입을 말하면 거절한다.
+        if (writeDevice != null && writeDevice.getProtocol() == Protocol.ETHERNET_IP && sd instanceof EthernetIPData) {
+            EthernetIPData eip = (EthernetIPData) sd;
+            String tag = EthernetIPTypes.tagOf(target);
+            DataType tagType = eip.dataTypeOf(tag);
+            if (sd.simulationFor(tag) == null) {
+                return Result.fail(HttpStatus.NOT_IMPLEMENTED, "No tag \"" + tag
+                        + "\". A simulation with that tag must exist on this device.");
+            }
+            CIPData.Type tagCip = EthernetIPTypes.cipTypeOf(tagType);
+            String prefix = EthernetIPTypes.legacyPrefixOf(target);
+            CIPData.Type asked = prefix != null ? CIPData.Type.forName(prefix)
+                    : (dt != null ? EthernetIPTypes.cipTypeOf(dt) : tagCip);
+            if (tagCip != null && asked != tagCip) {
+                return Result.fail(HttpStatus.BAD_REQUEST, "Tag \"" + tag + "\" is " + tagCip + " (" + tagType
+                        + "). The request would write " + (asked == null ? dt : asked) + ".");
+            }
+            if (dt == null) dt = tagType;
         }
         // 타입에 맞지 않는 값은 거절한다. 쓰기 경로는 그런 값을 조용히 잘라 쓰거나(소수, 범위 초과)
         // 아무것도 하지 않은 채 성공으로 끝냈다(dataType 없는 Modbus 레지스터).

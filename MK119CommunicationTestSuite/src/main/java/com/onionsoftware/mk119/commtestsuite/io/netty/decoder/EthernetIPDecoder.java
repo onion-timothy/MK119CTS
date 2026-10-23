@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.decoder;
 
+import com.onionsoftware.mk119.commtestsuite.io.netty.packet.ethernetip.SymbolPadding;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import etherip.protocol.Encapsulation;
 import io.netty.buffer.ByteBuf;
@@ -31,6 +32,8 @@ public class EthernetIPDecoder extends MkDecoder {
             buffer.put(rx);
             buffer.flip();
             buffer.order(ByteOrder.LITTLE_ENDIAN);
+            // 길이가 홀수인 태그 이름의 채움 바이트를 etherip 가 읽지 못한다. 넘기기 전에 고친다
+            SymbolPadding.fix(buffer);
             Encapsulation encapsulation = Encapsulation.fromBuffer(buffer);
             out.add(encapsulation);
         } catch (Exception e) {
