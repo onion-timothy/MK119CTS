@@ -6,6 +6,7 @@ import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.db.service.TestPlanService;
+import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanScheduler;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public class ServiceInitializer {
     private final GroupService groupService;
     private final ErrorService errorService;
     private final TestPlanService testPlanService;
+    private final TestPlanScheduler testPlanScheduler;
 
     @EventListener(ApplicationReadyEvent.class)
     public void afterStart() {
@@ -36,6 +38,12 @@ public class ServiceInitializer {
             testPlanService.closeInterruptedRuns();
         } catch (Exception e) {
             logger.error("Failed to close interrupted test plan runs at boot.", e);
+        }
+        // 켜진 스케줄을 다시 등록한다. 꺼져 있던 동안 놓친 실행은 건너뛴다(E4)
+        try {
+            testPlanScheduler.registerAll();
+        } catch (Exception e) {
+            logger.error("Failed to register test plan schedules at boot.", e);
         }
 
         List<Device> devices = deviceService.selectDevices();

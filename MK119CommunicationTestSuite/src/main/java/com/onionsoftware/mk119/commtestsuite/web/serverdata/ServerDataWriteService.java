@@ -62,6 +62,11 @@ public class ServerDataWriteService {
             return e == null ? null : e.toString();
         }
 
+        /** 결과를 직접 만든다. 실행기 테스트처럼 쓰기 없이 결과가 필요한 쪽이 쓴다. */
+        public static Result of(HttpStatus status, Map<String, Object> body) {
+            return new Result(status, new LinkedHashMap<>(body));
+        }
+
         private static Result fail(HttpStatus status, String error) {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("ok", false);

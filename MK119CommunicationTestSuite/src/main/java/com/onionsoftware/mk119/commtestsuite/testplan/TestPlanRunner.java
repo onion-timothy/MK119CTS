@@ -1,0 +1,280 @@
+package com.onionsoftware.mk119.commtestsuite.testplan;
+
+import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlan;
+import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanAction;
+import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanRun;
+import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanRunAction;
+import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
+import com.onionsoftware.mk119.commtestsuite.db.service.TestPlanService;
+import com.onionsoftware.mk119.commtestsuite.enums.TestPlanActionStatus;
+import com.onionsoftware.mk119.commtestsuite.enums.TestPlanRunResult;
+import com.onionsoftware.mk119.commtestsuite.enums.TestPlanTrigger;
+import com.onionsoftware.mk119.commtestsuite.web.serverdata.ServerDataWriteService;
+import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PreDestroy;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+
+/**
+ * Test Plan 실행기.
+ * <p>
+ * Action 을 실행하고 그 Action 의 interval 만큼 기다린 뒤 다음 Action 을 실행한다.
+ * 마지막 Action 뒤에도 그 interval 을 기다린 다음 끝난다(S3 의 실행 시간과 같게).
+ * interval 이 0 이면 다음 Action 을 곧바로 같은 차례에 실행한다 — 여러 target 을 동시에 바꾸는 용도다.
+ * <p>
+ * 기다리는 동안 스레드를 붙잡지 않는다. Action 을 마치면 다음 Action 을 "지금 + interval" 에 예약한다.
+ * interval 이 몇 시간이어도 풀을 막지 않는다.
+ * <p>
+ * Simulation 과 같은 스케줄러를 쓰지 않는다. 그 풀이 붐비면 시뮬레이션 주기가 흔들린다.
+ * 같은 타입의 Spring 빈을 하나 더 두면 기존 주입이 모호해지므로 빈으로 등록하지 않고 여기서 만든다.
+ * <p>
+ * 실행 시점 규칙은 docs/TEST_PLAN_VALIDATION.md 의 R·E 항목이다.
+ */
+@Component
+public class TestPlanRunner {
+    private static final Logger logger = LoggerFactory.getLogger("testplan");
+
+    private final TestPlanService testPlanService;
+    private final ServerDataWriteService serverDataWriteService;
+    private final DeviceService deviceService;
+    private final ThreadPoolTaskScheduler scheduler;
+
+    /** planId -> 실행 중인 실행. Plan 하나는 한 번에 하나만 돈다(E1, E2). */
+    private final Map<Integer, Execution> running = new ConcurrentHashMap<>();
+
+    public TestPlanRunner(TestPlanService testPlanService,
+                          ServerDataWriteService serverDataWriteService,
+                          DeviceService deviceService) {
+        this.testPlanService = testPlanService;
+        this.serverDataWriteService = serverDataWriteService;
+        this.deviceService = deviceService;
+        this.scheduler = new ThreadPoolTaskScheduler();
+        this.scheduler.setPoolSize(4);
+        this.scheduler.setThreadNamePrefix("testplan-");
+        this.scheduler.setRemoveOnCancelPolicy(true);
+        this.scheduler.initialize();
+    }
+
+    @PreDestroy
+    void shutdown() {
+        scheduler.shutdown();
+    }
+
+    /** 실행 중이라 시작할 수 없을 때. 수동 실행은 409 로 알린다(E1). */
+    public static class AlreadyRunningException extends RuntimeException {
+        AlreadyRunningException(Integer planId) {
+            super("Test plan " + planId + " is already running.");
+        }
+    }
+
+    /** 실행 상태 조회용. */
+    @Getter
+    public static final class Status {
+        private final Integer planId;
+        private final Long runId;
+        private final TestPlanTrigger trigger;
+        private final LocalDateTime startedAt;
+        /** 다음에 실행할 Action 위치(0부터). 마지막 Action 뒤 대기 중이면 Action 수와 같다. */
+        private final int nextAction;
+        private final int totalActions;
+        /** 다음 Action(또는 종료)이 예약된 시각(epoch ms). */
+        private final long nextAt;
+
+        Status(Execution e) {
+            this.planId = e.plan.getId();
+            this.runId = e.run.getId();
+            this.trigger = e.run.getTriggerType();
+            this.startedAt = e.run.getStartedAt();
+            this.nextAction = e.next;
+            this.totalActions = e.actions.size();
+            this.nextAt = e.nextAt;
+        }
+    }
+
+    /** 실행 하나의 상태. 모든 변경은 this 를 잠그고 한다 — Stop 이 진행 중인 쓰기를 기다리게 하려고(E3). */
+    private static final class Execution {
+        final TestPlan plan;
+        final List<TestPlanAction> actions;
+        final TestPlanRun run;
+        int next;
+        int failed;
+        long nextAt;
+        boolean finished;
+        ScheduledFuture<?> future;
+
+        Execution(TestPlan plan, TestPlanRun run) {
+            this.plan = plan;
+            // 실행 중에는 Plan 을 고칠 수 없지만(P4), 실행이 붙잡은 목록은 저장 시점의 것으로 고정해 둔다
+            this.actions = Collections.unmodifiableList(new ArrayList<>(plan.getActions()));
+            this.run = run;
+        }
+    }
+
+    // ── 시작 / 중지 ──────────────────────────────────────────────────────
+
+    /**
+     * 실행을 시작한다. 첫 Action 은 곧바로 예약된다.
+     *
+     * @throws AlreadyRunningException 그 Plan 이 이미 실행 중일 때
+     * @throws javax.persistence.EntityNotFoundException Plan 이 없을 때
+     */
+    public TestPlanRun start(Integer planId, TestPlanTrigger trigger) {
+        TestPlan plan = testPlanService.selectTestPlan(planId)
+                .orElseThrow(javax.persistence.EntityNotFoundException::new);
+        // 자리를 먼저 잡는다. 두 요청이 동시에 와도 하나만 들어간다
+        Execution placeholder = new Execution(plan, new TestPlanRun());
+        if (running.putIfAbsent(planId, placeholder) != null) {
+            throw new AlreadyRunningException(planId);
+        }
+        Execution e;
+        try {
+            TestPlanRun run = testPlanService.startRun(plan, trigger);
+            e = new Execution(plan, run);
+            running.put(planId, e);
+        } catch (RuntimeException ex) {
+            running.remove(planId, placeholder);
+            throw ex;
+        }
+        logger.info("Test plan \"{}\"({}) started by {}: run={}, actions={}",
+                plan.getName(), planId, trigger, e.run.getId(), e.actions.size());
+        synchronized (e) {
+            scheduleNext(e, 0);
+        }
+        return e.run;
+    }
+
+    /**
+     * 실행을 멈춘다. 진행 중인 쓰기 하나는 끝내고, 대기 중이면 곧바로 끝낸다.
+     * 이미 건 lock 은 건드리지 않는다(E3).
+     *
+     * @return 실행 중이었으면 true
+     */
+    public boolean stop(Integer planId) {
+        Execution e = running.get(planId);
+        if (e == null || e.run.getId() == null) return false;
+        synchronized (e) {
+            if (e.finished) return false;
+            if (e.future != null) e.future.cancel(false);
+            finish(e, TestPlanRunResult.STOPPED, "Stopped by user");
+        }
+        return true;
+    }
+
+    public boolean isRunning(Integer planId) {
+        return planId != null && running.containsKey(planId);
+    }
+
+    /** 실행 중인 것 전부. */
+    public List<Status> statuses() {
+        List<Status> out = new ArrayList<>();
+        for (Execution e : running.values()) {
+            if (e.run.getId() == null) continue;   // 자리만 잡은 상태
+            synchronized (e) {
+                if (!e.finished) out.add(new Status(e));
+            }
+        }
+        return out;
+    }
+
+    // ── 실행 ─────────────────────────────────────────────────────────────
+
+    private void scheduleNext(Execution e, long delayMs) {
+        e.nextAt = System.currentTimeMillis() + delayMs;
+        e.future = scheduler.schedule(() -> step(e), new Date(e.nextAt));
+    }
+
+    /**
+     * 예약된 차례. interval 이 0 인 Action 들은 이 차례 안에서 이어서 실행한다.
+     * 마지막 Action 의 interval 까지 기다린 뒤 다시 들어오면 끝낸다.
+     */
+    private void step(Execution e) {
+        synchronized (e) {
+            if (e.finished) return;
+            try {
+                while (e.next < e.actions.size()) {
+                    TestPlanAction action = e.actions.get(e.next);
+                    boolean ok = execute(e, action);
+                    e.next++;
+                    if (!ok && action.getSkipOnFailure() == 0) {
+                        finish(e, TestPlanRunResult.FAILED,
+                                "Action #" + (action.getSeq() + 1) + " failed and is not set to skip.");
+                        return;
+                    }
+                    // 실패해도 interval 은 그대로 기다린다
+                    if (action.getIntervalSeconds() > 0) {
+                        scheduleNext(e, action.getIntervalSeconds() * 1000L);
+                        return;
+                    }
+                }
+                finish(e, e.failed > 0 ? TestPlanRunResult.COMPLETED_WITH_SKIPS : TestPlanRunResult.COMPLETED, null);
+            } catch (RuntimeException ex) {
+                logger.error("Test plan run {} aborted by an unexpected error.", e.run.getId(), ex);
+                finish(e, TestPlanRunResult.FAILED, "Unexpected error: " + ex.getMessage());
+            }
+        }
+    }
+
+    /** Action 하나를 쓰고 결과를 남긴다. @return 성공이면 true */
+    private boolean execute(Execution e, TestPlanAction action) {
+        TestPlanRunAction rec = new TestPlanRunAction();
+        rec.setRun(e.run);
+        rec.setSeq(action.getSeq());
+        rec.setDeviceId(action.getDeviceId());
+        rec.setTarget(action.getTarget());
+        rec.setValue(action.getValue());
+        rec.setDataType(action.getDataType());
+        rec.setLockSeconds(action.getLockSeconds());
+        rec.setExecutedAt(LocalDateTime.now());
+
+        String error = null;
+        Integer httpStatus = null;
+        if (action.getDeviceId() == null || deviceService.getDevice(action.getDeviceId()) == null) {
+            error = "Device " + (action.getDeviceId() == null ? "" : "id " + action.getDeviceId() + " ")
+                    + "no longer exists.";                                                          // R1
+        } else if (action.getLockSeconds() < 0) {
+            error = "A lock without expiry is only for the Server Data editor.";   // 등록 검증(A11)이 막지만 한 번 더
+        } else {
+            ServerDataWriteService.Result r = serverDataWriteService.write(action.getDeviceId(),
+                    action.getTarget(), action.getValue(), action.getDataType(), action.getLockSeconds());
+            httpStatus = r.getStatus().value();
+            if (!r.isOk()) error = r.getError();                                      // R2~R6
+        }
+
+        boolean ok = error == null;
+        rec.setHttpStatus(httpStatus);
+        rec.setError(error == null ? null : truncate(error, 1024));
+        if (ok) {
+            rec.setStatus(TestPlanActionStatus.OK);
+        } else {
+            e.failed++;
+            rec.setStatus(action.getSkipOnFailure() == 1 ? TestPlanActionStatus.SKIPPED : TestPlanActionStatus.FAILED);
+            logger.info("Test plan run {} action #{} ({} on device {}) {}: {}", e.run.getId(), action.getSeq() + 1,
+                    action.getTarget(), action.getDeviceId(), rec.getStatus(), error);
+        }
+        testPlanService.recordAction(rec);
+        return ok;
+    }
+
+    private void finish(Execution e, TestPlanRunResult result, String message) {
+        e.finished = true;
+        running.remove(e.plan.getId(), e);
+        try {
+            testPlanService.finishRun(e.run.getId(), result, message, e.failed);
+        } catch (RuntimeException ex) {
+            logger.error("Failed to record the end of test plan run {}.", e.run.getId(), ex);
+        }
+        logger.info("Test plan \"{}\"({}) run {} ended: {}{}", e.plan.getName(), e.plan.getId(), e.run.getId(),
+                result, message == null ? "" : " — " + message);
+    }
+
+    private static String truncate(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+}
