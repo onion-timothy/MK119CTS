@@ -5,6 +5,7 @@ import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
+import com.onionsoftware.mk119.commtestsuite.db.service.TestPlanService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +24,19 @@ public class ServiceInitializer {
     private final SimulationService simulationService;
     private final GroupService groupService;
     private final ErrorService errorService;
+    private final TestPlanService testPlanService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void afterStart() {
         groupService.makeRootGroup();
+
+        // 실행 도중 서버가 내려가 RUNNING 으로 남은 Test Plan 이력을 닫는다. 실행은 이어서 하지 않는다.
+        // 이력 정리 실패로 기동이 막히면 안 되므로 예외는 남기고 넘어간다.
+        try {
+            testPlanService.closeInterruptedRuns();
+        } catch (Exception e) {
+            logger.error("Failed to close interrupted test plan runs at boot.", e);
+        }
 
         List<Device> devices = deviceService.selectDevices();
         for (Device device : devices) {
