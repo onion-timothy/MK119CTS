@@ -66,6 +66,14 @@ public class TestPlanService {
         return testPlanRepository.save(plan);
     }
 
+    /** 엑셀 import(X7). 전부 한 트랜잭션이라 하나라도 실패하면 아무것도 남지 않는다. */
+    @Transactional
+    public List<TestPlan> insertTestPlans(List<TestPlan> plans) {
+        List<TestPlan> saved = new ArrayList<>();
+        for (TestPlan p : plans) saved.add(insertTestPlan(p));
+        return saved;
+    }
+
     /**
      * 이름·스케줄을 바꾸고 Action 목록을 통째로 갈아 끼운다.
      * 실행 중인 Plan 을 막는 것(P4)은 실행기를 아는 쪽이 이 메서드를 부르기 전에 한다.
