@@ -1,6 +1,6 @@
 # Test Plan — 검증 범위
 
-> 상태: **확정 (2026-10-22)**, A6·A7·A10 개정 (2026-10-23), EtherNet/IP 반영 (2026-10-23)
+> 상태: **확정 (2026-10-22)**, A6·A7·A10 개정 (2026-10-23), EtherNet/IP 반영·A15 추가 (2026-10-23), interval → 실행 시각(At)·A16 추가, 실행 시간 = 마지막 lock 해제, Skip → StopOnFailure(기본은 실패해도 계속), 엑셀 열 RunAtSeconds·StopOnFailure (2026-10-26)
 
 ---
 
@@ -10,8 +10,15 @@
   (Simulation 의 `SimulationTargetValidator` 와 같은 이유 — 경로마다 넣으면 구멍이 생긴다.)
 - 검증 시점은 두 가지다.
   - **등록 시점** (저장 / import) — 실패하면 **거절**한다. 저장되지 않는다.
-  - **실행 시점** (Action 마다) — 실패하면 그 Action 의 **skip 정책**을 따른다.
-    skip=true 면 기록하고 interval 을 기다린 뒤 다음 Action, skip=false 면 Plan 을 중단한다.
+  - **실행 시점** (Action 마다) — 실패하면 그 Action 의 **StopOnFailure 설정**을 따른다.
+    기본(StopOnFailure=FALSE)은 실패를 SKIPPED 로 기록하고 다음 Action 으로 간다. StopOnFailure=TRUE 면 그 자리에서 Plan 을 중단한다(같은 시각의 뒤 Action 도 쓰지 않는다).
+    다이어그램은 StopOnFailure=TRUE 인 Action 중 가장 이른 것의 시각에 선을 긋는다 — 그 뒤는 실패에 따라 실행되지 않을 수 있다.
+- Action 은 **실행 시각(RunAtSeconds — 화면 Run At, 시작부터 센 초)** 을 가진다. 시각 순으로 실행하고, 같은 시각의 Action 들은 한 차례에 목록 순서대로 쓴다.
+  가장 이른 Action 은 0초다(A16).
+- **실행 시간 = 마지막 lock 이 풀리는 시각** 이다. lock 이 없으면 가장 늦은 실행 시각. lock 은 칸마다 센다 —
+  같은 칸에 나중 쓰기가 들어오면 앞 lock 은 그 시각에 바뀌거나(lockSeconds > 0) 풀리므로(0),
+  칸마다 마지막으로 쓴 Action 의 `RunAtSeconds + LockSeconds` 가 그 칸의 lock 이 풀리는 시각이다. 칸은 `ServerDataCells` 로 센다
+  (`3_10` UI32 를 잠근 뒤 `3_11` 만 다시 쓰면 `3_10` 의 lock 은 남는다). 실행은 이 시각에 끝난다.
 - Plan 의 쓰기는 API_WRITE 이고 API_WRITE 는 최상위 authority 다. 따라서 **lock 에 막히는 실패는 없다.**
 - **타입에 맞지 않는 값은 거절한다.** A6·A7·A10 은 `ServerDataValueRules` 하나로 판정하고,
   REST 쓰기(`POST /api/devices/{id}/serverdata`)도 같은 규칙으로 400 을 돌려준다.
@@ -31,13 +38,15 @@
 
 | ID | 대상 | 규칙 | 실패 시 |
 |---|---|---|---|
-| S1 | Type | `NONE`(수동만) / `SECOND` / `MINUTE` / `HOUR` 중 하나 | 거절 |
-| S2 | 필드 값 | SECOND: S(0~59). MINUTE: M(0~59), S(0~59). HOUR: H(0~23), M(0~59), S(0~59). 정수, 값 하나 | 거절 |
-| S3 | 주기 | 주기 = SECOND 60초 / MINUTE 3600초 / HOUR 86400초. **interval 총합 < 주기** | 거절 |
-| S4 | 재검사 | Action 을 고쳐 interval 총합이 바뀌면 S3 을 다시 본다 | 거절 |
+| S1 | Type | `NONE`(수동만) / cron: `SECOND` / `MINUTE` / `HOUR` / interval: `INTERVAL` 중 하나 | 거절 |
+| S2 | 필드 값 | SECOND: S(0~59). MINUTE: M(0~59), S(0~59). HOUR: H(0~23), M(0~59), S(0~59). INTERVAL: 간격 N초(1~86400). 정수, 값 하나 | 거절 |
+| S3 | 주기 | 주기 = SECOND 60초 / MINUTE 3600초 / HOUR 86400초 / INTERVAL N초. **실행 시간(마지막 lock 해제) < 주기** | 거절 |
+| S4 | 재검사 | Action 을 고쳐 실행 시간이 바뀌면 S3 을 다시 본다 | 거절 |
 
-S3 의 실행 시간에는 마지막 Action 의 interval 도 들어간다(마지막 Action 뒤에도 기다린 후 완료).
-총합 == 주기면 끝나는 순간 다음 실행과 맞물리므로 **미만(<)** 으로 비교한다.
+실행 시간 == 주기면 끝나는 순간 다음 실행과 맞물리므로 **미만(<)** 으로 비교한다.
+
+INTERVAL 은 정해진 시각 없이 켜는 순간 한 번 돌고, 그 뒤 N초마다 돈다. 켤 때(토글, 켠 채로 생성, 간격·종류를 바꾼 저장)
+곧바로 돌고, 이름·Action 만 고친 저장은 박자를 그대로 둔다. 기동 때는 한 주기 뒤에 시작한다(장비가 스케줄 등록 뒤에 뜬다).
 
 ## 3. 등록 시점 — Action
 
@@ -54,9 +63,13 @@ S3 의 실행 시간에는 마지막 Action 의 interval 도 들어간다(마지
 | A9 | Value | 필수. 유한한 숫자 (NaN / Infinity 거절) | 거절 |
 | A10 | Value 와 타입 | 정수형은 **소수 거절**, 범위 밖 거절 (예: UI16 은 0~65535, UI32 는 0~4294967295). dataType 이 없으면 target 이 정하는 타입으로 본다(Daeyun AI 는 SI16). 비트(Modbus FC1/2, Daeyun DI, dataType BOOL)는 0/1 만, BITS 는 0~4294967295. EtherNet/IP 는 태그의 타입으로 본다. 실수형은 보지 않는다 | 거절 |
 | A11 | LockSeconds | 비어 있으면 0. 0 이상의 정수. **음수(영구 lock) 거절** — 편집 세션 전용 | 거절 |
-| A12 | Interval | 필수. 0 이상의 정수(초) | 거절 |
-| A13 | Skip | `TRUE` / `FALSE`. 비어 있으면 FALSE (실패 시 중단) | 거절 |
-| A14 | 정수 칸의 소수 | 엑셀 숫자는 실수로 읽힌다. `5.0` 은 받고 `5.5` 는 거절 (LockSeconds, Interval) | 거절 |
+| A12 | RunAtSeconds (화면 Run At) | 필수. 실행 시각, 0 이상 86400 미만의 정수(초) | 거절 |
+| A13 | StopOnFailure (화면 Stop on Failure) | `TRUE` / `FALSE`. 비어 있으면 FALSE (실패해도 계속) | 거절 |
+| A14 | 정수 칸의 소수 | 엑셀 숫자는 실수로 읽힌다. `5.0` 은 받고 `5.5` 는 거절 (LockSeconds, RunAtSeconds) | 거절 |
+| A15 | 같은 시각 같은 칸 | 두 Action 이 같은 시각(같은 RunAtSeconds)에 같은 장비의 같은 저장 칸을 쓰면 거절. 칸은 lock 판정과 같은 `ServerDataCells` 로 센다 — target 이 달라도 칸이 겹치면 같다 (예: `3_10` UI32 와 `3_11`, XGT `%DW10` 과 `%DB21`) | 거절 |
+| A16 | 첫 Action | 가장 이른 Action 의 실행 시각은 0 이어야 한다. Plan 을 시작해 놓고 아무것도 하지 않고 기다릴 까닭이 없다. 목록의 첫 행일 필요는 없다 | 거절 |
+
+저장할 때 Action 을 실행 시각 순으로 늘어놓는다. 같은 시각끼리는 들어온 순서를 지킨다 — 그 순서대로 쓰고, 실패하면 그 자리에서 멈춘다.
 
 ## 4. 등록 시점 — 엑셀 파일
 
@@ -65,8 +78,8 @@ S3 의 실행 시간에는 마지막 Action 의 interval 도 들어간다(마지
 | X1 | 파일 | `.xlsx`, 열리지 않으면 거절 | 파일 거절 |
 | X2 | 시트 수 | 1개 이상. 시트 1개 = Plan 1개. 상한 50개 | 파일 거절 |
 | X3 | 시트 이름 | Plan 이름으로 쓴다 (P1, P2 적용). 엑셀의 시트 이름은 31자가 한계 | 시트 거절 |
-| X4 | 헤더 | 1행. 필수 열 `Device`, `Target`, `Value`, `DataType`, `LockSeconds`, `Interval`, `Skip`. 순서 무관, 대소문자 무시. 모르는 열은 경고 후 무시 | 시트 거절 |
-| X5 | 빈 행 | 모든 칸이 빈 행은 건너뛴다. 남은 행의 순서가 Action 순서다 | — |
+| X4 | 헤더 | 1행. 필수 열 `RunAtSeconds`, `Device`, `Target`, `Value`, `DataType`, `LockSeconds`, `StopOnFailure`. 순서 무관, 대소문자 무시. 모르는 열은 경고 후 무시 | 시트 거절 |
+| X5 | 빈 행 | 모든 칸이 빈 행은 건너뛴다. 실행 순서는 RunAtSeconds 가 정하고, 같은 시각끼리는 행 순서다 | — |
 | X6 | 데이터 행 | 데이터 행이 없으면 P3 으로 거절 | 시트 거절 |
 | X7 | 커밋 | 오류가 하나라도 있으면 Register 를 잠근다 (기존 일괄 등록 화면과 같다). 전부 통과하면 한 트랜잭션으로 등록 | — |
 | X8 | 스케줄 | 엑셀에 넣지 않는다. import 된 Plan 은 `NONE` 으로 등록된다 | — |
@@ -75,7 +88,7 @@ X3: 같은 이름의 Plan 이 이미 있으면 거절한다(P2). 덮어쓰기 �
 
 ---
 
-## 5. 실행 시점 — Action (skip 정책 적용)
+## 5. 실행 시점 — Action (StopOnFailure 적용)
 
 | ID | 상황 | 판정 | Write API 대응 |
 |---|---|---|---|
@@ -86,7 +99,7 @@ X3: 같은 이름의 Plan 이 이미 있으면 거절한다(P2). 덮어쓰기 �
 | R5 | 쓰기 미지원 | 실패 | 501 |
 | R6 | 그 밖의 예외 | 실패 | 500 |
 
-실패해도 그 Action 의 interval 은 그대로 기다린다.
+실패해도 뒤 Action 의 실행 시각은 바뀌지 않는다. 각 시각은 시작 시각 + 실행 시각으로 예약한다 — 앞 쓰기가 늦어져도 밀리지 않는다.
 
 ## 6. 실행 시점 — Plan
 
@@ -95,13 +108,13 @@ X3: 같은 이름의 Plan 이 이미 있으면 거절한다(P2). 덮어쓰기 �
 | E1 | 수동 실행했는데 이미 실행 중 | 거절 (409) |
 | E2 | 스케줄 시각인데 이미 실행 중 | 이번 실행은 하지 않고 로그만 남긴다 (실패로 세지 않음) |
 | E3 | Stop | 진행 중인 쓰기 하나는 끝내고, 대기 중이면 즉시 끝낸다. 이미 건 lock 은 건드리지 않는다 |
-| E4 | 앱 재시작 | 실행 중이던 Plan 은 이어서 실행하지 않는다. 스케줄은 다시 등록하고, 꺼져 있던 동안 놓친 실행은 건너뛴다 |
+| E4 | 앱 재시작·절전 | 실행 중이던 Plan 은 이어서 실행하지 않는다. 스케줄은 다시 등록하고, 꺼져 있던 동안 놓친 실행은 건너뛴다. 절전에서 깨어나 cron 시각에서 5초 넘게 벗어나 불린 실행도 놓친 것으로 보고 건너뛴다 |
 
 실행 결과:
 
 | 결과 | 조건 |
 |---|---|
 | `COMPLETED` | 모든 Action 성공 |
-| `COMPLETED_WITH_SKIPS` | skip=true 인 Action 이 하나 이상 실패 |
-| `FAILED` | skip=false 인 Action 이 실패해 중단 |
+| `COMPLETED_WITH_SKIPS` | StopOnFailure=FALSE 인 Action 이 하나 이상 실패 (기록하고 계속) |
+| `FAILED` | StopOnFailure=TRUE 인 Action 이 실패해 중단 |
 | `STOPPED` | 사용자가 Stop |

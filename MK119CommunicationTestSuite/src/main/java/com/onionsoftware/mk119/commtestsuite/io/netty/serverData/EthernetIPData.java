@@ -24,15 +24,6 @@ public class EthernetIPData extends ServerData {
     private short implicit_o_t_port;
     private int implicit_t_o_addr;
 
-    /**
-     * EtherNet/IP 의 칸은 태그다. 예전 target 의 CIP 타입 접두어({@code REAL@TAG1})는 떼고 태그 이름으로 모은다.
-     * 쓰기·색인·lock·값 읽기가 모두 이걸 거치므로, 패킷에 태그 이름만 실려 와도 같은 칸으로 판정된다.
-     */
-    @Override
-    protected String canonicalTarget(String target) {
-        return EthernetIPTypes.tagOf(target);
-    }
-
     /** 태그의 CTS DataType. 그 태그로 등록된 Simulation 의 첫 정책이 정한다. 없으면 null. */
     public DataType dataTypeOf(String tag) {
         Simulation s = simulationFor(tag);

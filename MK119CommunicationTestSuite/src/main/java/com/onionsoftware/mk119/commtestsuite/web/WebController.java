@@ -140,6 +140,29 @@ public class WebController {
         return "error_editor";
     }
 
+    @RequestMapping("/testplans")
+    public String testPlans(@RequestParam(value = "plan", required = false) Integer plan, Model model) {
+        model.addAttribute("selectedPlan", plan);
+        return "testplans";
+    }
+
+    @RequestMapping("/testplans/new")
+    public String newTestPlan(Model model) {
+        model.addAttribute("planId", null);
+        return "testplan_editor";
+    }
+
+    @RequestMapping("/testplans/edit/{id}")
+    public String editTestPlan(@PathVariable Integer id, Model model) {
+        model.addAttribute("planId", id);
+        return "testplan_editor";
+    }
+
+    @RequestMapping("/testplans/batch")
+    public String batchAddTestPlans() {
+        return "batchAddTestPlans";
+    }
+
     @RequestMapping("/settings")
     public String settings() {
         return "settings";

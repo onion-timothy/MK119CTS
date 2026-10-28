@@ -251,21 +251,15 @@
 
                             devicesTable = new Tabulator('#devicesTable', {
                                 data: data,
-                                layout: 'fitColumns',
+                                layout: 'fitData',
                                 height: '100%',
                                 pagination: true,
                                 paginationSize: 10,
                                 selectableRows: true,
-                                columnDefaults: { resizable: false },
                                 placeholder: 'No devices in this group',
                                 rowContextMenu: buildDeviceRowMenu(),
                                 columns: withHeaderMinWidth([
-                                    {
-                                        formatter: 'rowSelection',
-                                        hozAlign: 'center',
-                                        headerSort: false,
-                                        width: 50
-                                    },
+                                    CtsTable.selectionColumn(),
                                     {title: 'Name', field: 'name'},
                                     {
                                         title: 'Address',
@@ -292,6 +286,7 @@
                                     }
                                 ])
                             });
+                            CtsTable.enhanceResize(devicesTable);
                             devicesTable.on('tableBuilt', function () {
                                 applyDevicesSearch();
                                 injectDevicesFooterButtons();
@@ -574,14 +569,6 @@
                     $('#excel').click();
                 } else if (!devicesTable) {
                     alert('Select a group first.');
-                } else if (action === 'selectAll') {
-                    let all = devicesTable.getRows().length;
-                    let sel = devicesTable.getSelectedRows().length;
-                    if (sel === all) {
-                        devicesTable.deselectRow();
-                    } else {
-                        devicesTable.selectRow();
-                    }
                 } else if (action === 'toggle') {
                     toggleSelectedDevices();
                 } else if (action === 'copy') {
@@ -1086,6 +1073,14 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="/testplans" class="nav-link">
+                            <i class="nav-icon fas fa-tasks"></i>
+                            <p>
+                                Test Plans
+                            </p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="/settings" class="nav-link">
                             <i class="nav-icon fas fa-sliders-h"></i>
                             <p>
@@ -1146,7 +1141,6 @@
                             <h3 class="card-title mb-0" id="group-title"></h3>
                             <div id="devicesToolbar" class="ml-auto flex-shrink-0"
                                  style="display:flex; gap:0.25rem; align-items:center; flex-wrap:nowrap;">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
                                 <select id="devicesSearchField" class="form-control form-control-sm" style="width:auto;">
@@ -1278,6 +1272,7 @@
 <script src="../../js/jstree.min.js"></script>
 <!-- Tabulator -->
 <script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/cts-table.js"></script>
 <script src="../../js/xlsx.full.min.js"></script>
 
 </body>

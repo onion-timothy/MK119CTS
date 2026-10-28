@@ -7,10 +7,13 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanRun;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.db.service.TestPlanService;
 import com.onionsoftware.mk119.commtestsuite.db.service.TestPlanValidator;
+import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.enums.ScheduleType;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataCells;
 import com.onionsoftware.mk119.commtestsuite.enums.TestPlanTrigger;
 import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanRunner;
 import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanScheduler;
+import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanTiming;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,9 +49,10 @@ public class TestPlanController {
     public List<Map<String, Object>> list() {
         LocalDateTime now = LocalDateTime.now();
         Map<Integer, TestPlanRunner.Status> running = runningByPlan();
+        Map<Integer, Device> devices = devicesById();
         List<Map<String, Object>> out = new ArrayList<>();
         for (TestPlan p : testPlanService.selectTestPlans()) {
-            Map<String, Object> m = planHeader(p, now, running.get(p.getId()));
+            Map<String, Object> m = planHeader(p, now, running.get(p.getId()), devices);
             List<TestPlanRun> last = testPlanService.selectRuns(p.getId(), 1);
             m.put("lastRun", last.isEmpty() ? null : last.get(0));
             out.add(m);
@@ -61,7 +65,7 @@ public class TestPlanController {
     public ResponseEntity<?> get(@PathVariable Integer id) {
         Optional<TestPlan> plan = testPlanService.selectTestPlan(id);
         if (!plan.isPresent()) return notFound(id);
-        Map<String, Object> m = planHeader(plan.get(), LocalDateTime.now(), runningByPlan().get(id));
+        Map<String, Object> m = planHeader(plan.get(), LocalDateTime.now(), runningByPlan().get(id), devicesById());
         m.put("actions", actionsWithDeviceNames(plan.get()));
         return ResponseEntity.ok(m);
     }
@@ -122,7 +126,7 @@ public class TestPlanController {
         return ok(Collections.singletonMap("id", id));
     }
 
-    /** 스케줄 켜기/끄기. 실행 중에도 된다(진행 중인 실행에는 영향이 없다). */
+    /** 스케줄 켜기/끄기. 실행 중에도 된다(진행 중인 실행에는 영향이 없다). interval 은 켜는 순간 한 번 돈다. */
     @PostMapping("/{id}/schedule/enabled/{enabled}")
     public ResponseEntity<?> scheduleEnabled(@PathVariable Integer id, @PathVariable Integer enabled) {
         Optional<TestPlan> plan = testPlanService.selectTestPlan(id);
@@ -160,6 +164,35 @@ public class TestPlanController {
         m.put("id", id);
         m.put("stopped", testPlanRunner.stop(id));
         return ok(m);
+    }
+
+    /**
+     * 편집 중인 Action 들의 저장 칸. 편집기가 target·dataType 을 바꿀 때마다 Lane 을 다시 그리려고 부른다.
+     * body: {@code {actions: [{deviceId | device, target, dataType}]}}. 장비는 deviceId 가 없으면 device(이름)로 찾는다 —
+     * 엑셀 Import 화면은 이름만 안다. 응답은 같은 순서의 {@code [{deviceId, cells, protocol}]}.
+     */
+    @PostMapping("/cells")
+    public List<Map<String, Object>> cells(@RequestBody Map<String, Object> body) {
+        Map<Integer, Device> devices = devicesById();
+        Map<String, Device> byName = new HashMap<>();
+        for (Device d : devices.values()) byName.put(d.getName(), d);
+        List<Map<String, Object>> out = new ArrayList<>();
+        Object raw = body == null ? null : body.get("actions");
+        if (!(raw instanceof List)) return out;
+        for (Object o : (List<?>) raw) {
+            Map<?, ?> a = o instanceof Map ? (Map<?, ?>) o : Collections.emptyMap();
+            Integer deviceId = a.get("deviceId") instanceof Number ? ((Number) a.get("deviceId")).intValue() : null;
+            Device d = deviceId != null ? devices.get(deviceId)
+                    : a.get("device") == null ? null : byName.get(a.get("device").toString().trim());
+            String target = a.get("target") == null ? null : a.get("target").toString().trim();
+            String dataType = a.get("dataType") == null ? null : a.get("dataType").toString();
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("deviceId", d == null ? null : d.getId());
+            m.put("protocol", d == null ? null : d.getProtocol());
+            m.put("cells", target == null || target.isEmpty() ? Collections.emptyList() : cellsOf(d, target, dataType));
+            out.add(m);
+        }
+        return out;
     }
 
     // ── 엑셀 ─────────────────────────────────────────────────────────────
@@ -216,13 +249,13 @@ public class TestPlanController {
             for (TestPlanAction a : p.getActions()) {
                 String device = names.get(a.getDeviceId());
                 rows.add(Arrays.asList(
+                        a.getAtSeconds(),
                         device != null ? device : "#" + a.getDeviceId(),
                         a.getTarget(),
                         a.getValue(),
                         a.getDataType(),
                         a.getLockSeconds(),
-                        a.getIntervalSeconds(),
-                        a.getSkipOnFailure() == 1 ? "TRUE" : "FALSE"));
+                        a.getStopOnFailure() == 1 ? "TRUE" : "FALSE"));
             }
             Map<String, Object> sheet = new LinkedHashMap<>();
             sheet.put("name", p.getName());
@@ -234,7 +267,8 @@ public class TestPlanController {
 
     // ── 응답 구성 ────────────────────────────────────────────────────────
 
-    private Map<String, Object> planHeader(TestPlan p, LocalDateTime now, TestPlanRunner.Status status) {
+    private Map<String, Object> planHeader(TestPlan p, LocalDateTime now, TestPlanRunner.Status status,
+                                           Map<Integer, Device> devices) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", p.getId());
         m.put("name", p.getName());
@@ -242,10 +276,15 @@ public class TestPlanController {
         m.put("scheduleHour", p.getScheduleHour());
         m.put("scheduleMinute", p.getScheduleMinute());
         m.put("scheduleSecond", p.getScheduleSecond());
+        m.put("scheduleIntervalSeconds", p.getScheduleIntervalSeconds());
         m.put("scheduleEnabled", p.getScheduleEnabled() == TestPlan.SCHEDULE_ENABLED);
-        m.put("nextRunAt", TestPlanScheduler.nextRunOf(p, now));
+        m.put("nextRunAt", testPlanScheduler.nextRun(p, now));
         m.put("actionCount", p.getActions().size());
-        m.put("totalIntervalSeconds", p.totalIntervalSeconds());
+        // 마지막 lock 이 풀리는 시각까지
+        m.put("durationSeconds", TestPlanTiming.durationSeconds(p.getActions(), id -> {
+            Device d = devices.get(id);
+            return d == null ? null : d.getProtocol();
+        }));
         m.put("running", status != null);
         m.put("status", status);
         m.put("createdAt", p.getCreatedAt());
@@ -254,19 +293,23 @@ public class TestPlanController {
     }
 
     private List<Map<String, Object>> actionsWithDeviceNames(TestPlan p) {
-        Map<Integer, String> names = deviceNames();
+        Map<Integer, Device> devices = devicesById();
         List<Map<String, Object>> out = new ArrayList<>();
         for (TestPlanAction a : p.getActions()) {
+            Device d = devices.get(a.getDeviceId());
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("seq", a.getSeq());
             m.put("deviceId", a.getDeviceId());
-            m.put("deviceName", names.get(a.getDeviceId()));
+            m.put("deviceName", d == null ? null : d.getName());
+            m.put("protocol", d == null ? null : d.getProtocol());
+            // 다이어그램의 Lane. lock 판정과 같은 칸 계산이다
+            m.put("cells", cellsOf(d, a.getTarget(), a.getDataType()));
             m.put("target", a.getTarget());
             m.put("value", a.getValue());
             m.put("dataType", a.getDataType());
             m.put("lockSeconds", a.getLockSeconds());
-            m.put("intervalSeconds", a.getIntervalSeconds());
-            m.put("skipOnFailure", a.getSkipOnFailure() == 1);
+            m.put("atSeconds", a.getAtSeconds());
+            m.put("stopOnFailure", a.getStopOnFailure() == 1);
             out.add(m);
         }
         return out;
@@ -276,6 +319,23 @@ public class TestPlanController {
         Map<Integer, String> names = new HashMap<>();
         for (Device d : deviceService.selectDevices()) names.put(d.getId(), d.getName());
         return names;
+    }
+
+    private Map<Integer, Device> devicesById() {
+        Map<Integer, Device> m = new HashMap<>();
+        for (Device d : deviceService.selectDevices()) m.put(d.getId(), d);
+        return m;
+    }
+
+    /** 장비가 없거나 dataType 을 읽을 수 없으면 target 한 칸으로 본다. */
+    private static List<String> cellsOf(Device d, String target, String dataType) {
+        DataType dt = null;
+        try {
+            if (dataType != null && !dataType.isEmpty()) dt = DataType.valueOf(dataType);
+        } catch (IllegalArgumentException ignored) {
+            // 편집 중의 잘못된 이름. 칸은 target 하나로 그린다
+        }
+        return ServerDataCells.of(d == null ? null : d.getProtocol(), target, dt);
     }
 
     private Map<Integer, TestPlanRunner.Status> runningByPlan() {
@@ -314,7 +374,7 @@ public class TestPlanController {
     }
 
     private ResponseEntity<?> saved(TestPlan p) {
-        Map<String, Object> m = planHeader(p, LocalDateTime.now(), runningByPlan().get(p.getId()));
+        Map<String, Object> m = planHeader(p, LocalDateTime.now(), runningByPlan().get(p.getId()), devicesById());
         m.put("actions", actionsWithDeviceNames(p));
         return ok(Collections.singletonMap("plan", m));
     }

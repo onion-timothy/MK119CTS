@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.testplan;
 
+import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlan;
 import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanAction;
 import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanRun;
@@ -25,12 +26,12 @@ import java.util.concurrent.ScheduledFuture;
 /**
  * Test Plan 실행기.
  * <p>
- * Action 을 실행하고 그 Action 의 interval 만큼 기다린 뒤 다음 Action 을 실행한다.
- * 마지막 Action 뒤에도 그 interval 을 기다린 다음 끝난다(S3 의 실행 시간과 같게).
- * interval 이 0 이면 다음 Action 을 곧바로 같은 차례에 실행한다 — 여러 target 을 동시에 바꾸는 용도다.
+ * 각 Action 은 실행 시각(atSeconds, 시작부터 센 초)에 실행한다. 같은 시각의 Action 들은 한 차례에 seq 순서로 쓴다 —
+ * 여러 target 을 동시에 바꾸는 용도다. 마지막 Action 을 쓴 뒤 마지막 lock 이 풀릴 때까지 기다렸다가 끝난다
+ * (S3 의 실행 시간과 같게, {@link TestPlanTiming}).
  * <p>
- * 기다리는 동안 스레드를 붙잡지 않는다. Action 을 마치면 다음 Action 을 "지금 + interval" 에 예약한다.
- * interval 이 몇 시간이어도 풀을 막지 않는다.
+ * 기다리는 동안 스레드를 붙잡지 않는다. 한 차례를 마치면 다음 시각을 "시작 시각 + at" 에 예약한다.
+ * 앞 차례의 쓰기가 늦어져도 뒤 시각이 밀리지 않고, 몇 시간을 기다려도 풀을 막지 않는다.
  * <p>
  * Simulation 과 같은 스케줄러를 쓰지 않는다. 그 풀이 붐비면 시뮬레이션 주기가 흔들린다.
  * 같은 타입의 Spring 빈을 하나 더 두면 기존 주입이 모호해지므로 빈으로 등록하지 않고 여기서 만든다.
@@ -81,10 +82,10 @@ public class TestPlanRunner {
         private final Long runId;
         private final TestPlanTrigger trigger;
         private final LocalDateTime startedAt;
-        /** 다음에 실행할 Action 위치(0부터). 마지막 Action 뒤 대기 중이면 Action 수와 같다. */
+        /** 다음에 실행할 Action 위치(0부터). Action 을 다 쓰고 lock 이 풀리길 기다리는 중이면 Action 수와 같다. */
         private final int nextAction;
         private final int totalActions;
-        /** 다음 Action(또는 종료)이 예약된 시각(epoch ms). */
+        /** 다음 차례(또는 끝)가 예약된 시각(epoch ms). */
         private final long nextAt;
 
         Status(Execution e) {
@@ -105,14 +106,21 @@ public class TestPlanRunner {
         final TestPlanRun run;
         int next;
         int failed;
+        /** 시작 시각(epoch ms). 각 차례는 이 시각 + at 에 예약한다. */
+        long startMs;
+        /** 실행 시간(초). 마지막 lock 이 풀리는 시각이다. 이때 끝난다. */
+        long endSeconds;
         long nextAt;
         boolean finished;
         ScheduledFuture<?> future;
 
         Execution(TestPlan plan, TestPlanRun run) {
             this.plan = plan;
-            // 실행 중에는 Plan 을 고칠 수 없지만(P4), 실행이 붙잡은 목록은 저장 시점의 것으로 고정해 둔다
-            this.actions = Collections.unmodifiableList(new ArrayList<>(plan.getActions()));
+            // 실행 중에는 Plan 을 고칠 수 없지만(P4), 실행이 붙잡은 목록은 저장 시점의 것으로 고정해 둔다.
+            // 저장할 때 시각 순으로 seq 를 매기지만 한 번 더 시각 순(같으면 seq 순)으로 늘어놓는다
+            List<TestPlanAction> sorted = new ArrayList<>(plan.getActions());
+            sorted.sort(Comparator.comparingInt(TestPlanAction::getAtSeconds).thenComparingInt(TestPlanAction::getSeq));
+            this.actions = Collections.unmodifiableList(sorted);
             this.run = run;
         }
     }
@@ -120,7 +128,7 @@ public class TestPlanRunner {
     // ── 시작 / 중지 ──────────────────────────────────────────────────────
 
     /**
-     * 실행을 시작한다. 첫 Action 은 곧바로 예약된다.
+     * 실행을 시작한다. 첫 시각(0초)의 Action 들은 곧바로 예약된다.
      *
      * @throws AlreadyRunningException 그 Plan 이 이미 실행 중일 때
      * @throws javax.persistence.EntityNotFoundException Plan 이 없을 때
@@ -145,7 +153,12 @@ public class TestPlanRunner {
         logger.info("Test plan \"{}\"({}) started by {}: run={}, actions={}",
                 plan.getName(), planId, trigger, e.run.getId(), e.actions.size());
         synchronized (e) {
-            scheduleNext(e, 0);
+            e.endSeconds = TestPlanTiming.durationSeconds(e.actions, id -> {
+                Device d = deviceService.getDevice(id);
+                return d == null ? null : d.getProtocol();
+            });
+            e.startMs = System.currentTimeMillis();
+            scheduleAt(e, e.actions.get(0).getAtSeconds());
         }
         return e.run;
     }
@@ -185,33 +198,44 @@ public class TestPlanRunner {
 
     // ── 실행 ─────────────────────────────────────────────────────────────
 
-    private void scheduleNext(Execution e, long delayMs) {
-        e.nextAt = System.currentTimeMillis() + delayMs;
+    /** 시작 시각 + at 에 다음 차례를 예약한다. 이미 지났으면 곧바로 돈다. */
+    private void scheduleAt(Execution e, long atSeconds) {
+        e.nextAt = e.startMs + atSeconds * 1000L;
         e.future = scheduler.schedule(() -> step(e), new Date(e.nextAt));
     }
 
     /**
-     * 예약된 차례. interval 이 0 인 Action 들은 이 차례 안에서 이어서 실행한다.
-     * 마지막 Action 의 interval 까지 기다린 뒤 다시 들어오면 끝낸다.
+     * 예약된 차례. 이 시각의 Action 들을 seq 순서로 쓴다. 남은 Action 이 있으면 다음 시각을 예약하고,
+     * 없으면 마지막 lock 이 풀리는 시각을 예약한다. 그 차례에 다시 들어오면 끝낸다.
+     * stopOnFailure 인 Action 이 실패하면 그 자리에서 멈춘다 — 같은 시각이라도 뒤의 Action 은 쓰지 않는다.
+     * 그 밖의 실패는 SKIPPED 로 기록하고 이어 간다.
      */
     private void step(Execution e) {
         synchronized (e) {
             if (e.finished) return;
             try {
-                while (e.next < e.actions.size()) {
+                if (e.next >= e.actions.size()) {          // lock 이 다 풀렸다
+                    finish(e, e.failed > 0 ? TestPlanRunResult.COMPLETED_WITH_SKIPS : TestPlanRunResult.COMPLETED, null);
+                    return;
+                }
+                int at = e.actions.get(e.next).getAtSeconds();
+                while (e.next < e.actions.size() && e.actions.get(e.next).getAtSeconds() == at) {
                     TestPlanAction action = e.actions.get(e.next);
                     boolean ok = execute(e, action);
                     e.next++;
-                    if (!ok && action.getSkipOnFailure() == 0) {
+                    if (!ok && action.getStopOnFailure() == 1) {
                         finish(e, TestPlanRunResult.FAILED,
-                                "Action #" + (action.getSeq() + 1) + " failed and is not set to skip.");
+                                "Action #" + (action.getSeq() + 1) + " failed and is set to stop the plan.");
                         return;
                     }
-                    // 실패해도 interval 은 그대로 기다린다
-                    if (action.getIntervalSeconds() > 0) {
-                        scheduleNext(e, action.getIntervalSeconds() * 1000L);
-                        return;
-                    }
+                }
+                if (e.next < e.actions.size()) {
+                    scheduleAt(e, e.actions.get(e.next).getAtSeconds());
+                    return;
+                }
+                if (e.endSeconds > at) {                    // 마지막 lock 이 풀릴 때까지 기다린다
+                    scheduleAt(e, e.endSeconds);
+                    return;
                 }
                 finish(e, e.failed > 0 ? TestPlanRunResult.COMPLETED_WITH_SKIPS : TestPlanRunResult.COMPLETED, null);
             } catch (RuntimeException ex) {
@@ -254,7 +278,7 @@ public class TestPlanRunner {
             rec.setStatus(TestPlanActionStatus.OK);
         } else {
             e.failed++;
-            rec.setStatus(action.getSkipOnFailure() == 1 ? TestPlanActionStatus.SKIPPED : TestPlanActionStatus.FAILED);
+            rec.setStatus(action.getStopOnFailure() == 1 ? TestPlanActionStatus.FAILED : TestPlanActionStatus.SKIPPED);
             logger.info("Test plan run {} action #{} ({} on device {}) {}: {}", e.run.getId(), action.getSeq() + 1,
                     action.getTarget(), action.getDeviceId(), rec.getStatus(), error);
         }

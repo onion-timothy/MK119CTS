@@ -1,0 +1,88 @@
+/* Test Plan 화면 공용: 타이밍 다이어그램과 패널. */
+
+.cts-panel { border: 1px solid #dee2e6; border-radius: 4px; background-color: #fff; overflow: hidden;
+    display: flex; flex-direction: column; min-height: 0; }
+.cts-panel-header { background-color: #fff; border-bottom: 1px solid #dee2e6; padding: 6px 10px;
+    display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; min-height: 42px; }
+.cts-panel-title { margin: 0 0.5rem 0 0; padding: 0; font-size: 0.875rem; font-weight: 600; color: #495057;
+    text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cts-panel-tools { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; flex-wrap: nowrap; }
+.cts-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.cts-panel-footer { background-color: #fff; border-top: 1px solid #dee2e6; padding: 6px 10px;
+    display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; min-height: 42px; }
+
+.cts-tabulator { border: none !important; border-radius: 0 !important; font-size: 0.9rem; flex: 1 1 auto; min-height: 0; }
+.cts-tabulator .tabulator-header { background-color: #fff; border-bottom: 2px solid #007bff; font-weight: 600; color: #495057; }
+.cts-tabulator .tabulator-header .tabulator-col { background-color: transparent; border-right: none; }
+.cts-tabulator .tabulator-cell { border-right: none; padding: 8px 10px; }
+.cts-tabulator .tabulator-row { border-bottom: 1px solid #f1f3f5; transition: background-color 0.12s ease; cursor: pointer; }
+.cts-tabulator .tabulator-row.tabulator-row-even { background-color: #fbfcfd; }
+.cts-tabulator .tabulator-row:hover { background-color: #eef5ff !important; }
+.cts-tabulator .tabulator-row.tabulator-selected { background-color: #d6e8ff !important; }
+
+/* 상태 배지 */
+.tp-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.02em; white-space: nowrap; }
+.tp-badge.RUNNING { background: #e3f0ff; color: #0b63ce; }
+.tp-badge.COMPLETED { background: #e4f6ea; color: #1e7b3b; }
+.tp-badge.COMPLETED_WITH_SKIPS { background: #fff4dc; color: #8a5a00; }
+.tp-badge.FAILED { background: #fde8e8; color: #b42318; }
+.tp-badge.STOPPED { background: #eceef1; color: #4b5563; }
+.tp-badge.NONE { background: transparent; color: #adb5bd; font-weight: 400; }
+.tp-badge.OK { background: #e4f6ea; color: #1e7b3b; }
+.tp-badge.SKIPPED { background: #fff4dc; color: #8a5a00; }
+
+/* ── 타이밍 다이어그램 ─────────────────────────────────────────── */
+.tpt { position: relative; display: flex; flex: 1 1 auto; min-height: 120px; overflow: hidden;
+    border-top: 1px solid #eef0f2; background: #fff; }
+.tpt-labels { flex: 0 0 190px; position: relative; overflow: hidden; border-right: 1px solid #dee2e6; background: #fafbfc; }
+.tpt-labels-inner { position: absolute; left: 0; right: 0; top: 0; }
+.tpt-group { position: absolute; left: 0; right: 0; height: 22px; line-height: 22px; padding: 0 8px;
+    font-size: 11px; font-weight: 700; color: #495057; text-transform: uppercase; letter-spacing: 0.02em;
+    background: #f1f3f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tpt-lane-label { position: absolute; left: 0; right: 0; height: 26px; line-height: 26px; padding: 0 8px 0 18px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #343a40;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tpt-scroll { flex: 1 1 auto; overflow: auto; position: relative; }
+.tpt-svg { display: block; user-select: none; }
+.tpt-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #adb5bd; font-size: 13px; }
+
+.tpt-grid { stroke: #eef0f2; stroke-width: 1; }
+.tpt-tick { font-size: 10px; fill: #868e96; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.tpt-group-bg { fill: #f1f3f5; }
+.tpt-lane { fill: #ffffff; }
+.tpt-lane.odd { fill: #fbfcfd; }
+
+.tpt-hold { fill-opacity: 0.16; stroke: none; }
+.tpt-lock { fill-opacity: 0.85; }
+.tpt-start { stroke-width: 2; }
+.tpt-cut { stroke: #c92a2a; stroke-width: 2; }
+.tpt-lock-cut { stroke: #c92a2a; stroke-width: 1; stroke-dasharray: 2 2; }
+.tpt-label { font-size: 11px; font-weight: 600; fill: #212529; pointer-events: none; paint-order: stroke;
+    stroke: rgba(255, 255, 255, 0.85); stroke-width: 3px; }
+.tpt-hit { fill: transparent; cursor: pointer; }
+.tpt-block.selected .tpt-hold { fill-opacity: 0.3; }
+.tpt-block.selected .tpt-start { stroke-width: 4; }
+.tpt-block.bad .tpt-hold, .tpt-block.bad .tpt-lock { stroke: #c92a2a; stroke-width: 2; stroke-dasharray: 4 2; }
+.tpt-lock-handle { fill: transparent; cursor: ew-resize; }
+.tpt-block:hover .tpt-lock-handle { fill: rgba(0, 0, 0, 0.12); }
+
+/* End 와 실행 위치는 표시일 뿐이다. 마지막 interval 화살표 끝이 End 와 겹치므로 클릭을 가로채지 않게 한다 */
+.tpt-end, .tpt-playhead { pointer-events: none; }
+/* End 뒤: Plan 은 끝났지만 값과 lock 은 남는다 */
+.tpt-after { fill: rgba(73, 80, 87, 0.05); pointer-events: none; }
+.tpt-end line { stroke: #495057; stroke-width: 1; stroke-dasharray: 4 3; }
+.tpt-end text { font-size: 10px; fill: #495057; font-weight: 600; }
+.tpt-playhead { stroke: #e03131; stroke-width: 2; }
+/* 실패하면 멈추는 첫 Action 의 시각 */
+.tpt-stop { pointer-events: none; }
+.tpt-stop line { stroke: #d9480f; stroke-width: 1.5; stroke-dasharray: 6 3; }
+.tpt-stop text { font-size: 10px; font-weight: 700; fill: #d9480f; paint-order: stroke; stroke: rgba(255, 255, 255, 0.9); stroke-width: 3px; }
+
+.tpt-legend { display: flex; gap: 12px; align-items: center; font-size: 11px; color: #6c757d; flex-wrap: wrap; }
+.tpt-legend i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.tpt-legend .lg-lock { background: rgba(47, 128, 237, 0.85); }
+.tpt-legend .lg-hold { background: rgba(47, 128, 237, 0.16); }
+.tpt-legend .lg-cut { width: 2px; background: #c92a2a; }
+.tpt-legend .lg-play { width: 2px; background: #e03131; }
+.tpt-legend .lg-stop { width: 0; border-left: 2px dashed #d9480f; border-radius: 0; }

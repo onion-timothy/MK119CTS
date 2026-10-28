@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public abstract class ServerData {
     /** 이 ServerData가 속한 IOServer. 팩토리/세터에서 자동 wire된다. 리스너 발화 창구로만 사용. */
@@ -140,7 +143,7 @@ public abstract class ServerData {
      * 프로토콜, Test Plan)가 어떤 표기를 쓰든 같은 칸으로 판정된다. 기본은 그대로다.
      */
     protected String canonicalTarget(String target) {
-        return target;
+        return ServerDataCells.canonical(ServerDataCells.protocolOf(this), target);
     }
 
     public abstract void resetServerData();
@@ -165,16 +168,18 @@ public abstract class ServerData {
      */
     public boolean setServerData(Simulation simulation, double value, ServerDataChangeSource source) throws Exception {
         String target = canonicalTarget(simulation.getTarget());
-        if (isBlockedByLock(target, source)) return false;
-
         List<SimulationPolicy> policies = simulation.getPolicies();
         DataType dataType = (policies == null || policies.isEmpty()) ? null : policies.get(0).getData_type();
+        if (isBlockedByLock(target, dataType, source)) return false;
+
         applySetServerData(target, value, dataType);
         List<String> affected = computeAffectedTargets(target, dataType);
         if (source == ServerDataChangeSource.API_WRITE) {
-            for (String t : affected) lock(t);
+            for (String t : affected) putLock(t, LOCK_NO_EXPIRY, ServerDataChangeSource.API_WRITE);
         }
         fireChangeEvent(source, target, value, affected, simulation);
+        // 값 다음에 — 화면 방송이 모아 둔 값을 lock 과 함께 바로 내보낸다. lock 을 바꾸는 건 API 쓰기뿐이다
+        if (source == ServerDataChangeSource.API_WRITE) notifyLocksIfChanged();
         return true;
     }
 
@@ -186,13 +191,14 @@ public abstract class ServerData {
      */
     public boolean setServerData(String target, double value, DataType dataType, ServerDataChangeSource source) throws Exception {
         target = canonicalTarget(target);
-        if (isBlockedByLock(target, source)) return false;
+        if (isBlockedByLock(target, dataType, source)) return false;
         applySetServerData(target, value, dataType);
         List<String> affected = computeAffectedTargets(target, dataType);
         if (source == ServerDataChangeSource.API_WRITE) {
-            for (String t : affected) lock(t);
+            for (String t : affected) putLock(t, LOCK_NO_EXPIRY, ServerDataChangeSource.API_WRITE);
         }
         fireChangeEvent(source, target, value, affected, null);
+        if (source == ServerDataChangeSource.API_WRITE) notifyLocksIfChanged();
         return true;
     }
 
@@ -203,13 +209,14 @@ public abstract class ServerData {
     public boolean setServerData(String target, double value, DataType dataType,
                                  ServerDataChangeSource source, Integer lockSeconds) throws Exception {
         target = canonicalTarget(target);
-        if (isBlockedByLock(target, source)) return false;
+        if (isBlockedByLock(target, dataType, source)) return false;
         applySetServerData(target, value, dataType);
         List<String> affected = computeAffectedTargets(target, dataType);
         if (source == ServerDataChangeSource.API_WRITE) {
-            for (String t : affected) lock(t, lockSeconds);
+            for (String t : affected) applyApiLock(t, lockSeconds);
         }
         fireChangeEvent(source, target, value, affected, null);
+        if (source == ServerDataChangeSource.API_WRITE) notifyLocksIfChanged();
         return true;
     }
 
@@ -229,6 +236,7 @@ public abstract class ServerData {
         for (String t : computeAffectedTargets(target, dataType)) {
             putLock(t, until, authority);
         }
+        notifyLocksIfChanged();
     }
 
     /**
@@ -305,36 +313,8 @@ public abstract class ServerData {
     }
 
     public List<String> computeAffectedTargets(String baseTarget, DataType dataType) {
-        baseTarget = canonicalTarget(baseTarget);
-        List<String> out = new ArrayList<>();
-        if (this instanceof ModbusData && baseTarget != null && baseTarget.contains("_")) {
-            String[] tk = baseTarget.split("_");
-            int fc = Integer.parseInt(tk[0]);
-            int reg = Integer.parseInt(tk[1]);
-            int span = 1;
-            if ((fc == 3 || fc == 4) && dataType != null) {
-                // 각 register = 2 bytes
-                span = Math.max(1, dataType.getByteCount() / 2);
-            }
-            for (int i = 0; i < span; i++) out.add(fc + "_" + (reg + i));
-            return out;
-        }
-        if (this instanceof XGTData && baseTarget != null && baseTarget.length() >= 3) {
-            char blockChar = baseTarget.charAt(1);           // M, D, P, K, S, U
-            char dataTypeChar = baseTarget.charAt(2);        // B, W, D
-            int addr = extractNumbers(baseTarget);
-            int byteOffset;
-            int span;
-            if (dataTypeChar == 'B') { byteOffset = addr; span = 1; }
-            else if (dataTypeChar == 'W') { byteOffset = addr * 2; span = 2; }
-            else if (dataTypeChar == 'D') { byteOffset = addr * 4; span = 4; }
-            else { out.add(baseTarget); return out; }
-            // 실제 스냅샷/UI 는 byte 단위 (%<block>B<idx>) 로 표현하므로 그 형식으로 반환
-            for (int i = 0; i < span; i++) out.add("%" + blockChar + "B" + (byteOffset + i));
-            return out;
-        }
-        out.add(baseTarget);
-        return out;
+        // 칸 계산은 ServerDataCells 한 곳에 둔다. Test Plan 편집기가 장비 없이도 같은 칸을 그린다
+        return new ArrayList<>(ServerDataCells.of(ServerDataCells.protocolOf(this), baseTarget, dataType));
     }
 
     /**
@@ -342,9 +322,11 @@ public abstract class ServerData {
      * <p>
      * 시뮬레이션 계열은 조용히 skip 한다. PROTOCOL_WRITE 는 핸들러가 응답을 평소대로 보내므로
      * 값을 쓰지 않았다는 사실이 여기 로그로만 남는다.
+     *
+     * @param dataType 쓰기의 데이터 타입. 이걸로 쓰기가 덮는 칸을 모두 센다
      */
-    protected boolean isBlockedByLock(String target, ServerDataChangeSource source) {
-        for (String key : lockKeysOf(target)) {
+    protected boolean isBlockedByLock(String target, DataType dataType, ServerDataChangeSource source) {
+        for (String key : computeAffectedTargets(target, dataType)) {
             LockEntry entry = liveLock(key);   // 만료된 lock 은 여기서 자동으로 걸러진다
             if (entry == null || !source.isBlockedBy(entry.authority)) continue;
             if (source == ServerDataChangeSource.PROTOCOL_WRITE) {
@@ -357,29 +339,10 @@ public abstract class ServerData {
         return false;
     }
 
-    /**
-     * target 의 lock 을 찾을 때 볼 키. lock 은 값이 실제로 사는 칸에 걸리므로 그 칸으로 찾는다.
-     * <p>
-     * XGT 는 byte 번지가 그 칸이다. 쓰기와 정지가 {@link #computeAffectedTargets} 로
-     * {@code %DB100}, {@code %DB101} 처럼 byte 단위로 lock 을 거는데, 예전에는 판정을
-     * {@code %DW50} 그대로 해서 lock 을 못 찾고 시뮬레이션이 잠긴 값을 덮었다.
-     * 그래서 W/D target 은 차지하는 byte 를 모두 보고, 하나라도 잠겨 있으면 잠긴 것으로 본다.
-     * 다른 프로토콜은 target 그대로다.
-     */
-    private List<String> lockKeysOf(String target) {
-        if (this instanceof XGTData && target != null) {
-            try {
-                return computeAffectedTargets(target, null);
-            } catch (RuntimeException e) {
-                // 번지를 읽을 수 없는 target. 쓰기 쪽이 형식 오류로 따로 거절한다.
-            }
-        }
-        return Collections.singletonList(target);
-    }
-
     /** 만료 없는 API_WRITE lock. 편집 세션이 끝날 때 {@link #clearPermanentLocks()} 로 풀린다. */
     public void lock(String target) {
         putLock(target, LOCK_NO_EXPIRY, ServerDataChangeSource.API_WRITE);
+        notifyLocksIfChanged();
     }
 
     /**
@@ -396,6 +359,12 @@ public abstract class ServerData {
      * </ul>
      */
     public void lock(String target, Integer seconds) {
+        applyApiLock(target, seconds);
+        notifyLocksIfChanged();
+    }
+
+    /** {@link #lock(String, Integer)} 의 본체. 여러 칸을 잠글 때 알림을 한 번만 보내려고 나눴다. */
+    protected void applyApiLock(String target, Integer seconds) {
         if (isPermanentLockRequest(seconds)) {
             putLock(target, LOCK_NO_EXPIRY, ServerDataChangeSource.API_WRITE);
             return;
@@ -411,6 +380,9 @@ public abstract class ServerData {
      * lock 을 건다. 살아 있는 lock 의 authority 가 더 높으면 덮지 않는다 —
      * 낮은 쪽이 높은 쪽의 lock 을 줄이거나 바꾸지 못하게 하기 위해서다.
      * 같은 authority 면 나중 것으로 갱신한다(만료 시각 포함).
+     * <p>
+     * 만료가 있으면 그 시각에 알림 확인을 예약한다. 만료는 조회할 때 치워지는 방식이라,
+     * 예약이 없으면 lock 이 풀린 사실을 아무도 알리지 않는다.
      */
     private void putLock(String target, long until, ServerDataChangeSource authority) {
         long now = System.currentTimeMillis();
@@ -421,6 +393,37 @@ public abstract class ServerData {
             }
             return new LockEntry(authority, until);
         });
+        if (until != LOCK_NO_EXPIRY) {
+            // 만료 시각 바로 뒤. 그 사이 lock 이 연장됐으면 아무것도 바뀌지 않아 알림도 없다
+            LOCK_EXPIRY.schedule(this::notifyLocksIfChanged, Math.max(0, until - now) + 1, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /** 만료 알림 예약용. 장비 전체가 같이 쓴다. lock 은 드물게 바뀌므로 스레드 하나면 된다. */
+    private static final ScheduledExecutorService LOCK_EXPIRY = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "serverdata-lock-expiry");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** 마지막으로 알린 lock 칸. 같으면 다시 알리지 않는다. */
+    private Set<String> notifiedLocks = Collections.emptySet();
+    private final Object notifyMonitor = new Object();
+
+    /**
+     * lock 칸 집합이 지난번 알림과 다르면 리스너(Server Data 화면 방송)에 바로 알린다.
+     * lock 을 바꾸는 공개 동작 — 쓰기, 정지, 해제, 세션 종료 — 은 끝에서 이걸 부르고, 만료는 예약이 부른다.
+     * 비교와 발화를 한 번에 묶어, 두 스레드가 동시에 알려도 나중 상태가 나중에 나간다.
+     */
+    protected void notifyLocksIfChanged() {
+        IOServer server = ioServer;
+        if (server == null) return;
+        synchronized (notifyMonitor) {
+            Set<String> now = getLockedTargets();
+            if (now.equals(notifiedLocks)) return;
+            notifiedLocks = now;
+            server.fireLocksChanged(now);
+        }
     }
 
     /** 로그용 장비 표기. ioServer 가 아직 wire 되지 않았으면 "?" . */
@@ -441,10 +444,16 @@ public abstract class ServerData {
 
     public void unlock(String target) {
         lockedTargets.remove(canonicalTarget(target));
+        notifyLocksIfChanged();
     }
 
-    public boolean isLocked(String target) {
-        for (String key : lockKeysOf(target)) {
+    /**
+     * 그 쓰기가 덮는 칸 중 하나라도 잠겨 있는지. lock 은 값이 실제로 사는 칸(Modbus 레지스터, XGT byte)에
+     * 걸리므로 시작 칸만 보면 안 된다 — 예: 3_0 의 UI32 simulation 은 3_1 이 잠겨 있으면 쓰지 않는다.
+     * 쓰기 전체를 건너뛴다(잠기지 않은 칸만 따로 쓰지 않는다). 값의 일부만 바뀐 어긋난 값을 만들지 않기 위해서다.
+     */
+    public boolean isLocked(String target, DataType dataType) {
+        for (String key : computeAffectedTargets(target, dataType)) {
             if (liveLock(key) != null) return true;
         }
         return false;
@@ -468,6 +477,7 @@ public abstract class ServerData {
      */
     public void clearPermanentLocks() {
         lockedTargets.values().removeIf(e -> e.until == LOCK_NO_EXPIRY);
+        notifyLocksIfChanged();
     }
 
     /** 만료된 항목을 제외한 현재 lock 목록. */

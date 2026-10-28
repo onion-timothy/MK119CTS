@@ -507,12 +507,11 @@
             if (devicesTable) { devicesTable.destroy(); }
             devicesTable = new Tabulator('#devicesTable', {
                 data: devices,
-                layout: 'fitColumns',
+                layout: 'fitData',
                 height: '100%',
                 index: '_rid',
                 selectableRows: 1,
                 reactiveData: true,
-                columnDefaults: { resizable: false },
                 rowFormatter: function (row) {
                     if (row.getData().error) row.getElement().classList.add('row-error');
                     else row.getElement().classList.remove('row-error');
@@ -534,6 +533,7 @@
             devicesTable.on('rowClick', function (e, row) {
                 selectDevice(row.getData()._rid);
             });
+            CtsTable.enhanceResize(devicesTable);
         }
 
         /**
@@ -564,7 +564,7 @@
             updateSimPaneHeader();
             simulationsTable = new Tabulator('#simulationsTable', {
                 data: currentSimRows(),
-                layout: 'fitDataStretch',
+                layout: 'fitData',
                 height: '100%',
                 index: '_rid',
                 reactiveData: false,
@@ -605,6 +605,7 @@
 
             // Device Detail 폼과 같은 반응성을 주기 위해 셀 편집 중에도 매 입력마다 검증한다.
             // Tabulator 는 input 에디터에 '타이핑 중 커밋' 옵션이 없어서 에디터 DOM 에 직접 붙인다.
+            CtsTable.enhanceResize(simulationsTable);
             simulationsTable.on('cellEditing', function (cell) {
                 let field = cell.getField();
                 // 중첩 경로(policies.0.policy)는 d[field] 로 쓰면 엉뚱한 키가 생긴다.
@@ -891,6 +892,7 @@
                     <li class="nav-item"><a href="/" class="nav-link active"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
                     <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
                     <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/testplans" class="nav-link"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
                     <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
                 </ul>
             </nav>
@@ -951,6 +953,7 @@
 <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="../../js/adminlte.js"></script>
 <script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/cts-table.js"></script>
 <script src="../../js/xlsx.full.min.js"></script>
 <script>$(function(){ batchInit(); });</script>
 </body>

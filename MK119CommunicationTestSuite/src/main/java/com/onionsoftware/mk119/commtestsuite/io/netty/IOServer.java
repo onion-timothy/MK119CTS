@@ -36,6 +36,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.onionsoftware.mk119.commtestsuite.web.bean.ErrorStateStats;
 
@@ -410,6 +411,17 @@ public class IOServer extends Thread {
 
     public void removeServerDataListener(ServerDataListener listener) {
         serverDataListeners.remove(listener);
+    }
+
+    /** ServerData 의 lock 칸 집합이 바뀌었을 때 호출한다. 리스너 예외는 격리한다. */
+    public void fireLocksChanged(Set<String> locks) {
+        for (ServerDataListener listener : serverDataListeners) {
+            try {
+                listener.onLocksChanged(this, locks);
+            } catch (Exception e) {
+                LoggerFactory.getLogger("io").error("ServerDataListener {} failed on lock change for device {}({}).", listener.getClass().getSimpleName(), device.getName(), device.getId(), e);
+            }
+        }
     }
 
     /** ServerData가 변경 시점에 호출한다. 리스너 예외는 격리해 다른 리스너에 영향이 없도록 한다. */

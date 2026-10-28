@@ -40,6 +40,8 @@ public class TestPlan {
     private Integer scheduleMinute;
     /** SECOND, MINUTE, HOUR 에서 쓴다. 0~59. */
     private Integer scheduleSecond;
+    /** INTERVAL 에서만 쓴다. 실행 간격(초). */
+    private Integer scheduleIntervalSeconds;
 
     /** 스케줄을 켜 두었는지. 꺼져 있으면 수동 실행만 된다. */
     private int scheduleEnabled;
@@ -69,10 +71,9 @@ public class TestPlan {
     public static final int SCHEDULE_ENABLED = 1;
     public static final int SCHEDULE_DISABLED = 0;
 
-    /** 모든 Action 의 interval 합(초). 마지막 Action 의 interval 도 들어간다(S3). */
-    public long totalIntervalSeconds() {
-        long sum = 0;
-        for (TestPlanAction a : actions) sum += a.getIntervalSeconds();
-        return sum;
+    /** 스케줄 주기(초). cron 은 종류가 정하고, INTERVAL 은 Plan 이 정한다. 스케줄이 없으면 0. */
+    public long schedulePeriodSeconds() {
+        if (scheduleType == ScheduleType.INTERVAL) return scheduleIntervalSeconds == null ? 0 : scheduleIntervalSeconds;
+        return scheduleType == null ? 0 : scheduleType.periodSeconds();
     }
 }

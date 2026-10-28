@@ -13,12 +13,14 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +39,7 @@ public class TestPlanService {
     private final TestPlanRepository testPlanRepository;
     private final TestPlanRunRepository testPlanRunRepository;
     private final TestPlanRunActionRepository testPlanRunActionRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     // ── Plan ─────────────────────────────────────────────────────────────
 
@@ -87,6 +90,7 @@ public class TestPlanService {
         cur.setScheduleHour(incoming.getScheduleHour());
         cur.setScheduleMinute(incoming.getScheduleMinute());
         cur.setScheduleSecond(incoming.getScheduleSecond());
+        cur.setScheduleIntervalSeconds(incoming.getScheduleIntervalSeconds());
         cur.setScheduleEnabled(incoming.getScheduleEnabled());
         cur.setUpdatedAt(LocalDateTime.now());
         cur.getActions().clear();
@@ -109,13 +113,15 @@ public class TestPlanService {
     }
 
     /**
-     * Action 을 새 행으로 복사해 붙인다. seq 는 목록 위치로 다시 매긴다 —
-     * 들어온 seq 를 믿으면 빈 번호나 중복이 실행 순서를 흐린다.
+     * Action 을 새 행으로 복사해 붙인다. 실행 시각 순으로 늘어놓고 seq 를 다시 매긴다 —
+     * 같은 시각끼리는 들어온 순서를 지킨다(그 순서대로 쓴다). 들어온 seq 는 믿지 않는다.
      */
     private static void attachActions(TestPlan plan, List<TestPlanAction> given) {
         if (given == null) return;
+        List<TestPlanAction> sorted = new ArrayList<>(given);
+        sorted.sort(Comparator.comparingInt(TestPlanAction::getAtSeconds));   // 안정 정렬
         int seq = 0;
-        for (TestPlanAction src : given) {
+        for (TestPlanAction src : sorted) {
             TestPlanAction a = new TestPlanAction();
             a.setPlan(plan);
             a.setSeq(seq++);
@@ -124,8 +130,8 @@ public class TestPlanService {
             a.setValue(src.getValue());
             a.setDataType(src.getDataType() == null || src.getDataType().isEmpty() ? null : src.getDataType());
             a.setLockSeconds(src.getLockSeconds());
-            a.setIntervalSeconds(src.getIntervalSeconds());
-            a.setSkipOnFailure(src.getSkipOnFailure());
+            a.setAtSeconds(src.getAtSeconds());
+            a.setStopOnFailure(src.getStopOnFailure());
             plan.getActions().add(a);
         }
     }
@@ -186,6 +192,42 @@ public class TestPlanService {
      * 실행은 이어서 하지 않는다(E4).
      */
     @Transactional
+    /**
+     * interval 로 저장된 예전 Plan 을 이력과 함께 지운다. 실행 시각(at_seconds)으로 바꾸며 옮기지 않기로 했다.
+     * 예전 열 interval_seconds 는 NOT NULL 이라 남겨 두면 새 Action 을 넣지 못하므로 열도 지운다.
+     *
+     * @return 지운 Plan 수. 예전 열이 없으면(이미 했으면) -1
+     */
+    public int dropIntervalPlans() {
+        Integer old = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
+                + " WHERE table_schema = DATABASE() AND table_name = 'test_plan_actions' AND column_name = 'interval_seconds'",
+                Integer.class);
+        if (old == null || old == 0) return -1;
+        Integer plans = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM test_plans", Integer.class);
+        jdbcTemplate.update("DELETE FROM test_plan_run_actions");
+        jdbcTemplate.update("DELETE FROM test_plan_runs");
+        jdbcTemplate.update("DELETE FROM test_plan_actions");
+        jdbcTemplate.update("DELETE FROM test_plans");
+        jdbcTemplate.execute("ALTER TABLE test_plan_actions DROP COLUMN interval_seconds");
+        return plans == null ? 0 : plans;
+    }
+
+    /**
+     * 예전 열 skip_on_failure(1 = 실패해도 계속)를 stop_on_failure(1 = 실패하면 멈춤)로 뒤집어 옮긴다.
+     * 기본이 "실패해도 계속" 으로 바뀌었다. 저장된 Plan 의 동작은 그대로 둔다.
+     *
+     * @return 옮긴 Action 수. 예전 열이 없으면(이미 했으면) -1
+     */
+    public int migrateSkipToStop() {
+        Integer old = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
+                + " WHERE table_schema = DATABASE() AND table_name = 'test_plan_actions' AND column_name = 'skip_on_failure'",
+                Integer.class);
+        if (old == null || old == 0) return -1;
+        int n = jdbcTemplate.update("UPDATE test_plan_actions SET stop_on_failure = 1 - skip_on_failure");
+        jdbcTemplate.execute("ALTER TABLE test_plan_actions DROP COLUMN skip_on_failure");
+        return n;
+    }
+
     public int closeInterruptedRuns() {
         List<TestPlanRun> dangling = testPlanRunRepository.findByResult(TestPlanRunResult.RUNNING);
         LocalDateTime now = LocalDateTime.now();

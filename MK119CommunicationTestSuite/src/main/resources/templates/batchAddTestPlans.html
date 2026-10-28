@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS</title>
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <link rel="stylesheet" href="../../css/testplan.css">
+    <style>
+        html, body { overflow: hidden; height: 100vh; margin: 0; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; overflow: hidden; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+        .content-wrapper > section.content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+        .batch-root { display: flex; flex-direction: column; height: 100%; padding: 0 1.5rem 1.5rem 1.5rem; gap: 10px; min-height: 0; }
+        .batch-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .batch-panes { flex: 1 1 auto; min-height: 0; display: grid; gap: 10px; grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        @media (orientation: landscape) {
+            .batch-panes { grid-template-columns: minmax(260px, 0.6fr) minmax(0, 1.6fr); grid-template-rows: 1fr; }
+        }
+        .status-bar { font-size: .85rem; color: #6c757d; }
+        .status-bar.bad { color: #b42318; }
+        .status-bar.ok { color: #1e7b3b; }
+        .file-issues { color: #b42318; font-size: .85rem; }
+        .error-chip { color: #b42318; font-size: .8rem; white-space: normal; word-break: break-word; }
+        .warn-chip { color: #8a5a00; font-size: .8rem; white-space: normal; }
+        .cts-tabulator .tabulator-row.row-error { background-color: #fdecea !important; }
+        .cts-tabulator .tabulator-row.tp-current { background-color: #d6e8ff !important; }
+        .tl-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+        .tl-head h6 { margin: 0; font-size: 11px; font-weight: 700; color: #495057; text-transform: uppercase; letter-spacing: .04em; }
+        #timeline.tpt { height: 220px; flex: 0 0 auto; }
+        #rowTable { border-top: 1px solid #dee2e6 !important; }
+        #rowTable .tabulator-cell.tabulator-editable { cursor: text; }
+        #busyOverlay { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .45); align-items: center; justify-content: center; }
+        #busyOverlay.show { display: flex; }
+        #busyOverlay .busy-box { background: #fff; border-radius: 6px; padding: 24px 32px; display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 260px; }
+        #busyOverlay .spinner { width: 42px; height: 42px; border-radius: 50%; border: 4px solid #e9ecef; border-top-color: #007bff; animation: busySpin .8s linear infinite; }
+        @keyframes busySpin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div id="busyOverlay"><div class="busy-box"><div class="spinner"></div><div id="busyText">Registering…</div></div></div>
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
+            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/testplans" class="nav-link active"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6"><h1 class="m-0">Import Test Plans</h1></div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item"><a href="/testplans">Test Plans</a></li>
+                            <li class="breadcrumb-item active">Import</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="content">
+            <div class="batch-root">
+                <div class="batch-toolbar">
+                    <input type="file" id="excelFile" accept=".xlsx" style="display:none">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="$('#excelFile').click()"><i class="fas fa-file-excel"></i> Choose Excel</button>
+                    <button type="button" id="registerBtn" class="btn btn-primary btn-sm" disabled onclick="doRegister()"><i class="fas fa-check"></i> Register</button>
+                    <a class="btn btn-outline-secondary btn-sm" href="/testplans" onclick="sessionStorage.removeItem(BATCH_KEY)"><i class="fas fa-times"></i> Cancel</a>
+                    <span class="status-bar ml-2" id="statusLine">No file loaded.</span>
+                </div>
+                <div class="file-issues" id="fileIssues"></div>
+                <div class="batch-panes">
+                    <div class="cts-panel">
+                        <div class="cts-panel-header"><h3 class="cts-panel-title">Plan list</h3></div>
+                        <div class="cts-panel-body"><div id="sheetTable" class="cts-tabulator"></div></div>
+                    </div>
+                    <div class="cts-panel">
+                        <div class="cts-panel-header"><h3 class="cts-panel-title" id="rowsTitle">Plan</h3></div>
+                        <div class="cts-panel-body">
+                            <div class="tl-head">
+                                <h6>Timeline</h6>
+                                <div class="tpt-legend ml-2">
+                                    <span><i class="lg-lock"></i>Locked</span>
+                                    <span><i class="lg-hold"></i>Written, not locked</span>
+                                    <span><i class="lg-cut"></i>Overwritten</span>
+                                    <span><i class="lg-stop"></i>Stop on failure</span>
+                                </div>
+                                <div class="ml-auto btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" data-zoom="0.5" title="Zoom out"><i class="fas fa-minus"></i></button>
+                                    <button class="btn btn-outline-secondary" data-zoom="fit">Fit</button>
+                                    <button class="btn btn-outline-secondary" data-zoom="2" title="Zoom in"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+                            <div id="timeline"></div>
+                            <div class="tl-head">
+                                <h6>Actions</h6>
+                                <span class="text-muted small ml-auto">Row numbers are the Excel rows. Blank rows are skipped. Click a cell to fix it here.</span>
+                            </div>
+                            <div id="rowTable" class="cts-tabulator"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
+    </footer>
+</div>
+
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/cts-table.js"></script>
+<script src="../../js/xlsx.full.min.js"></script>
+<script src="../../js/testplan-timeline.js"></script>
+<script>
+    const BATCH_KEY = 'batchAddTestPlans';
+    const COLUMNS = ['RunAtSeconds', 'Device', 'Target', 'Value', 'DataType', 'LockSeconds', 'StopOnFailure'];
+    const NUMERIC_COLUMNS = ['RunAtSeconds', 'Value', 'LockSeconds'];
+    let payload = null, result = null, sheetTable, rowTable, timeline, current = 0;
+    // 편집 중에는 표를 다시 그리지 않는다 — replaceData 가 열린 에디터를 없앤다. 그동안 온 검증 결과는 미뤄 둔다
+    let pendingTimer = null, validateSeq = 0, validateTimer = null, cellsSeq = 0;
+
+    function esc(s) { return $('<div>').text(s === null || s === undefined ? '' : s).html(); }
+
+    function boolText(v) { return v === true ? 'TRUE' : v === false ? 'FALSE' : esc(v); }
+
+    /** 시트의 행을 헤더 기준으로 펼친다. 검증은 서버가 하고, 여기서는 보여 주기만 한다. ri = rows 안의 위치(고칠 때 쓴다) */
+    function rowsOf(sheet) {
+        const rows = sheet.rows || [];
+        if (!rows.length) return [];
+        const header = rows[0].map(h => (h === null ? '' : String(h)).trim().toLowerCase());
+        const col = {};
+        COLUMNS.forEach(c => col[c] = header.indexOf(c.toLowerCase()));
+        const out = [];
+        for (let r = 1; r < rows.length; r++) {
+            const cells = rows[r] || [];
+            if (!cells.some(v => v !== null && String(v).trim() !== '')) continue;
+            const o = { row: (sheet.startRow || 1) + r, ri: r };
+            COLUMNS.forEach(c => o[c] = col[c] >= 0 ? cells[col[c]] : null);
+            out.push(o);
+        }
+        return out;
+    }
+
+    function init() {
+        sheetTable = new Tabulator('#sheetTable', {
+            data: [], layout: 'fitData', height: '100%', placeholder: 'No sheets.',
+            rowFormatter: r => r.getElement().classList.toggle('tp-current', r.getData().index === current),
+            columns: [
+                { title: 'Plan name (sheet)', field: 'name', minWidth: 120, editor: 'input' },
+                { title: 'Actions', field: 'actions', width: 80, hozAlign: 'right' },
+                { title: 'Status', field: 'status', width: 110, formatter: c => c.getValue() },
+            ]
+        });
+        sheetTable.on('rowClick', (e, r) => showSheet(r.getData().index));
+        CtsTable.enhanceResize(sheetTable);
+        rowTable = new Tabulator('#rowTable', {
+            data: [], layout: 'fitData', height: '100%', placeholder: 'No actions in this sheet.',
+            rowFormatter: r => r.getElement().classList.toggle('row-error', !!(r.getData().errors || []).length),
+            columns: [
+                { title: 'Row', field: 'row', width: 60, hozAlign: 'right' },
+                { title: 'Run At (s)', field: 'RunAtSeconds', width: 90, hozAlign: 'right', editor: 'input' },
+                { title: 'Device', field: 'Device', minWidth: 110, editor: 'input' },
+                { title: 'Target', field: 'Target', width: 110, editor: 'input' },
+                { title: 'Value', field: 'Value', width: 80, hozAlign: 'right', editor: 'input' },
+                { title: 'DataType', field: 'DataType', width: 90, editor: 'input' },
+                { title: 'Lock', field: 'LockSeconds', width: 60, hozAlign: 'right', editor: 'input' },
+                { title: 'Stop on Failure', field: 'StopOnFailure', width: 120, formatter: c => boolText(c.getValue()),
+                  editor: 'list', editorParams: { values: { '': '(blank)', 'TRUE': 'TRUE', 'FALSE': 'FALSE' } } },
+                { title: 'Problem', field: 'errors', minWidth: 200, headerSort: false,
+                  formatter: c => (c.getValue() || []).map(e => '<div class="error-chip">' + esc(e.rule + ' ' + e.message) + '</div>').join('') }
+            ]
+        });
+        // Tabulator v6 는 cellEdited 를 생성자 옵션으로 주면 무시한다
+        sheetTable.on('cellEdited', function (cell) {
+            const v = cell.getValue() === null || cell.getValue() === undefined ? '' : String(cell.getValue()).trim();
+            payload.sheets[cell.getRow().getData().index].name = v;
+            changed();
+        });
+        rowTable.on('cellEdited', function (cell) {
+            writeBack(cell.getRow().getData(), cell.getField(), cell.getValue());
+            changed();
+        });
+        CtsTable.enhanceResize(rowTable);
+        timeline = TestPlanTimeline.create(document.getElementById('timeline'), { editable: false, onSelect: function () {} });
+        $('[data-zoom]').on('click', function () {
+            const z = $(this).data('zoom');
+            if (z === 'fit') timeline.fit(); else timeline.zoom(Number(z));
+        });
+        $(window).on('resize', function () { timeline.render(); });
+        $('#excelFile').on('change', readFile);
+        const raw = sessionStorage.getItem(BATCH_KEY);
+        if (raw) { try { payload = JSON.parse(raw); validate(); } catch (e) { sessionStorage.removeItem(BATCH_KEY); } }
+    }
+
+    /** 표에서 고친 값을 시트의 행에 되돌려 쓴다. 등록은 시트(payload)를 보내므로 고친 값이 그대로 검증·등록된다. */
+    function writeBack(rowData, field, value) {
+        const sheet = payload.sheets[current];
+        let v = value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value;
+        if (v === '') v = null;
+        // 엑셀이 숫자로 주던 칸은 숫자로 둔다
+        if (typeof v === 'string' && NUMERIC_COLUMNS.indexOf(field) >= 0 && /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(v)) v = Number(v);
+        const cells = sheet.rows[rowData.ri] = sheet.rows[rowData.ri] || [];
+        cells[columnIndex(sheet, field)] = v;
+    }
+
+    /** 헤더에서 열 위치를 찾는다. 없는 열(X4)이면 헤더 끝에 붙여 만든다. */
+    function columnIndex(sheet, name) {
+        const header = sheet.rows[0];
+        const i = header.findIndex(h => h !== null && h !== undefined && String(h).trim().toLowerCase() === name.toLowerCase());
+        if (i >= 0) return i;
+        header.push(name);
+        return header.length - 1;
+    }
+
+    function changed() {
+        clearTimeout(pendingTimer);                 // 미뤄 둔 결과는 이제 낡았다
+        sessionStorage.setItem(BATCH_KEY, JSON.stringify(payload));
+        $('#registerBtn').prop('disabled', true);   // 다시 검증할 때까지
+        clearTimeout(validateTimer);
+        validateTimer = setTimeout(validate, 300);
+    }
+
+    /** 열린 에디터가 있는가. 값을 바꾸지 않고 닫으면 Tabulator 가 아무 이벤트도 주지 않아 DOM 으로 본다. */
+    function isEditing() {
+        return !!document.querySelector('#sheetTable .tabulator-editing, #rowTable .tabulator-editing');
+    }
+
+    function readFile(e) {
+        const f = e.target.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = function () {
+            try {
+                const wb = XLSX.read(reader.result, { type: 'binary' });
+                payload = { file: f.name, sheets: wb.SheetNames.map(function (n) {
+                    const ws = wb.Sheets[n];
+                    const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0 } };
+                    return { name: n, startRow: range.s.r + 1, rows: XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: true, defval: null }) };
+                }) };
+                sessionStorage.setItem(BATCH_KEY, JSON.stringify(payload));
+                validate();
+            } catch (err) {
+                $('#statusLine').attr('class', 'status-bar ml-2 bad').text('The file could not be read as an Excel workbook.');
+            }
+        };
+        reader.readAsBinaryString(f);
+        $('#excelFile').val('');
+    }
+
+    function validate() {
+        const seq = ++validateSeq;
+        $('#statusLine').attr('class', 'status-bar ml-2').text('Checking ' + (payload.file || 'the file') + '…');
+        $.ajax({ url: '/api/testplans/validate', method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ sheets: payload.sheets }) })
+            .done(function (r) { if (seq === validateSeq) show(r); })
+            .fail(function () { if (seq === validateSeq) $('#statusLine').attr('class', 'status-bar ml-2 bad').text('The check failed. Try again.'); });
+    }
+
+    function show(r) {
+        clearTimeout(pendingTimer);
+        if (isEditing()) { pendingTimer = setTimeout(function () { show(r); }, 200); return; }
+        result = r;
+        $('#fileIssues').html((r.errors || []).map(e => esc(e.rule + ' ' + e.message)).join('<br>'));
+        const sheets = payload.sheets.map(function (s, i) {
+            const o = (r.sheets || [])[i] || { errors: [], warnings: [] };
+            const nErr = o.errors.length;
+            return { index: i, name: s.name, actions: rowsOf(s).length,
+                status: nErr ? '<span class="tp-badge FAILED">' + nErr + ' error' + (nErr > 1 ? 's' : '') + '</span>'
+                             : '<span class="tp-badge COMPLETED">OK</span>' + (o.warnings.length ? ' <span class="warn-chip">' + o.warnings.length + ' warning</span>' : '') };
+        });
+        sheetTable.replaceData(sheets);
+        const bad = sheets.filter((s, i) => ((r.sheets || [])[i] || { errors: [] }).errors.length).length;
+        $('#registerBtn').prop('disabled', !r.ok);
+        $('#statusLine').attr('class', 'status-bar ml-2 ' + (r.ok ? 'ok' : 'bad')).text(
+            (payload.file || 'File') + ': ' + sheets.length + ' sheet(s), ' + (r.ok ? 'ready to register.'
+                : (bad ? bad + ' with errors. Fix them in the table or choose the file again.' : 'the file has errors.')));
+        showSheet(Math.min(current, Math.max(0, sheets.length - 1)));
+    }
+
+    function showSheet(i) {
+        current = i;
+        // reformat 은 행을 다시 그려 이름 칸의 에디터를 닫는다. 표시만 바꾼다
+        sheetTable.getRows().forEach(r => r.getElement().classList.toggle('tp-current', r.getData().index === current));
+        const sheet = payload.sheets[i];
+        if (!sheet) { rowTable.replaceData([]); drawTimeline([], {}); return; }
+        const o = (result.sheets || [])[i] || { errors: [], warnings: [] };
+        const rows = rowsOf(sheet);
+        const byRow = {}, badRows = {};
+        o.errors.concat(o.warnings).forEach(e => { if (e.row) (byRow[e.row] = byRow[e.row] || []).push(e); });
+        o.errors.forEach(e => { if (e.row) badRows['r' + e.row] = true; });
+        rows.forEach(x => x.errors = byRow[x.row] || []);
+        const sheetLevel = o.errors.filter(e => !e.row || !rows.some(x => x.row === e.row));
+        $('#rowsTitle').html(esc(sheet.name) + (sheetLevel.length
+            ? ' <span class="error-chip ml-2" style="text-transform:none">' + sheetLevel.map(e => esc(e.rule + ' ' + e.message)).join(' · ') + '</span>' : ''));
+        rowTable.replaceData(rows);
+        drawTimeline(rows, badRows);
+    }
+
+    function numOr0(v) {
+        const n = v === null || v === undefined || v === '' ? 0 : Number(v);
+        return isFinite(n) ? n : 0;
+    }
+
+    /**
+     * 시트의 행을 다이어그램으로 그린다. 오류가 있는 행도 읽히는 만큼 그리고 빨간 테두리를 친다.
+     * 칸(Lane)은 서버가 장비 이름·target·dataType 으로 계산한다 — 편집기와 같은 /cells.
+     */
+    function drawTimeline(rows, badRows) {
+        const seq = ++cellsSeq;
+        const items = rows.map(x => ({
+            uid: 'r' + x.row, deviceName: x.Device === null || x.Device === undefined ? '' : String(x.Device).trim(),
+            target: x.Target === null || x.Target === undefined ? '' : String(x.Target).trim(),
+            value: x.Value, dataType: x.DataType ? String(x.DataType).trim() : null,
+            lockSeconds: Math.max(0, numOr0(x.LockSeconds)), at: Math.max(0, numOr0(x.RunAtSeconds)),
+            stop: x.StopOnFailure === true || String(x.StopOnFailure).trim().toLowerCase() === 'true'
+        }));
+        if (!items.length) { timeline.set(TestPlanTimeline.place({ items: [] }), { errors: {} }); return; }
+        $.ajax({ url: '/api/testplans/cells', method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ actions: items.map(it => ({ device: it.deviceName, target: it.target, dataType: it.dataType })) }) })
+            .done(function (res) {
+                if (seq !== cellsSeq) return;
+                items.forEach(function (it, k) {
+                    const c = res[k] || {};
+                    // 없는 장비는 이름으로 묶는다
+                    it.deviceId = c.deviceId !== null && c.deviceId !== undefined ? c.deviceId : 'name:' + it.deviceName;
+                    it.protocol = c.protocol;
+                    it.cells = c.cells && c.cells.length ? c.cells : (it.target ? [it.target] : []);
+                });
+                timeline.set(TestPlanTimeline.place({ items: items.filter(it => it.cells.length) }), { errors: badRows });
+            });
+    }
+
+    function doRegister() {
+        if (!result || !result.ok) return;
+        if (!confirm('Register ' + payload.sheets.length + ' test plan(s)?')) return;
+        $('#busyOverlay').addClass('show');
+        $.ajax({ url: '/api/testplans/import', method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ sheets: payload.sheets }) })
+            .done(function (r) {
+                sessionStorage.removeItem(BATCH_KEY);
+                location.href = '/testplans' + (r.plans && r.plans.length ? '?plan=' + r.plans[0].id : '');
+            })
+            .fail(function (x) {
+                $('#busyOverlay').removeClass('show');
+                if (x.responseJSON && x.responseJSON.sheets) show(x.responseJSON);
+                else alert('Registering failed.');
+            });
+    }
+
+    $(init);
+</script>
+</body>
+</html>

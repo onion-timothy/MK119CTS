@@ -1,5 +1,6 @@
 package com.onionsoftware.mk119.commtestsuite.web.serverdata;
 
+import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataEvent;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataListener;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,9 +82,10 @@ public class ServerDataBridge implements ServerDataListener {
     private final Map<String, Integer> subscriptionDevice = new ConcurrentHashMap<>();
 
     /**
-     * deviceId -> (target -> 마지막으로 내보낸 "값|출처").
+     * deviceId -> (칸 -> 마지막으로 내보낸 "값|출처").
      * 값과 출처가 모두 그대로면 화면에 바뀔 것이 없으므로 보내지 않는다.
      * 출처까지 보는 이유는, 같은 값이라도 누가 썼는지가 달라지면 화면 표시가 달라지기 때문이다.
+     * 키는 쓰기의 base target 이 아니라 그 쓰기가 덮는 칸 하나하나다 — {@link #unchangedSinceLastSent}.
      */
     private final Map<Integer, Map<String, String>> lastSent = new ConcurrentHashMap<>();
 
@@ -101,18 +103,38 @@ public class ServerDataBridge implements ServerDataListener {
      */
     private final Map<Integer, Map<String, List<String>>> pendingTouched = new ConcurrentHashMap<>();
 
+    /**
+     * 이 쓰기가 덮는 칸 모두가 마지막으로 내보낸 값·출처 그대로인지. 비교하면서 기록도 새로 한다.
+     * <p>
+     * base target 하나로만 비교하면 안 된다. 3_0 의 UI32 simulation 은 3_0, 3_1 을 함께 쓰는데,
+     * 그 사이 Test Plan 이 3_1 만 API_WRITE 로 썼다가 lock 이 풀리면 simulation 이 3_1 을 되돌린다.
+     * 3_0 의 값·출처는 그대로라 "변경 없음" 으로 걸러져, 화면의 3_1 은 API_WRITE 색으로 남았다.
+     */
+    static boolean unchangedSinceLastSent(Map<String, String> sentOfDevice, ServerDataEvent event) {
+        String source = event.getSource().name();
+        Map<String, Number> values = event.getTargetValues();
+        boolean unchanged = true;
+        for (String cell : event.getAffectedTargets()) {
+            Number v = values.get(cell);
+            // 값을 칸 단위로 읽을 수 없는 프로토콜(SNMP 등)은 base target 에 쓴 값으로 본다
+            Object shown = v != null ? v : (cell.equals(event.getTarget()) ? event.getValue() : null);
+            String fingerprint = shown + "|" + source;
+            if (!fingerprint.equals(sentOfDevice.put(cell, fingerprint))) unchanged = false;
+        }
+        return unchanged;
+    }
+
     @Override
     public void onServerDataChanged(ServerDataEvent event) {
         int deviceId = event.getIoServer().getDevice().getId();
         if (!hasSubscriber(deviceId)) return;
 
-        String fingerprint = event.getValue() + "|" + event.getSource().name();
         Map<String, String> sentOfDevice =
                 lastSent.computeIfAbsent(deviceId, k -> new ConcurrentHashMap<>());
         List<String> affected = event.getAffectedTargets();
         boolean spansSeveral = affected != null && affected.size() > 1;
 
-        if (fingerprint.equals(sentOfDevice.get(event.getTarget()))) {
+        if (unchangedSinceLastSent(sentOfDevice, event)) {
             // 값도 출처도 그대로다. 다시 그릴 것은 없지만 "썼다" 는 사실은 알려 준다.
             // 32비트처럼 여러 칸을 차지하는 값은 그 칸들이 모두 깜빡여야 한다. 3_0 에 쓴
             // UI32AD 는 3_0 과 3_1 을 함께 덮으므로 한 칸만 깜빡이면 범위가 거짓이 된다.
@@ -123,7 +145,6 @@ public class ServerDataBridge implements ServerDataListener {
                                       : Collections.singletonList(event.getTarget()));
             return;
         }
-        sentOfDevice.put(event.getTarget(), fingerprint);
 
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("target", event.getTarget());
@@ -148,35 +169,59 @@ public class ServerDataBridge implements ServerDataListener {
         }
     }
 
+    /**
+     * lock 이 바뀌면 묶음 주기를 기다리지 않고 바로 보낸다. 그 장비에 모아 둔 값 변경도 함께 내보낸다 —
+     * API 쓰기는 값을 쓰고 나서 lock 알림을 내므로, 방금 쓴 값과 lock 이 한 메시지로 같이 바뀐다.
+     * lock 은 쓰기·정지·해제·세션 종료 때 그 자리에서, 만료는 만료 시각에 온다(ServerData.notifyLocksIfChanged).
+     */
+    @Override
+    public void onLocksChanged(IOServer ioServer, Set<String> locks) {
+        int deviceId = ioServer.getDevice().getId();
+        if (!hasSubscriber(deviceId)) return;
+        List<String> sorted = new ArrayList<>(locks);
+        Collections.sort(sorted);
+        flushDevice(deviceId, sorted);
+    }
+
     @Scheduled(fixedDelay = FLUSH_INTERVAL_MS)
     public void flush() {
         Set<Integer> deviceIds = new LinkedHashSet<>(pending.keySet());
         deviceIds.addAll(pendingTouched.keySet());
-        for (Integer deviceId : deviceIds) {
-            List<Map<String, Object>> changes = drainChanges(deviceId);
-            List<List<String>> touched = drainTouched(deviceId);
-            if (changes.isEmpty() && touched.isEmpty()) continue;
-            if (!hasSubscriber(deviceId)) continue;   // 모으는 사이에 창이 닫혔다
+        for (Integer deviceId : deviceIds) flushDevice(deviceId, null);
+    }
 
-            // changes 가 비어도 한 번은 보낸다. touched 만 있는 묶음이 STATIC 장비의 평상시다.
-            int slices = Math.max(1, (changes.size() + MAX_CHANGES_PER_MESSAGE - 1) / MAX_CHANGES_PER_MESSAGE);
-            for (int i = 0; i < slices; i++) {
-                int from = i * MAX_CHANGES_PER_MESSAGE;
-                List<Map<String, Object>> slice = changes.isEmpty()
-                        ? Collections.emptyList()
-                        : changes.subList(from, Math.min(from + MAX_CHANGES_PER_MESSAGE, changes.size()));
-                Map<String, Object> batch = new LinkedHashMap<>();
-                batch.put("type", "events");
-                batch.put("ts", System.currentTimeMillis());
-                // 스냅샷만 번호를 올리면 30초에 한 번씩만 움직여, 화면이 갱신되고 있는지
-                // 알기 어렵다. 시뮬레이션이 쓴 묶음도 같은 카운터를 올린다.
-                sessionRegistry.getActive(deviceId)
-                        .ifPresent(info -> batch.put("seq", info.seq.incrementAndGet()));
-                batch.put("changes", new ArrayList<>(slice));
-                if (i == 0 && !touched.isEmpty()) batch.put("touched", touched);
-                messagingTemplate.convertAndSend(
-                        "/topic/devices/" + deviceId + "/serverdata/events", batch);
-            }
+    /**
+     * 한 장비의 모아 둔 변경을 보낸다. 주기 flush 와 lock 알림이 서로 다른 스레드에서 부르므로 한 번에 하나씩 —
+     * 그러지 않으면 먼저 꺼낸 묶음이 나중에 나가 화면의 값이 과거로 돌아갈 수 있다.
+     *
+     * @param locks 지금 잠긴 칸 전체. lock 이 바뀌지 않았으면 null
+     */
+    private synchronized void flushDevice(int deviceId, List<String> locks) {
+        List<Map<String, Object>> changes = drainChanges(deviceId);
+        List<List<String>> touched = drainTouched(deviceId);
+        if (!hasSubscriber(deviceId)) return;   // 모으는 사이에 창이 닫혔다
+        if (changes.isEmpty() && touched.isEmpty() && locks == null) return;
+
+        // changes 가 비어도 한 번은 보낸다. touched 만 있는 묶음이 STATIC 장비의 평상시다.
+        int slices = Math.max(1, (changes.size() + MAX_CHANGES_PER_MESSAGE - 1) / MAX_CHANGES_PER_MESSAGE);
+        for (int i = 0; i < slices; i++) {
+            int from = i * MAX_CHANGES_PER_MESSAGE;
+            List<Map<String, Object>> slice = changes.isEmpty()
+                    ? Collections.emptyList()
+                    : changes.subList(from, Math.min(from + MAX_CHANGES_PER_MESSAGE, changes.size()));
+            Map<String, Object> batch = new LinkedHashMap<>();
+            batch.put("type", "events");
+            batch.put("ts", System.currentTimeMillis());
+            // 스냅샷만 번호를 올리면 30초에 한 번씩만 움직여, 화면이 갱신되고 있는지
+            // 알기 어렵다. 시뮬레이션이 쓴 묶음도 같은 카운터를 올린다.
+            sessionRegistry.getActive(deviceId)
+                    .ifPresent(info -> batch.put("seq", info.seq.incrementAndGet()));
+            batch.put("changes", new ArrayList<>(slice));
+            if (i == 0 && !touched.isEmpty()) batch.put("touched", touched);
+            // 바뀐 칸만이 아니라 지금 잠긴 칸 전체. 화면은 이걸로 통째로 바꾼다
+            if (i == 0 && locks != null) batch.put("locks", locks);
+            messagingTemplate.convertAndSend(
+                    "/topic/devices/" + deviceId + "/serverdata/events", batch);
         }
     }
 
@@ -221,6 +266,10 @@ public class ServerDataBridge implements ServerDataListener {
         String key = subKey(h.getSessionId(), h.getSubscriptionId());
         subscribers.computeIfAbsent(deviceId, k -> ConcurrentHashMap.newKeySet()).add(key);
         subscriptionDevice.put(key, deviceId);
+        // 새 화면은 출처를 하나도 모른다 — 스냅샷에는 값만 있다. "보낸 적 있음" 기록을 지워
+        // 칸마다 다음 쓰기에 본문(값·출처)이 다시 실리게 한다. 지우지 않으면 STATIC 처럼 같은 값을
+        // 다시 쓰는 칸은 깜빡임만 받아, 다른 화면이 먼저 열려 있던 장비에서 색이 끝내 칠해지지 않았다.
+        lastSent.remove(deviceId);
     }
 
     @EventListener

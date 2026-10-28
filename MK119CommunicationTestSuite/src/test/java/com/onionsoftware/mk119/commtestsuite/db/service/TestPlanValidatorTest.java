@@ -82,9 +82,9 @@ class TestPlanValidatorTest {
         TestPlanAction a0 = p.getActions().get(0), a1 = p.getActions().get(1);
         assertEquals(MODBUS, a0.getDeviceId());
         assertEquals(30, a0.getLockSeconds());
-        assertEquals(1, a0.getSkipOnFailure());
+        assertEquals(1, a0.getStopOnFailure());
         assertEquals(0, a1.getLockSeconds());       // A11 비면 0
-        assertEquals(0, a1.getSkipOnFailure());     // A13 비면 FALSE
+        assertEquals(0, a1.getStopOnFailure());     // A13 비면 FALSE
     }
 
     // ── Plan ─────────────────────────────────────────────────────────────
@@ -139,18 +139,70 @@ class TestPlanValidatorTest {
     }
 
     @Test
-    void s3TotalIntervalMustBeShorterThanPeriod() {
+    void s3DurationMustBeShorterThanPeriod() {
         Map<String, Object> body = plan("S3",
-                action(MODBUS, "3_1", 1, "UI16AB", null, 30, null),
-                action(MODBUS, "3_2", 1, "UI16AB", null, 30, null));   // 합 60 == 주기 60
+                action(MODBUS, "3_1", 1, "UI16AB", null, 0, null),
+                action(MODBUS, "3_2", 1, "UI16AB", null, 60, null));   // 실행 시간 60 == 주기 60
         body.put("scheduleType", "SECOND");
         body.put("scheduleSecond", 0);
         assertRule("S3", validator.validatePlan(body, null));
 
         body.put("actions", Arrays.asList(
-                action(MODBUS, "3_1", 1, "UI16AB", null, 30, null),
-                action(MODBUS, "3_2", 1, "UI16AB", null, 29, null)));  // 59 < 60
+                action(MODBUS, "3_1", 1, "UI16AB", null, 0, null),
+                action(MODBUS, "3_2", 1, "UI16AB", null, 59, null)));  // 59 < 60
         assertTrue(validator.validatePlan(body, null).isOk());
+    }
+
+    @Test
+    void s3DurationRunsUntilTheLastLockIsReleased() {
+        // 0초에 쓰고 60초 잠근다: 실행 시간 60 == 주기 60
+        Map<String, Object> body = plan("S3", action(MODBUS, "3_1", 1, "UI16AB", 60, 0, null));
+        body.put("scheduleType", "SECOND");
+        body.put("scheduleSecond", 0);
+        assertRule("S3", validator.validatePlan(body, null));
+
+        // 같은 칸을 5초에 다시 쓰면(lock 0) 앞 lock 은 그때 풀린다: 실행 시간 5
+        body.put("actions", Arrays.asList(
+                action(MODBUS, "3_1", 1, "UI16AB", 100, 0, null),
+                action(MODBUS, "3_1", 2, "UI16AB", null, 5, null)));
+        assertTrue(validator.validatePlan(body, null).isOk());
+
+        // 칸 하나만 다시 쓰면 나머지 칸의 lock 은 남는다: 3_10 UI32 는 3_10·3_11, 다시 쓰는 것은 3_11 뿐
+        body.put("actions", Arrays.asList(
+                action(MODBUS, "3_10", 1, "UI32AD", 100, 0, null),
+                action(MODBUS, "3_11", 2, "UI16AB", null, 5, null)));
+        assertRule("S3", validator.validatePlan(body, null));
+    }
+
+    /** INTERVAL 은 간격(초)만 받는다. 1~86400. 실행 시간은 간격보다 짧아야 한다(S3). cron 칸은 비운다. */
+    @Test
+    void intervalScheduleTakesSecondsAndMustOutlastTheRun() {
+        Map<String, Object> body = plan("Interval", action(MODBUS, "3_1", 1, "UI16AB", 30, 0, null));   // 실행 시간 30
+        body.put("scheduleType", "INTERVAL");
+        body.put("scheduleSecond", 7);
+        body.put("scheduleEnabled", true);
+        for (Object bad : new Object[]{null, 0, -5, 86401, 1.5, "abc"}) {
+            body.put("scheduleIntervalSeconds", bad);
+            assertRule("S2", validator.validatePlan(body, null));
+        }
+        body.put("scheduleIntervalSeconds", 30);                 // 30 == 30
+        assertRule("S3", validator.validatePlan(body, null));
+
+        body.put("scheduleIntervalSeconds", "31");
+        TestPlanValidator.Outcome out = validator.validatePlan(body, null);
+        assertTrue(out.isOk());
+        assertEquals(ScheduleType.INTERVAL, out.getPlan().getScheduleType());
+        assertEquals(31, out.getPlan().getScheduleIntervalSeconds().intValue());
+        assertEquals(31, out.getPlan().schedulePeriodSeconds());
+        assertNull(out.getPlan().getScheduleSecond());
+        assertEquals(TestPlan.SCHEDULE_ENABLED, out.getPlan().getScheduleEnabled());
+
+        // cron 으로 바꾸면 간격은 비운다
+        body.put("scheduleType", "MINUTE");
+        body.put("scheduleMinute", 0);
+        out = validator.validatePlan(body, null);
+        assertTrue(out.isOk());
+        assertNull(out.getPlan().getScheduleIntervalSeconds());
     }
 
     @Test
@@ -290,6 +342,37 @@ class TestPlanValidatorTest {
     }
 
     @Test
+    void a15SameTimeSameCell() {
+        // 같은 시각(0초)에 같은 칸
+        assertRule("A15", validator.validatePlan(plan("A15",
+                action(MODBUS, "3_10", 1, "UI16AB", null, 0, null),
+                action(MODBUS, "3_10", 2, "UI16AB", null, 0, null)), null));
+        // 0초가 아닌 같은 시각도 같다
+        assertRule("A15", validator.validatePlan(plan("A15",
+                action(MODBUS, "3_1", 1, "UI16AB", null, 0, null),
+                action(MODBUS, "3_10", 1, "UI16AB", null, 7, null),
+                action(MODBUS, "3_10", 2, "UI16AB", null, 7, null)), null));
+        // target 은 다르지만 칸이 겹친다: 3_10 UI32 는 3_10·3_11 을 쓴다
+        TestPlanValidator.Outcome overlap = validator.validatePlan(plan("A15",
+                action(MODBUS, "3_10", 1, "UI32AD", null, 0, null),
+                action(MODBUS, "3_11", 2, "UI16AB", null, 0, null)), null);
+        assertRule("A15", overlap);
+        assertEquals(Integer.valueOf(1), overlap.getErrors().get(0).getAction());
+        // XGT 는 byte 번지로 센다: %DW10 은 %DB20·%DB21
+        assertRule("A15", validator.validatePlan(plan("A15",
+                action(XGT, "%DW10", 1, "UI16AB", null, 0, null),
+                action(XGT, "%DB21", 2, "UI8", null, 0, null)), null));
+        // 시각이 다르면 된다
+        assertTrue(validator.validatePlan(plan("A15",
+                action(MODBUS, "3_10", 1, "UI16AB", null, 0, null),
+                action(MODBUS, "3_10", 2, "UI16AB", null, 1, null)), null).isOk());
+        // 같은 시각이라도 장비가 다르면 된다
+        assertTrue(validator.validatePlan(plan("A15",
+                action(MODBUS, "3_10", 1, "UI16AB", null, 0, null),
+                action(XGT, "%DB20", 2, "UI8", null, 0, null)), null).isOk());
+    }
+
+    @Test
     void a11LockSecondsNonNegative() {
         assertRule("A11", validator.validatePlan(plan("A11", action(MODBUS, "3_1", 1, "UI16AB", -1, 0, null)), null));
         Map<String, Object> text = action(MODBUS, "3_1", 1, "UI16AB", null, 0, null);
@@ -298,27 +381,46 @@ class TestPlanValidatorTest {
     }
 
     @Test
-    void a12IntervalRequiredAndNonNegative() {
+    void a12AtRequiredAndInRange() {
         assertRule("A12", validator.validatePlan(plan("A12", action(MODBUS, "3_1", 1, "UI16AB", null, null, null)), null));
         assertRule("A12", validator.validatePlan(plan("A12", action(MODBUS, "3_1", 1, "UI16AB", null, -1, null)), null));
+        assertRule("A12", validator.validatePlan(plan("A12", okAction(), action(MODBUS, "3_2", 1, "UI16AB", null, 86400, null)), null));
+        assertTrue(validator.validatePlan(plan("A12", okAction(), action(MODBUS, "3_2", 1, "UI16AB", null, 86399, null)), null).isOk());
     }
 
     @Test
-    void a13SkipTrueOrFalse() {
+    void a16EarliestActionRunsAtZero() {
+        TestPlanValidator.Outcome late = validator.validatePlan(plan("A16",
+                action(MODBUS, "3_1", 1, "UI16AB", null, 5, null),
+                action(MODBUS, "3_2", 1, "UI16AB", null, 3, null)), null);
+        assertRule("A16", late);
+        assertEquals(Integer.valueOf(1), late.getErrors().get(0).getAction());   // 가장 이른 Action 을 가리킨다
+        // 목록 순서와 상관없이 가장 이른 것이 0초면 된다. 저장은 시각 순서다(seq)
+        TestPlanValidator.Outcome ok = validator.validatePlan(plan("A16",
+                action(MODBUS, "3_1", 1, "UI16AB", null, 4, null),
+                action(MODBUS, "3_2", 1, "UI16AB", null, 0, null)), null);
+        assertTrue(ok.isOk(), () -> rules(ok).toString());
+        assertEquals(4, ok.getPlan().getActions().get(0).getAtSeconds());   // 검증은 목록 순서를 그대로 둔다(정렬은 저장할 때)
+    }
+
+    @Test
+    void a13StopTrueOrFalse() {
         Map<String, Object> a = action(MODBUS, "3_1", 1, "UI16AB", null, 0, null);
-        a.put("skipOnFailure", "yes");
+        a.put("stopOnFailure", "yes");
         assertRule("A13", validator.validatePlan(plan("A13", a), null));
-        a.put("skipOnFailure", "TRUE");
-        assertEquals(1, validator.validatePlan(plan("A13", a), null).getPlan().getActions().get(0).getSkipOnFailure());
+        a.put("stopOnFailure", "TRUE");
+        assertEquals(1, validator.validatePlan(plan("A13", a), null).getPlan().getActions().get(0).getStopOnFailure());
     }
 
     @Test
     void a14FractionInIntegerField() {
         assertRule("A14", validator.validatePlan(plan("A14", action(MODBUS, "3_1", 1, "UI16AB", 5.5, 0, null)), null));
-        assertRule("A14", validator.validatePlan(plan("A14", action(MODBUS, "3_1", 1, "UI16AB", null, 2.5, null)), null));
-        TestPlanValidator.Outcome ok = validator.validatePlan(plan("A14", action(MODBUS, "3_1", 1, "UI16AB", 5.0, 2.0, null)), null);
-        assertTrue(ok.isOk());
+        assertRule("A14", validator.validatePlan(plan("A14", okAction(), action(MODBUS, "3_2", 1, "UI16AB", null, 2.5, null)), null));
+        TestPlanValidator.Outcome ok = validator.validatePlan(plan("A14",
+                action(MODBUS, "3_1", 1, "UI16AB", 5.0, 0.0, null), action(MODBUS, "3_2", 1, "UI16AB", null, 2.0, null)), null);
+        assertTrue(ok.isOk(), () -> rules(ok).toString());
         assertEquals(5, ok.getPlan().getActions().get(0).getLockSeconds());
+        assertEquals(2, ok.getPlan().getActions().get(1).getAtSeconds());
     }
 
     @Test
@@ -350,7 +452,7 @@ class TestPlanValidatorTest {
                         row("mb", "3_1", 1.0, "UI16AB", 10.0, 2.0, true),
                         row(null, null, null, null, null, null, null),          // X5 빈 행
                         row("xgt", "%DW5", 3.0, "UI16AB", null, 0.0, "FALSE")),
-                sheet("Second", header(), row("mb", "3_2", 2.0, "UI16AB", null, 1.0, null))));
+                sheet("Second", header(), row("mb", "3_2", 2.0, "UI16AB", null, 0.0, null))));
         assertTrue(wb.isOk(), () -> wb.getSheets().stream().map(s -> rules(s.getOutcome())).collect(Collectors.toList()).toString());
         List<TestPlan> plans = wb.plans();
         assertEquals(2, plans.size());
@@ -372,11 +474,11 @@ class TestPlanValidatorTest {
     @Test
     void x4HeaderColumns() {
         List<Object> missing = new ArrayList<>(header());
-        missing.remove("Skip");
+        missing.remove("StopOnFailure");
         assertRule("X4", validator.validateWorkbook(Collections.singletonList(
                 sheet("H", missing, row("mb", "3_1", 1.0, "UI16AB", null, 0.0)))).getSheets().get(0).getOutcome());
 
-        List<Object> mixed = Arrays.asList("note", "SKIP", "interval", "lockseconds", "DATATYPE", "value", "target", "device");
+        List<Object> mixed = Arrays.asList("note", "STOPONFAILURE", "runatseconds", "lockseconds", "DATATYPE", "value", "target", "device");
         TestPlanValidator.Outcome out = validator.validateWorkbook(Collections.singletonList(
                 sheet("H", mixed, row("memo", null, 0.0, null, "UI16AB", 1.0, "3_1", "mb")))).getSheets().get(0).getOutcome();
         assertTrue(out.isOk(), () -> rules(out).toString());
@@ -436,15 +538,15 @@ class TestPlanValidatorTest {
     }
 
     private static Map<String, Object> action(Integer deviceId, String target, Number value, String dataType,
-                                              Number lockSeconds, Number interval, Object skip) {
+                                              Number lockSeconds, Number at, Object stop) {
         Map<String, Object> a = new HashMap<>();
         a.put("deviceId", deviceId);
         a.put("target", target);
         a.put("value", value);
         a.put("dataType", dataType);
         a.put("lockSeconds", lockSeconds);
-        a.put("intervalSeconds", interval);
-        a.put("skipOnFailure", skip);
+        a.put("atSeconds", at);
+        a.put("stopOnFailure", stop);
         return a;
     }
 
@@ -453,7 +555,7 @@ class TestPlanValidatorTest {
     }
 
     private static List<Object> header() {
-        return new ArrayList<>(Arrays.asList("Device", "Target", "Value", "DataType", "LockSeconds", "Interval", "Skip"));
+        return new ArrayList<>(Arrays.asList("Device", "Target", "Value", "DataType", "LockSeconds", "RunAtSeconds", "StopOnFailure"));
     }
 
     private static List<Object> row(Object... cells) {

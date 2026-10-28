@@ -86,9 +86,12 @@
         .cts-tabulator .tabulator-cell {
             border-right: none;
         }
-        /* 계산이 정확한데 subpixel/border 차이로 미세 overflow 방지 */
+        /* 세로: pageSize 가 행을 높이에 딱 맞추므로 스크롤이 필요 없다.
+           가로: 모든 머리글이 들어갈 수 없을 만큼 좁으면 잘라 숨기지 말고 스크롤한다
+           (CtsTable 이 폭을 정수로 맞추므로 미세 overflow 로 스크롤바가 생기지는 않는다). */
         .cts-tabulator .tabulator-tableholder {
-            overflow: hidden !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
         }
         .cts-tabulator .tabulator-row {
             border-bottom: 1px solid #f1f3f5;
@@ -357,16 +360,15 @@
             if (simulationsTable) { simulationsTable.destroy(); simulationsTable = null; }
             simulationsTable = new Tabulator('#simulationsTable', {
                 data: data,
-                layout: 'fitColumns',
+                layout: 'fitData',
                 height: '100%',
                 index: 'id',
                 pagination: true,
                 paginationSize: 10,
                 selectableRows: true,
-                columnDefaults: { resizable: false },
                 placeholder: 'No simulations for this device',
                 columns: withHeaderMinWidth([
-                    {formatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 50},
+                    CtsTable.selectionColumn(),
                     {title: 'Name', field: 'name'},
                     {title: 'Target', field: 'target'},
                     {
@@ -424,6 +426,7 @@
             simulationsTable.on('rowDblClick', function (e, row) {
                 changeSimulationVal(row.getData().id);
             });
+            CtsTable.enhanceResize(simulationsTable);
             simulationsTable.on('tableBuilt', function () {
                 applySimulationsSearch();
                 injectSimulationsFooterButtons();
@@ -556,11 +559,6 @@
                     $('#excel').click();
                 } else if (!simulationsTable || !device_id) {
                     alert('Select a device first.');
-                } else if (action === 'selectAll') {
-                    let all = simulationsTable.getRows().length;
-                    let sel = simulationsTable.getSelectedRows().length;
-                    if (sel === all) simulationsTable.deselectRow();
-                    else simulationsTable.selectRow();
                 } else if (action === 'delete') {
                     deleteSelectedSimulations();
                 } else if (action === 'toggle') {
@@ -653,15 +651,14 @@
             if (deployTargetsTable) { deployTargetsTable.destroy(); deployTargetsTable = null; }
             deployTargetsTable = new Tabulator('#deployTargetsTable', {
                 data: deployCandidates,
-                layout: 'fitColumns',
+                layout: 'fitData',
                 index: 'id',
                 pagination: true,
                 paginationSize: 10,
                 selectableRows: true,
-                columnDefaults: { resizable: false },
                 placeholder: 'No devices with the same protocol',
                 columns: withHeaderMinWidth([
-                    { formatter: 'rowSelection', hozAlign: 'center', headerSort: false, width: 50 },
+                    CtsTable.selectionColumn(),
                     { title: 'Name', field: 'name' },
                     { title: 'Group', field: 'group' }
                 ])
@@ -672,21 +669,11 @@
             };
             deployTargetsTable.on('rowSelectionChanged', updateCount);
             deployTargetsTable.on('tableBuilt', updateCount);
+            CtsTable.enhanceResize(deployTargetsTable);
         }
 
         function bindDeployTargetsToolbar() {
-            let tb = document.getElementById('deployTargetsToolbar');
-            if (!tb) return;
-            tb.addEventListener('click', function (e) {
-                let btn = e.target.closest('[data-deploy-action]');
-                if (!btn || !deployTargetsTable) return;
-                if (btn.getAttribute('data-deploy-action') === 'selectAll') {
-                    let all = deployTargetsTable.getRows().length;
-                    let sel = deployTargetsTable.getSelectedRows().length;
-                    if (sel === all) deployTargetsTable.deselectRow();
-                    else deployTargetsTable.selectRow();
-                }
-            });
+            // Select All 은 Tabulator 머리글 체크박스가 담당 — 더 이상 바인딩할 액션이 없다
         }
 
         // ── 디바이스 선택 시 해당 시뮬레이션 로드 ────────────────
@@ -1147,6 +1134,14 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a href="/testplans" class="nav-link">
+                                <i class="nav-icon fas fa-tasks"></i>
+                                <p>
+                                    Test Plans
+                                </p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a href="/settings" class="nav-link">
                                 <i class="nav-icon fas fa-sliders-h"></i>
                                 <p>
@@ -1205,7 +1200,6 @@
                             <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                                 <h3 class="card-title mb-0" id="device-title">Simulations</h3>
                                 <div id="simulationsToolbar" class="table-toolbar ml-auto flex-shrink-0">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
                                     <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
                                     <select id="simulationsSearchField" class="form-control form-control-sm" style="width:auto;">
@@ -1291,7 +1285,6 @@
                         <div class="modal-body">
                             <div class="table-panel d-flex flex-column">
                                 <div id="deployTargetsToolbar" class="table-toolbar flex-shrink-0">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-deploy-action="selectAll"><i class="fas fa-check-square"></i> <span class="btn-text">Select All</span></button>
                                     <span class="ml-auto text-muted small" id="deployTargetsCount">0 selected</span>
                                 </div>
                                 <div id="deployTargetsTable" class="cts-tabulator"></div>
@@ -1434,6 +1427,7 @@
     <script src="../../js/jstree.min.js"></script>
     <!-- Tabulator -->
     <script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+    <script src="../../js/cts-table.js"></script>
     <script src="../../js/jstree.min.js"></script>
     <script src="../../js/xlsx.full.min.js"></script>
     <!-- JSON Editor -->

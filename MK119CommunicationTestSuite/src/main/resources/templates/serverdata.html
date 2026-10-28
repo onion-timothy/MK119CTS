@@ -502,6 +502,7 @@
                     <li class="nav-item"><a href="/" class="nav-link active"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
                     <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
                     <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/testplans" class="nav-link"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
                     <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
                 </ul>
             </nav>
@@ -667,6 +668,7 @@
 <script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="../../js/adminlte.js"></script>
 <script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/cts-table.js"></script>
 <script src="../../plugins/sockjs/sockjs.min.js"></script>
 <script src="../../plugins/stomp/stomp.umd.min.js"></script>
 
@@ -838,6 +840,7 @@
             // 그것만 세면 화면이 갱신되고 있는지 알 수 없다.
             if (ev.seq !== undefined) showSeq(ev.seq, ev.ts);
             applyEventBatch(ev.changes, ev.touched);
+            if (Array.isArray(ev.locks)) applyLocks(ev.locks);
             return;
         }
         // Single-change form (kept for compatibility).
@@ -850,14 +853,24 @@
      * Mutates latestSnapshot for every change, then refreshes the view once.
      */
     function applyEventBatch(changes, touched) {
-        if (!latestSnapshot) return;
+        if (!latestSnapshot) {
+            // 첫 스냅샷 전에 온 묶음. 값은 곧 올 스냅샷이 채우지만 출처는 이 이벤트로만 알 수 있다 —
+            // 버리면 같은 값을 다시 쓰는 칸은 이후 깜빡임만 와서 색이 칠해지지 않는다. 출처만 기억한다.
+            changes.forEach(function (ev) {
+                const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
+                    ? ev.affectedTargets : [ev.target];
+                affected.forEach(function (t) { recordChange(t, ev.source, ev.ts); });
+            });
+            return;
+        }
         // STATIC 처럼 값이 그대로인 쓰기는 본문 없이 target 만 온다. 깜빡임만 일으킨다.
         if (touched && touched.length) flashTargets(touched);
         const touchedTargets = [];
         let lastBase = null;
         changes.forEach(function (ev) {
-            // API_WRITE is applied via our own write_ack (see handleEventMessage).
-            if (ev.source === 'API_WRITE') return;
+            // API_WRITE 도 반영한다. 이 화면의 편집만이 아니라 Test Plan·외부 REST 도 API_WRITE 로 쓴다.
+            // 자기 편집은 응답으로 이미 반영했으니 같은 값을 한 번 더 쓰는 것뿐이다.
+            // lock 표시는 여기서 바꾸지 않는다 — 같은 묶음의 locks 가 맞춘다(applyLocks).
             const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
                 ? ev.affectedTargets : [ev.target];
             const tv = ev.targetValues || {};
@@ -877,7 +890,6 @@
         if (viewMode === 'raw' && !isGridProtocol(latestSnapshot.protocol)) {
             // Legacy Tabulator Raw: update the rows that actually changed.
             changes.forEach(function (ev) {
-                if (ev.source === 'API_WRITE') return;
                 const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
                     ? ev.affectedTargets : [ev.target];
                 const tv = ev.targetValues || {};
@@ -900,6 +912,22 @@
             renderInspection(inspectionTarget, latestSnapshot);
         }
         sendKeepAliveAck();
+    }
+
+    /**
+     * 서버가 보낸 지금 잠긴 칸 전체로 바꾼다. lock 이 바뀌는 순간 묶음 주기를 기다리지 않고 온다 —
+     * 쓰기, 만료, Simulation 정지, 편집 세션 종료 어느 쪽이든 (ServerDataBridge.onLocksChanged).
+     * API 쓰기라면 같은 메시지에 그 값도 실려 있다.
+     * 바뀐 것이 있으면 스냅샷과 같은 그리기로 다시 그린다. 칸 색, 패널의 locked 수, Watch, Inspection 이
+     * 모두 snap.locks 를 보기 때문이다. lock 은 자주 바뀌지 않아 비용은 스냅샷 한 번 수준이다.
+     */
+    function applyLocks(list) {
+        if (!latestSnapshot) return;
+        const before = latestSnapshot.locks || [];
+        const same = before.length === list.length
+            && before.every(function (t) { return list.indexOf(t) >= 0; });
+        latestSnapshot.locks = list.slice();
+        if (!same) renderSnapshot(latestSnapshot);
     }
 
     function applyEventDelta(ev) {
@@ -1102,7 +1130,6 @@
 
         let flashed = 0;
         changes.forEach(function (ev) {
-            if (ev.source === 'API_WRITE') return;
             const affected = (ev.affectedTargets && ev.affectedTargets.length > 0)
                 ? ev.affectedTargets : [ev.target];
             affected.forEach(function (t) {
@@ -2233,11 +2260,12 @@
                     '</div>'
                 );
                 const table = new Tabulator('#tbl_' + key, {
-                    data: rows, index: 'target', layout: 'fitColumns', height: '360px', virtualDom: true, cssClass: 'sd-table',
+                    data: rows, index: 'target', layout: 'fitData', height: '360px', virtualDom: true, cssClass: 'sd-table',
                     columns: xgtColumns(),
                     rowFormatter: rowLockFormatter
                 });
                 tables[key] = table;
+                CtsTable.enhanceResize(table);
                 table.on('rowDblClick', function (e, row) {
                     openEditModal({
                         target: row.getData().target,
@@ -2295,7 +2323,7 @@
                 '</div>'
             );
             const table = new Tabulator('#tbl_' + key, {
-                data: rows, index: 'target', layout: 'fitColumns', height: '500px', virtualDom: true, cssClass: 'sd-table',
+                data: rows, index: 'target', layout: 'fitData', height: '500px', virtualDom: true, cssClass: 'sd-table',
                 columns: [
                     { title: 'Index', field: 'address', width: 120, minWidth: 120, hozAlign: 'center', headerHozAlign: 'center', headerSort: false },
                     { title: 'Value', field: 'display', hozAlign: 'center', headerHozAlign: 'center', minWidth: 160, headerSort: false,
@@ -2314,6 +2342,7 @@
                 rowFormatter: rowLockFormatter
             });
             tables[key] = table;
+            CtsTable.enhanceResize(table);
             table.on('rowDblClick', function (e, row) {
                 openEditModal({
                     target: row.getData().target,
@@ -2353,11 +2382,12 @@
                     '</div>'
                 );
                 const table = new Tabulator('#tbl_' + g.key, {
-                    data: rows, index: 'target', layout: 'fitColumns', height: '340px', virtualDom: true, cssClass: 'sd-table',
+                    data: rows, index: 'target', layout: 'fitData', height: '340px', virtualDom: true, cssClass: 'sd-table',
                     columns: xgtColumns(),
                     rowFormatter: rowLockFormatter
                 });
                 tables[g.key] = table;
+                CtsTable.enhanceResize(table);
                 table.on('rowDblClick', function (e, row) {
                     openEditModal({
                         target: row.getData().target,
@@ -2392,7 +2422,7 @@
                 '</div>'
             );
             const table = new Tabulator('#tbl_' + key, {
-                data: rows, index: 'target', layout: 'fitColumns', height: '500px', virtualDom: true, cssClass: 'sd-table',
+                data: rows, index: 'target', layout: 'fitData', height: '500px', virtualDom: true, cssClass: 'sd-table',
                 columns: [
                     { title: keyLabel, field: 'key', minWidth: 180, headerSort: false },
                     { title: 'Value', field: 'display', hozAlign: 'right', headerHozAlign: 'right', minWidth: 160, headerSort: false,
@@ -2412,6 +2442,7 @@
                 placeholder: 'No data yet. Waiting for simulation or write…'
             });
             tables[key] = table;
+            CtsTable.enhanceResize(table);
             table.on('rowDblClick', function (e, row) {
                 openEditModal({
                     target: row.getData().target,
@@ -2461,7 +2492,7 @@
                 '</div>'
             );
             const table = new Tabulator('#tbl_bacnet', {
-                data: rows, index: 'target', layout: 'fitColumns', height: '500px',
+                data: rows, index: 'target', layout: 'fitData', height: '500px',
                 virtualDom: true, cssClass: 'sd-table',
                 columns: [
                     { title: 'Object', field: 'object', minWidth: 200, headerSort: false },
@@ -2490,6 +2521,7 @@
                 placeholder: 'No BACnet objects. Add a simulation to this device first.'
             });
             tables['bacnet'] = table;
+            CtsTable.enhanceResize(table);
             table.on('rowDblClick', function (e, row) {
                 openEditModal({
                     target: row.getData().target,
@@ -2621,8 +2653,8 @@
 
     /**
      * ServerData write → REST POST. WebSocket is subscribe-only.
-     * On 200 the server also broadcasts to /topic/…/events (which our own client ignores
-     * for API_WRITE — see handleEventMessage), so we apply the response payload directly.
+     * On 200 we apply the response payload directly (it also marks the lock). The server
+     * broadcasts the same write to /topic/…/events a moment later; applying it again is harmless.
      */
     $(document).on('click', '#editSaveBtn', function () {
         if (!currentEditContext) return;

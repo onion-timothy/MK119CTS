@@ -32,6 +32,21 @@ public class ServiceInitializer {
     public void afterStart() {
         groupService.makeRootGroup();
 
+        // interval 로 저장된 예전 Test Plan 을 지운다(실행 시각으로 바뀜). 스케줄을 등록하기 전에 해야 한다
+        try {
+            int dropped = testPlanService.dropIntervalPlans();
+            if (dropped >= 0) logger.info("Removed {} test plan(s) saved with intervals; plans now use run times.", dropped);
+        } catch (Exception e) {
+            logger.error("Failed to remove interval-based test plans at boot.", e);
+        }
+        // skip_on_failure(실패해도 계속) → stop_on_failure(실패하면 멈춤). 기본이 "계속" 으로 바뀌었다
+        try {
+            int moved = testPlanService.migrateSkipToStop();
+            if (moved >= 0) logger.info("Moved {} test plan action(s) from skip_on_failure to stop_on_failure.", moved);
+        } catch (Exception e) {
+            logger.error("Failed to migrate skip_on_failure to stop_on_failure at boot.", e);
+        }
+
         // 실행 도중 서버가 내려가 RUNNING 으로 남은 Test Plan 이력을 닫는다. 실행은 이어서 하지 않는다.
         // 이력 정리 실패로 기동이 막히면 안 되므로 예외는 남기고 넘어간다.
         try {

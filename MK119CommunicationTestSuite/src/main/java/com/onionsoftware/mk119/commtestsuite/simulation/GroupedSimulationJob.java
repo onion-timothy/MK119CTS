@@ -113,10 +113,12 @@ public class GroupedSimulationJob implements Runnable {
                     // 값을 만들기 전에 본다. setServerData 안에서도 한 번 더 막지만, 거기까지 가면
                     // 값이 이미 계산되어 ACCUMULATE 누적과 SEQUENCE 위치가 나아가 버린다.
                     // 정지(lock) 중에는 진행 자체가 멈춰야 하므로 여기서 건너뛴다.
-                    if (serverData.isLocked(simulation.getTarget()))
+                    // 쓰기가 덮는 칸을 모두 본다 — UI32 는 두 번째 레지스터만 잠겨 있어도 쓰지 않는다.
+                    List<SimulationPolicy> policies = simulation.getPolicies();
+                    DataType dataType = policies == null || policies.isEmpty() ? null : policies.get(0).getData_type();
+                    if (serverData.isLocked(simulation.getTarget(), dataType))
                         continue;
                     try {
-                        List<SimulationPolicy> policies = simulation.getPolicies();
                         double value = parseAndMakeValue(simulation, policies.get(0));
                         serverData.setServerData(simulation, value, ServerDataChangeSource.VALUE_SIMULATION);
                         executedIds.add(simulation.getId());

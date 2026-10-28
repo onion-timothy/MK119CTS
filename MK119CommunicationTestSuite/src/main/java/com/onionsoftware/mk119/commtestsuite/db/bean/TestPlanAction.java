@@ -51,9 +51,12 @@ public class TestPlanAction {
     /** 0 이상. 0 이면 lock 하지 않는다(있던 lock 은 푼다). 만료 없는 lock(음수)은 받지 않는다. */
     private int lockSeconds;
 
-    /** 이 Action 뒤 다음 Action 까지 기다리는 시간(초). 0 이면 곧바로 다음 Action. */
-    private int intervalSeconds;
+    /**
+     * 실행 시각(초). Plan 을 시작한 때부터 센다. 가장 이른 Action 은 0 이다.
+     * 같은 시각의 Action 들은 같은 차례에 seq 순서로 쓴다.
+     */
+    private int atSeconds;
 
-    /** 1 이면 실패해도 기록하고 다음 Action 으로, 0 이면 Plan 을 중단한다. */
-    private int skipOnFailure;
+    /** 1 이면 실패할 때 그 자리에서 Plan 을 멈춘다. 0(기본)이면 실패를 기록하고 다음 Action 으로 간다. */
+    private int stopOnFailure;
 }

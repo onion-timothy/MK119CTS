@@ -344,12 +344,11 @@
         function buildSocketTable(devices) {
             socketTable = new Tabulator('#socketTable', {
                 data: devices,
-                layout: 'fitColumns',
+                layout: 'fitData',
                 height: '100%',
                 pagination: true,
                 paginationSize: 10,
                 selectableRows: 1,
-                columnDefaults: { resizable: false },
                 placeholder: 'No devices',
                 columns: [
                     { title: 'ID', field: 'id', width: 70, hozAlign: 'right' },
@@ -374,6 +373,7 @@
                 if (e.target.closest('button')) return;
                 loadClientsFor(row.getData());
             });
+            CtsTable.enhanceResize(socketTable);
         }
 
         function bindSocketSearch() {
@@ -418,9 +418,8 @@
         function buildClientsTable() {
             clientsTable = new Tabulator('#clientsTable', {
                 data: [],
-                layout: 'fitColumns',
+                layout: 'fitData',
                 height: '100%',
-                columnDefaults: { resizable: false },
                 placeholder: 'Select a device above to view connected clients',
                 columns: [
                     { title: 'Remote Host', field: 'remoteHost' },
@@ -442,6 +441,7 @@
                     }
                 ]
             });
+            CtsTable.enhanceResize(clientsTable);
         }
 
         function bindClientsActions() {
@@ -552,6 +552,7 @@
                     <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
                     <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
                     <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/testplans" class="nav-link"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
                     <li class="nav-item"><a href="/settings" class="nav-link active"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
                 </ul>
             </nav>
@@ -668,6 +669,7 @@
 <script src="../../js/adminlte.js"></script>
 <!-- Tabulator -->
 <script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/cts-table.js"></script>
 <!-- WebSocket / STOMP -->
 <script src="../../plugins/sockjs/sockjs.min.js"></script>
 <script src="../../plugins/stomp/stomp.umd.min.js"></script>

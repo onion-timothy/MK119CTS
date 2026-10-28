@@ -8,7 +8,9 @@ import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.enums.ScheduleType;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataCells;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataValueRules;
+import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanTiming;
 import etherip.types.CIPData;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +36,12 @@ public class TestPlanValidator {
 
     /** 엑셀 헤더(X4). 순서 무관, 대소문자 무시. */
     public static final List<String> COLUMNS = Collections.unmodifiableList(Arrays.asList(
-            "Device", "Target", "Value", "DataType", "LockSeconds", "Interval", "Skip"));
+            "RunAtSeconds", "Device", "Target", "Value", "DataType", "LockSeconds", "StopOnFailure"));
+
+    /** 실행 시각(초)의 상한(A12). 하루. 스케줄 주기 중 가장 긴 HOUR 와 같다. */
+    public static final int MAX_AT_SECONDS = 86400;
+    /** INTERVAL 스케줄의 간격 상한(초). 하루. */
+    public static final int MAX_INTERVAL_SECONDS = 86400;
 
     private final DeviceService deviceService;
     private final SimulationService simulationService;
@@ -110,8 +117,8 @@ public class TestPlanValidator {
     /**
      * 편집기·REST 가 보내는 Plan 하나.
      * <pre>
-     * {name, scheduleType, scheduleHour, scheduleMinute, scheduleSecond, scheduleEnabled,
-     *  actions: [{deviceId | device, target, value, dataType, lockSeconds, intervalSeconds, skipOnFailure}]}
+     * {name, scheduleType, scheduleHour, scheduleMinute, scheduleSecond, scheduleIntervalSeconds, scheduleEnabled,
+     *  actions: [{deviceId | device, target, value, dataType, lockSeconds, atSeconds, stopOnFailure}]}
      * </pre>
      * 장비는 deviceId 가 있으면 그것으로, 없으면 device(이름)로 찾는다.
      *
@@ -129,7 +136,7 @@ public class TestPlanValidator {
 
         List<Map<String, Object>> actions = mapList(body.get("actions"));
         checkActions(ctx, out, plan, actions);
-        checkScheduleFits(out, plan);
+        checkScheduleFits(ctx, out, plan);
 
         if (out.isOk()) out.plan = plan;
         return out;
@@ -220,8 +227,8 @@ public class TestPlanValidator {
             a.put("value", cell(cells, col.get("Value")));
             a.put("dataType", cell(cells, col.get("DataType")));
             a.put("lockSeconds", cell(cells, col.get("LockSeconds")));
-            a.put("intervalSeconds", cell(cells, col.get("Interval")));
-            a.put("skipOnFailure", cell(cells, col.get("Skip")));
+            a.put("atSeconds", cell(cells, col.get("RunAtSeconds")));
+            a.put("stopOnFailure", cell(cells, col.get("StopOnFailure")));
             a.put("_row", firstRow + r);
             actions.add(a);
         }
@@ -258,16 +265,18 @@ public class TestPlanValidator {
             type = typeRaw == null ? ScheduleType.NONE : ScheduleType.valueOf(typeRaw);
         } catch (IllegalArgumentException e) {
             out.errors.add(new Issue("S1", "scheduleType", null, null,
-                    "Unknown schedule type \"" + typeRaw + "\". Use NONE, SECOND, MINUTE or HOUR."));
+                    "Unknown schedule type \"" + typeRaw + "\". Use NONE, SECOND, MINUTE, HOUR or INTERVAL."));
             return;
         }
         plan.setScheduleType(type);
         plan.setScheduleHour(type == ScheduleType.HOUR
-                ? scheduleField(out, body, "scheduleHour", 23) : null);
+                ? scheduleField(out, body, "scheduleHour", 0, 23) : null);
         plan.setScheduleMinute(type == ScheduleType.MINUTE || type == ScheduleType.HOUR
-                ? scheduleField(out, body, "scheduleMinute", 59) : null);
-        plan.setScheduleSecond(type != ScheduleType.NONE
-                ? scheduleField(out, body, "scheduleSecond", 59) : null);
+                ? scheduleField(out, body, "scheduleMinute", 0, 59) : null);
+        plan.setScheduleSecond(type.isCron()
+                ? scheduleField(out, body, "scheduleSecond", 0, 59) : null);
+        plan.setScheduleIntervalSeconds(type == ScheduleType.INTERVAL
+                ? scheduleField(out, body, "scheduleIntervalSeconds", 1, MAX_INTERVAL_SECONDS) : null);
 
         Boolean enabled = boolOrNull(body.get("scheduleEnabled"));
         if (enabled == null && body.get("scheduleEnabled") != null && str(body.get("scheduleEnabled")) != null) {
@@ -277,32 +286,37 @@ public class TestPlanValidator {
                 ? TestPlan.SCHEDULE_ENABLED : TestPlan.SCHEDULE_DISABLED);
     }
 
-    private Integer scheduleField(Outcome out, Map<String, Object> body, String field, int max) {
+    private Integer scheduleField(Outcome out, Map<String, Object> body, String field, int min, int max) {
         Object raw = body.get(field);
         Integer v = integral(raw);
-        if (v == null || v < 0 || v > max) {
+        if (v == null || v < min || v > max) {
             out.errors.add(new Issue("S2", field, null, null,
-                    field + " must be a whole number from 0 to " + max + (str(raw) == null ? "." : " (got \"" + str(raw) + "\").")));
+                    field + " must be a whole number from " + min + " to " + max + (str(raw) == null ? "." : " (got \"" + str(raw) + "\").")));
             return null;
         }
         return v;
     }
 
-    /** S3·S4. Action 을 저장할 때마다 다시 본다. 마지막 Action 의 interval 도 실행 시간에 들어간다. */
-    private void checkScheduleFits(Outcome out, TestPlan plan) {
+    /** S3·S4. Action 을 저장할 때마다 다시 본다. 실행 시간 = 마지막 lock 이 풀리는 시각(TestPlanTiming). */
+    private void checkScheduleFits(Context ctx, Outcome out, TestPlan plan) {
         ScheduleType type = plan.getScheduleType();
-        if (type == null || type == ScheduleType.NONE) return;
-        long total = plan.totalIntervalSeconds();
-        if (total >= type.periodSeconds()) {
-            out.errors.add(new Issue("S3", "scheduleType", null, null,
-                    "The total interval of all actions (" + total + " s) must be shorter than the schedule period ("
-                            + type.periodSeconds() + " s for " + type + ")."));
+        long period = plan.schedulePeriodSeconds();
+        if (period <= 0) return;   // 스케줄이 없거나, interval 이 잘못돼 S2 가 이미 잡았다
+        long duration = TestPlanTiming.durationSeconds(plan.getActions(), id -> {
+            Device d = ctx.devicesById().get(id);
+            return d == null ? null : d.getProtocol();
+        });
+        if (duration >= period) {
+            out.errors.add(new Issue("S3", type == ScheduleType.INTERVAL ? "scheduleIntervalSeconds" : "scheduleType", null, null,
+                    "The plan runs for " + duration + " s (until its last lock is released), "
+                            + "which must be shorter than the schedule period ("
+                            + period + " s for " + type + ")."));
         }
     }
 
     // ── Action ───────────────────────────────────────────────────────────
 
-    /** P3 와 A1~A14. 통과한 Action 은 plan 에 붙는다. */
+    /** P3 와 A1~A16. 통과한 Action 은 plan 에 붙는다. */
     private void checkActions(Context ctx, Outcome out, TestPlan plan, List<Map<String, Object>> actions) {
         if (actions.isEmpty() || actions.size() > MAX_ACTIONS) {
             out.errors.add(new Issue("P3", "actions", null, null,
@@ -313,6 +327,52 @@ public class TestPlanValidator {
             TestPlanAction a = checkAction(ctx, out, actions.get(i), i);
             if (a != null) plan.getActions().add(a);
         }
+        // 모든 Action 이 통과했을 때만 본다. 그래야 plan 의 위치와 입력의 위치가 같다
+        if (out.isOk()) checkStartsAtZero(out, plan, actions);
+        if (out.isOk()) checkSameTimeCells(ctx, out, plan, actions);
+    }
+
+    /** A16. 가장 이른 Action 은 0초다. Plan 을 시작해 놓고 아무것도 하지 않고 기다릴 까닭이 없다. */
+    private void checkStartsAtZero(Outcome out, TestPlan plan, List<Map<String, Object>> raw) {
+        List<TestPlanAction> actions = plan.getActions();
+        int first = 0;
+        for (int i = 1; i < actions.size(); i++) {
+            if (actions.get(i).getAtSeconds() < actions.get(first).getAtSeconds()) first = i;
+        }
+        int at = actions.get(first).getAtSeconds();
+        if (at != 0) {
+            err(out, "A16", "at", first, intOrNull(raw.get(first).get("_row")),
+                    "The earliest action must run at 0 s (action #" + (first + 1) + " is the earliest, at " + at
+                            + " s). A plan starts with its first action.");
+            plan.getActions().clear();
+        }
+    }
+
+    /**
+     * A15. 같은 시각에 같은 칸을 두 Action 이 쓰면 거절한다. 뒤의 것이 앞의 것을 곧바로 덮으므로 의미가 없다.
+     * 칸은 lock 판정과 같은 ServerDataCells 로 센다 — target 이 달라도 칸이 겹치면 같은 칸이다
+     * (예: 3_10 UI32 와 3_11). 시각은 Action 의 실행 시각(atSeconds)이다.
+     */
+    private void checkSameTimeCells(Context ctx, Outcome out, TestPlan plan, List<Map<String, Object>> raw) {
+        Map<Integer, Map<String, Integer>> written = new HashMap<>();   // 시각 -> (장비:칸 -> 처음 쓴 Action 위치)
+        List<TestPlanAction> actions = plan.getActions();
+        for (int i = 0; i < actions.size(); i++) {
+            TestPlanAction a = actions.get(i);
+            int at = a.getAtSeconds();
+            Device device = ctx.devicesById().get(a.getDeviceId());
+            DataType dt = a.getDataType() == null ? null : DataType.valueOf(a.getDataType());
+            Map<String, Integer> cells = written.computeIfAbsent(at, k -> new HashMap<>());
+            for (String cell : ServerDataCells.of(device == null ? null : device.getProtocol(), a.getTarget(), dt)) {
+                Integer first = cells.putIfAbsent(a.getDeviceId() + ":" + cell, i);
+                if (first != null) {
+                    err(out, "A15", "target", i, intOrNull(raw.get(i).get("_row")),
+                            "Action #" + (i + 1) + " writes " + cell + " at " + at + " s, which action #" + (first + 1)
+                                    + " already writes at the same time.");
+                    break;
+                }
+            }
+        }
+        if (!out.isOk()) plan.getActions().clear();
     }
 
     private TestPlanAction checkAction(Context ctx, Outcome out, Map<String, Object> raw, int index) {
@@ -406,26 +466,26 @@ public class TestPlanValidator {
         }
 
         // A12·A14
-        Object intervalRaw = raw.get("intervalSeconds");
-        Integer interval = integral(intervalRaw);
-        if (str(intervalRaw) == null) {
-            err(out, "A12", "interval", index, row, "Interval is required.");
-        } else if (interval == null) {
-            err(out, isNumber(intervalRaw) ? "A14" : "A12", "interval", index, row,
-                    "Interval must be a whole number of seconds (got \"" + str(intervalRaw) + "\").");
-        } else if (interval < 0) {
-            err(out, "A12", "interval", index, row, "Interval must be 0 or more.");
+        Object atRaw = raw.get("atSeconds");
+        Integer at = integral(atRaw);
+        if (str(atRaw) == null) {
+            err(out, "A12", "at", index, row, "Run at (seconds from the start) is required.");
+        } else if (at == null) {
+            err(out, isNumber(atRaw) ? "A14" : "A12", "at", index, row,
+                    "Run at must be a whole number of seconds (got \"" + str(atRaw) + "\").");
+        } else if (at < 0 || at >= MAX_AT_SECONDS) {
+            err(out, "A12", "at", index, row, "Run at must be from 0 to " + (MAX_AT_SECONDS - 1) + " seconds (got " + at + ").");
         } else {
-            a.setIntervalSeconds(interval);
+            a.setAtSeconds(at);
         }
 
-        // A13
-        Object skipRaw = raw.get("skipOnFailure");
-        Boolean skip = str(skipRaw) == null ? Boolean.FALSE : boolOrNull(skipRaw);
-        if (skip == null) {
-            err(out, "A13", "skip", index, row, "Skip must be TRUE or FALSE (got \"" + str(skipRaw) + "\").");
+        // A13. 비어 있으면 실패해도 계속(FALSE)
+        Object stopRaw = raw.get("stopOnFailure");
+        Boolean stop = str(stopRaw) == null ? Boolean.FALSE : boolOrNull(stopRaw);
+        if (stop == null) {
+            err(out, "A13", "stop", index, row, "Stop on failure must be TRUE or FALSE (got \"" + str(stopRaw) + "\").");
         } else {
-            a.setSkipOnFailure(skip ? 1 : 0);
+            a.setStopOnFailure(stop ? 1 : 0);
         }
 
         return out.errors.size() == before ? a : null;

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS</title>
+
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <link rel="stylesheet" href="../../css/testplan.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+        .content-header { flex-shrink: 0; }
+        .content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* 가로로 긴 화면: 좌(목록) · 우(세부). 세로로 긴 화면: 상(목록) · 하(세부). */
+        /* 좌우는 AdminLTE 의 .content 좌우 .5rem + 1rem = 1.5rem. 하단도 같게 1.5rem 을 둔다 */
+        .tp-split { flex: 1 1 auto; min-height: 0; display: flex; gap: 1rem; padding: 0 1rem 1.5rem 1rem; }
+        .tp-list { flex: 0 0 440px; min-width: 0; container-type: inline-size; container-name: tplist; }
+        .tp-detail { flex: 1 1 auto; min-width: 0; }
+        @media (orientation: portrait) {
+            .tp-split { flex-direction: column; }
+            .tp-list { flex: 0 0 34%; }
+            .tp-detail { flex: 1 1 auto; min-height: 0; }
+        }
+
+        .tp-detail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px; display: flex;
+            flex-direction: column; gap: 10px; }
+        .tp-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+        .tp-fact { border: 1px solid #eef0f2; border-radius: 4px; padding: 8px 10px; background: #fcfcfd; }
+        .tp-fact h6 { font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 6px 0; }
+        .tp-fact .tp-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 1px 0; }
+        .tp-fact .tp-row span:first-child { color: #6c757d; }
+        .tp-progress { height: 6px; background: #eef0f2; border-radius: 3px; overflow: hidden; margin: 6px 0 4px 0; }
+        .tp-progress > div { height: 100%; background: #2f80ed; transition: width 0.3s ease; }
+        .tp-section { border: 1px solid #eef0f2; border-radius: 4px; display: flex; flex-direction: column; min-height: 0; }
+        .tp-section > header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eef0f2; }
+        .tp-section > header h6 { font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase;
+            letter-spacing: 0.03em; margin: 0; }
+        .tp-timeline-section .tpt { height: 260px; flex: 0 0 auto; }
+        .tp-history-section #historyTable { height: 220px; }
+        .tp-placeholder { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; color: #adb5bd; }
+        .tp-actions .btn { white-space: nowrap; }
+        .cts-tabulator .tabulator-row.tp-current { background-color: #d6e8ff !important; }
+        @media (max-width: 900px) { .tp-actions .btn-text { display: none; } }
+
+        /* 목록 표: devices / simulations / errors 와 같은 툴바·footer(pagination) */
+        .tp-list-tools .btn { white-space: nowrap; }
+        @container tplist (max-width: 620px) {
+            .tp-list .btn-text { display: none; }
+        }
+        @container tplist (max-width: 400px) {
+            .tp-list-tools input[type="search"] { width: 90px !important; }
+        }
+        /* 세로: pageSize 가 행을 높이에 딱 맞추므로 스크롤이 필요 없다 */
+        #planTable .tabulator-tableholder { overflow-x: auto !important; overflow-y: hidden !important; }
+        .cts-tabulator .tabulator-footer,
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents { background: #fff !important; background-image: none !important; }
+        .cts-tabulator .tabulator-footer { border-top: 1px solid #dee2e6 !important; padding: 0; }
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents { padding: 6px 10px; gap: 0.25rem; }
+        .cts-tabulator .tabulator-footer .tabulator-page { border-radius: 3px; margin: 0 2px; transition: background-color 0.12s ease; }
+        .cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover { background-color: #eef5ff; border-color: #b8dcff; }
+        .cts-tabulator .tabulator-footer .tabulator-page.active { background-color: #007bff; color: #fff; border-color: #007bff; }
+        .cts-tabulator .tabulator-footer .tabulator-page.disabled { opacity: 0.4; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
+            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="javascript:downloadTemplate()" role="button" title="Download an empty Excel template">
+                    <i class="fas fa-file-excel"></i>
+                </a>
+            </li>
+            <li class="nav-item"><a class="nav-link" data-widget="fullscreen" href="#" role="button"><i class="fas fa-expand-arrows-alt"></i></a></li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/testplans" class="nav-link active"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6"><h1 class="m-0">Test Plans</h1></div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item active">Test Plans</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="content">
+            <input type="file" id="excelFile" accept=".xlsx" style="display:none">
+            <div class="tp-split">
+                <!-- 목록 -->
+                <div class="cts-panel tp-list">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title">Plans</h3>
+                        <div class="cts-panel-tools tp-list-tools">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="export" title="Export the checked plans to the Excel template">
+                                <i class="fas fa-file-export"></i> <span class="btn-text">Export</span></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete the checked plans">
+                                <i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                            <select id="planSearchField" class="form-control form-control-sm" style="width:auto;">
+                                <option value="name">Name</option>
+                                <option value="state">State</option>
+                            </select>
+                            <input id="planSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:140px; min-width:0;">
+                        </div>
+                    </div>
+                    <div class="cts-panel-body">
+                        <div id="planTable" class="cts-tabulator"></div>
+                    </div>
+                </div>
+
+                <!-- 세부 -->
+                <div class="cts-panel tp-detail">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title" id="detailTitle">Select a plan</h3>
+                        <div class="cts-panel-tools tp-actions" id="detailTools" style="display:none">
+                            <button class="btn btn-sm btn-success" id="runBtn" onclick="runPlan()"><i class="fas fa-play"></i> <span class="btn-text">Run</span></button>
+                            <button class="btn btn-sm btn-outline-danger" id="stopBtn" onclick="stopPlan()"><i class="fas fa-stop"></i> <span class="btn-text">Stop</span></button>
+                            <a class="btn btn-sm btn-outline-secondary" id="editBtn" href="#"><i class="fas fa-pen"></i> <span class="btn-text">Edit</span></a>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="duplicatePlan()"><i class="fas fa-copy"></i> <span class="btn-text">Duplicate</span></button>
+                            <button class="btn btn-sm btn-outline-danger" id="deleteBtn" onclick="deletePlan()"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                        </div>
+                    </div>
+                    <div class="cts-panel-body">
+                        <div class="tp-placeholder" id="detailEmpty">Select a plan on the list to see its details.</div>
+                        <div class="tp-detail-body" id="detailBody" style="display:none">
+                            <div class="tp-facts">
+                                <div class="tp-fact">
+                                    <h6>Status</h6>
+                                    <div id="statusText" class="tp-row"><span>State</span><span>—</span></div>
+                                    <div class="tp-progress" id="progressWrap" style="display:none"><div id="progressBar" style="width:0"></div></div>
+                                    <div id="statusMore" class="tp-row" style="display:none"></div>
+                                </div>
+                                <div class="tp-fact">
+                                    <h6>Schedule</h6>
+                                    <div class="tp-row"><span>When</span><span id="scheduleText">—</span></div>
+                                    <div class="tp-row"><span>Enabled</span>
+                                        <span><button type="button" class="cts-toggle" id="scheduleToggle" onclick="toggleSchedule()"></button></span></div>
+                                    <div class="tp-row"><span>Next run</span><span id="nextRunText">—</span></div>
+                                </div>
+                                <div class="tp-fact">
+                                    <h6>Summary</h6>
+                                    <div class="tp-row"><span>Actions</span><span id="sumActions">—</span></div>
+                                    <div class="tp-row"><span>Devices / cells</span><span id="sumDevices">—</span></div>
+                                    <div class="tp-row"><span>Duration</span><span id="sumDuration">—</span></div>
+                                </div>
+                            </div>
+                            <div class="tp-section tp-timeline-section">
+                                <header>
+                                    <h6>Timeline</h6>
+                                    <div class="tpt-legend ml-3">
+                                        <span><i class="lg-lock"></i>Locked</span>
+                                        <span><i class="lg-hold"></i>Written, not locked</span>
+                                        <span><i class="lg-cut"></i>Overwritten</span>
+                                        <span><i class="lg-stop"></i>Stop on failure</span>
+                                        <span><i class="lg-play"></i>Now</span>
+                                    </div>
+                                    <div class="ml-auto btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" data-zoom="0.5" title="Zoom out"><i class="fas fa-minus"></i></button>
+                                        <button class="btn btn-outline-secondary" data-zoom="fit">Fit</button>
+                                        <button class="btn btn-outline-secondary" data-zoom="2" title="Zoom in"><i class="fas fa-plus"></i></button>
+                                    </div>
+                                </header>
+                                <div id="timeline"></div>
+                            </div>
+                            <div class="tp-section tp-history-section">
+                                <header><h6>Run history</h6><span class="text-muted small ml-2">latest 50 · click a run for its actions</span></header>
+                                <div id="historyTable" class="cts-tabulator"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 실행 1회의 Action 결과 -->
+        <div class="modal fade" id="runModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="runModalTitle">Run</h5>
+                        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    </div>
+                    <div class="modal-body p-0"><div id="runActionsTable" class="cts-tabulator" style="height:420px"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
+    </footer>
+</div>
+
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/cts-table.js"></script>
+<script src="../../js/xlsx.full.min.js"></script>
+<script src="../../js/testplan-timeline.js"></script>
+<script th:inline="javascript">
+    const SELECTED_ON_LOAD = /*[[${selectedPlan}]]*/ null;
+    const BATCH_KEY = 'batchAddTestPlans';
+    const COLUMNS = ['RunAtSeconds', 'Device', 'Target', 'Value', 'DataType', 'LockSeconds', 'StopOnFailure'];
+    const SCHEDULE_LABEL = { NONE: 'Manual only', SECOND: 'Every minute', MINUTE: 'Every hour', HOUR: 'Every day', INTERVAL: 'Interval' };
+
+    let planTable, historyTable, runActionsTable, timeline;
+    let plans = [], selectedId = null, detail = null, detailModel = null, statuses = {};
+    const checked = new Set();
+    let planSelectAllBox = null;
+
+    // ── 표시 도우미 ────────────────────────────────────────────────
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function fmtDateTime(s) {
+        if (!s) return '—';
+        const d = new Date(s);
+        if (isNaN(d)) return s;
+        return pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+    }
+    function scheduleText(p) {
+        const s = pad2(p.scheduleSecond || 0), m = pad2(p.scheduleMinute || 0), h = pad2(p.scheduleHour || 0);
+        if (p.scheduleType === 'SECOND') return 'Every minute at :' + s;
+        if (p.scheduleType === 'MINUTE') return 'Every hour at ' + m + ':' + s;
+        if (p.scheduleType === 'HOUR') return 'Every day at ' + h + ':' + m + ':' + s;
+        if (p.scheduleType === 'INTERVAL') return 'Every ' + (p.scheduleIntervalSeconds || 0).toLocaleString() + ' s';
+        return 'Manual only';
+    }
+    function badge(result, text) {
+        return '<span class="tp-badge ' + (result || 'NONE') + '">' + (text || (result ? result.replace(/_/g, ' ') : '—')) + '</span>';
+    }
+    function stateHtml(p) {
+        const st = statuses[p.id];
+        if (st) return badge('RUNNING', 'RUNNING ' + Math.min(st.nextAction, st.totalActions) + '/' + st.totalActions);
+        return p.lastRun ? badge(p.lastRun.result) : badge(null, 'Never run');
+    }
+    /** State 열에 보이는 글자. State 검색이 이걸로 찾는다 */
+    function stateText(p) {
+        if (statuses[p.id]) return 'RUNNING';
+        return p.lastRun ? p.lastRun.result.replace(/_/g, ' ') : 'Never run';
+    }
+    function durationOf(run) {
+        if (!run.startedAt || !run.endedAt) return '—';
+        const s = Math.round((new Date(run.endedAt) - new Date(run.startedAt)) / 1000);
+        return TestPlanTimeline.fmtTime(Math.max(0, s));
+    }
+    function api(method, url, body) {
+        return $.ajax({ url: url, method: method, contentType: 'application/json',
+            data: body === undefined ? undefined : JSON.stringify(body) });
+    }
+    function errorText(xhr) {
+        const b = xhr && xhr.responseJSON;
+        if (b && b.error) return b.error;
+        if (b && b.errors && b.errors.length) return b.errors.map(e => e.rule + ' ' + e.message).join('\n');
+        return (xhr && xhr.statusText) || 'Request failed';
+    }
+
+    // ── 목록 ───────────────────────────────────────────────────────
+    function initPlanTable() {
+        // Export 할 Plan 은 체크박스로 고른다. 행 클릭은 세부 보기다 — Tabulator 의 행 선택을 쓰면 둘이 섞인다
+        planTable = new Tabulator('#planTable', {
+            data: [], index: 'id', layout: 'fitData', height: '100%',
+            pagination: true, paginationSize: 10, paginationButtonCount: 3,
+            placeholder: 'No test plans yet. Create one or import an Excel file.',
+            rowFormatter: function (row) { row.getElement().classList.toggle('tp-current', row.getData().id === selectedId); },
+            columns: [
+                { field: 'id', hozAlign: 'center', headerHozAlign: 'center', headerSort: false, width: 36, title: '', resizable: false,
+                  // 머리글의 Select all: 검색에 걸린 Plan 이 전부 체크면 비우고, 아니면 전부 체크한다.
+                  titleFormatter: function (cell, formatterParams, onRendered) {
+                      planSelectAllBox = document.createElement('input');
+                      planSelectAllBox.type = 'checkbox';
+                      planSelectAllBox.addEventListener('click', function (e) {
+                          e.stopPropagation();
+                          const ids = activePlanIds();
+                          const allChecked = ids.length > 0 && ids.every(id => checked.has(id));
+                          if (allChecked) checked.clear();
+                          else ids.forEach(id => checked.add(id));
+                          planTable.getRows().forEach(r => r.reformat());
+                          syncPlanSelectAll();
+                      });
+                      onRendered(function () { syncPlanSelectAll(); });
+                      return planSelectAllBox;
+                  },
+                  formatter: c => '<input type="checkbox"' + (checked.has(c.getValue()) ? ' checked' : '') + '>',
+                  cellClick: function (e, cell) {
+                      e.stopPropagation();
+                      const id = cell.getValue();
+                      if (checked.has(id)) checked.delete(id); else checked.add(id);
+                      cell.getRow().reformat();
+                      syncPlanSelectAll();
+                  } },
+                { title: 'Name', field: 'name', minWidth: 120 },
+                { title: 'State', field: 'id', width: 130, headerSort: false, formatter: c => stateHtml(c.getRow().getData()) },
+                { title: 'Next run', field: 'nextRunAt', width: 120, formatter: c => c.getValue() ? fmtDateTime(c.getValue()) : '<span class="text-muted">—</span>' }
+            ],
+            rowContextMenu: [
+                { label: "<i class='fas fa-pen'></i> Edit plan",
+                  action: function (e, row) {
+                      const id = row.getData().id;
+                      if (statuses[id]) { alert('Stop the plan to edit it.'); return; }
+                      location.href = '/testplans/edit/' + id;
+                  } },
+                { label: "<i class='fas fa-trash'></i> Delete plan",
+                  action: function (e, row) { deletePlans([row.getData().id]); } }
+            ]
+        });
+        planTable.on('rowClick', function (e, row) { select(row.getData().id); });
+        planTable.on('dataFiltered', function () { setTimeout(syncPlanSelectAll); });
+        CtsTable.enhanceResize(planTable);
+        planTable.on('tableBuilt', function () {
+            injectPlanFooterButtons();
+            requestAnimationFrame(function () { requestAnimationFrame(fitPlanPageSize); });
+        });
+        planTable.on('pageLoaded', function () { requestAnimationFrame(fitPlanPageSize); });
+    }
+
+    function loadPlans() {
+        return api('GET', '/api/testplans').then(function (data) {
+            plans = data;
+            data.forEach(p => p.state = stateText(p));
+            // 주기적으로 다시 읽어도 보고 있던 페이지에 머문다
+            const page = planTable.getPage() || 1;
+            const ids = new Set(data.map(p => p.id));
+            checked.forEach(id => { if (!ids.has(id)) checked.delete(id); });
+            return planTable.replaceData(data).then(function () {
+                const max = planTable.getPageMax() || 1;
+                if (planTable.getPage() !== Math.min(page, max)) return planTable.setPage(Math.min(page, max));
+            }).then(markSelected).then(function () {
+                if (selectedId && !ids.has(selectedId)) clearDetail();
+            });
+        });
+    }
+
+    function markSelected() {
+        planTable.getRows().forEach(r => r.reformat());
+        syncPlanSelectAll();
+    }
+
+    /** 검색에 걸린(모든 페이지의) Plan id */
+    function activePlanIds() {
+        return planTable.getRows('active').map(r => r.getData().id);
+    }
+
+    /** 머리글의 Select all 체크박스를 현재 선택 상태로 맞춘다. 전부 체크면 ✓, 일부 체크면 중간 상태. */
+    function syncPlanSelectAll() {
+        if (!planSelectAllBox) return;
+        const ids = activePlanIds();
+        const n = ids.filter(id => checked.has(id)).length;
+        planSelectAllBox.checked = ids.length > 0 && n === ids.length;
+        planSelectAllBox.indeterminate = n > 0 && n < ids.length;
+    }
+
+    // ── 목록: 검색 · 툴바 · footer · pagination ─────────────────────
+    function applyPlanSearch() {
+        const field = $('#planSearchField').val();
+        const val = $('#planSearchInput').val().trim();
+        if (!val) planTable.clearFilter();
+        else planTable.setFilter(field, 'like', val);
+    }
+
+    /** 체크한 Plan. 검색에 가려진 것도 체크가 남아 있으면 포함한다 */
+    function checkedIds() {
+        return plans.map(p => p.id).filter(id => checked.has(id));
+    }
+
+    function bindPlanToolbarActions() {
+        // 툴바와 Tabulator footer 를 한 곳에서 받는다
+        document.querySelector('.tp-list').addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-action');
+            if (action === 'add') location.href = '/testplans/new';
+            else if (action === 'batchAdd') $('#excelFile').click();
+            else if (action === 'export') exportPlans();
+            else if (action === 'delete') deletePlans(checkedIds());
+        });
+    }
+
+    // 선택과 무관한 액션 버튼들을 Tabulator footer(pagination) 좌측에 주입
+    function injectPlanFooterButtons() {
+        const footerContents = planTable.element.querySelector('.tabulator-footer .tabulator-footer-contents');
+        if (!footerContents || footerContents.querySelector('.cts-footer-actions')) return;
+        const el = document.createElement('div');
+        el.className = 'cts-footer-actions';
+        el.style.cssText = 'display:inline-flex; gap:0.25rem;';
+        el.innerHTML =
+            '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="add" title="Create a new plan"><i class="fas fa-plus"></i> <span class="btn-text">Add</span></button>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="batchAdd" title="Import plans from Excel (one sheet per plan)"><i class="fas fa-file-excel"></i> <span class="btn-text">Batch Add</span></button>';
+        footerContents.insertBefore(el, footerContents.firstChild);
+    }
+
+    /** 표 높이에 맞게 pageSize 와 행 높이를 정한다(devices / simulations / errors 의 fitTablePageSize 와 같은 방식) */
+    const PLAN_BASE_ROW_H = 40;
+    function fitPlanPageSize() {
+        const root = planTable && planTable.element;
+        const body = root && root.closest('.cts-panel-body');
+        if (!body) return;
+        root.style.height = '';
+        const header = root.querySelector('.tabulator-header');
+        const footer = root.querySelector('.tabulator-footer');
+        const holder = root.querySelector('.tabulator-tableholder');
+        const avail = body.clientHeight - (header ? header.offsetHeight : 0) - (footer ? footer.offsetHeight : 0);
+        if (avail <= 0) return;
+
+        const pageSize = Math.max(1, Math.floor(avail / PLAN_BASE_ROW_H));
+        const rowH = avail / pageSize;
+        const pad = Math.max(2, (rowH - 22 - 1) / 2);
+        let styleEl = document.getElementById('planTable-row-h-style');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'planTable-row-h-style';
+            document.head.appendChild(styleEl);
+        }
+        styleEl.textContent =
+            '#planTable .tabulator-row { height: ' + rowH + 'px !important; min-height: ' + rowH + 'px !important; } ' +
+            '#planTable .tabulator-cell { padding-top: ' + pad + 'px !important; padding-bottom: ' + pad + 'px !important; }';
+        if (pageSize !== planTable.getPageSize()) planTable.setPageSize(pageSize);
+        if (holder) {
+            holder.style.setProperty('height', avail + 'px', 'important');
+            holder.style.setProperty('max-height', avail + 'px', 'important');
+            holder.style.setProperty('min-height', avail + 'px', 'important');
+        }
+    }
+
+    // ── 세부 ───────────────────────────────────────────────────────
+    function select(id) {
+        selectedId = id;
+        markSelected();
+        history.replaceState(null, '', '/testplans?plan=' + id);
+        loadDetail();
+    }
+
+    function clearDetail() {
+        selectedId = null; detail = null;
+        $('#detailTitle').text('Select a plan');
+        $('#detailTools').hide(); $('#detailBody').hide(); $('#detailEmpty').show();
+    }
+
+    function loadDetail() {
+        if (!selectedId) return;
+        const id = selectedId;
+        $.when(api('GET', '/api/testplans/' + id), api('GET', '/api/testplans/' + id + '/runs?limit=50'))
+            .done(function (p, r) {
+                if (id !== selectedId) return;
+                detail = p[0];
+                detailModel = TestPlanTimeline.fromActions(detail.actions);
+                renderDetail();
+                historyTable.replaceData(r[0]);
+            })
+            .fail(function () { clearDetail(); });
+    }
+
+    function renderDetail() {
+        const p = detail;
+        $('#detailEmpty').hide(); $('#detailBody').show(); $('#detailTools').show();
+        $('#detailTitle').text(p.name);
+        $('#editBtn').attr('href', '/testplans/edit/' + p.id);
+        $('#scheduleText').text(scheduleText(p));
+        $('#nextRunText').text(p.nextRunAt ? fmtDateTime(p.nextRunAt) : '—');
+        $('#scheduleToggle').toggleClass('on', !!p.scheduleEnabled).prop('disabled', p.scheduleType === 'NONE')
+            .attr('title', p.scheduleType === 'NONE' ? 'Set a schedule in the editor first.' : '');
+        const devices = new Set(), cells = new Set();
+        p.actions.forEach(a => { devices.add(a.deviceId); (a.cells || []).forEach(c => cells.add(a.deviceId + ':' + c)); });
+        $('#sumActions').text(p.actionCount);
+        $('#sumDevices').text(devices.size + ' / ' + cells.size);
+        $('#sumDuration').text(TestPlanTimeline.fmtTime(p.durationSeconds));
+        renderStatus();
+    }
+
+    /** 실행 상태와 playhead. 1초마다 다시 그린다. */
+    function renderStatus() {
+        if (!detail) return;
+        const st = statuses[detail.id];
+        const running = !!st;
+        $('#runBtn').prop('disabled', running);
+        $('#stopBtn').prop('disabled', !running);
+        $('#editBtn').toggleClass('disabled', running).attr('title', running ? 'Stop the plan to edit it.' : '');
+        $('#deleteBtn').prop('disabled', running);
+        let playhead = null;
+        if (running) {
+            const items = detailModel.items;
+            const nextAt = st.nextAction < items.length ? items[st.nextAction].at : detailModel.end;
+            const remain = Math.max(0, (st.nextAt - Date.now()) / 1000);
+            playhead = Math.max(0, nextAt - remain);
+            const done = Math.min(st.nextAction, st.totalActions);
+            $('#statusText').html('<span>State</span><span>' + badge('RUNNING', 'RUNNING') + '</span>');
+            $('#progressWrap').show();
+            $('#progressBar').css('width', (st.totalActions ? 100 * done / st.totalActions : 0) + '%');
+            $('#statusMore').show().html('<span>Action ' + done + ' / ' + st.totalActions + '</span><span>' +
+                (st.nextAction < st.totalActions ? 'next in ' : 'ends in ') + Math.ceil(remain) + ' s · ' + st.trigger + '</span>');
+        } else {
+            const last = (plans.find(x => x.id === detail.id) || {}).lastRun;
+            $('#statusText').html('<span>Last run</span><span>' + (last ? badge(last.result) + ' ' + fmtDateTime(last.startedAt) : badge(null, 'Never run')) + '</span>');
+            $('#progressWrap').hide(); $('#statusMore').hide();
+        }
+        timeline.set(detailModel, { playhead: playhead });
+    }
+
+    function initHistoryTable() {
+        historyTable = new Tabulator('#historyTable', {
+            data: [], index: 'id', layout: 'fitData', height: '220px',
+            placeholder: 'No runs yet.',
+            columns: [
+                { title: 'Started', field: 'startedAt', width: 140, formatter: c => fmtDateTime(c.getValue()) },
+                { title: 'Trigger', field: 'triggerType', width: 100 },
+                { title: 'Result', field: 'result', width: 170, formatter: c => badge(c.getValue()) },
+                { title: 'Duration', field: 'endedAt', width: 90, formatter: c => durationOf(c.getRow().getData()) },
+                { title: 'Failed', field: 'failedActions', width: 70, hozAlign: 'right' },
+                { title: 'Message', field: 'message', minWidth: 120, formatter: c => c.getValue() || '' }
+            ]
+        });
+        historyTable.on('rowClick', function (e, row) { openRun(row.getData()); });
+        CtsTable.enhanceResize(historyTable);
+        runActionsTable = new Tabulator('#runActionsTable', {
+            data: [], layout: 'fitData', height: '420px', placeholder: 'No action ran.',
+            columns: [
+                { title: '#', field: 'seq', width: 50, formatter: c => c.getValue() + 1 },
+                { title: 'Time', field: 'executedAt', width: 140, formatter: c => fmtDateTime(c.getValue()) },
+                { title: 'Device', field: 'deviceId', width: 140, formatter: c => deviceName(c.getValue()) },
+                { title: 'Target', field: 'target', width: 130 },
+                { title: 'Value', field: 'value', width: 90, hozAlign: 'right' },
+                { title: 'Type', field: 'dataType', width: 90, formatter: c => c.getValue() || '' },
+                { title: 'Lock', field: 'lockSeconds', width: 60, hozAlign: 'right' },
+                { title: 'Status', field: 'status', width: 100, formatter: c => badge(c.getValue()) },
+                { title: 'HTTP', field: 'httpStatus', width: 60, formatter: c => c.getValue() || '' },
+                { title: 'Error', field: 'error', minWidth: 160, formatter: c => c.getValue() ? $('<div>').text(c.getValue()).html() : '' }
+            ]
+        });
+        CtsTable.enhanceResize(runActionsTable);
+    }
+
+    function deviceName(id) {
+        const a = detail && detail.actions.find(x => x.deviceId === id);
+        return a && a.deviceName ? a.deviceName : '#' + id;
+    }
+
+    function openRun(run) {
+        $('#runModalTitle').text('Run ' + fmtDateTime(run.startedAt) + ' · ' + run.triggerType + ' · ' + run.result.replace(/_/g, ' '));
+        $('#runModal').modal('show');
+        api('GET', '/api/testplans/runs/' + run.id).then(function (d) {
+            setTimeout(function () { runActionsTable.replaceData(d.actions); runActionsTable.redraw(true); }, 200);
+        });
+    }
+
+    // ── 동작 ───────────────────────────────────────────────────────
+    function runPlan() {
+        api('POST', '/api/testplans/' + selectedId + '/run').then(pollStatus).fail(x => alert(errorText(x)));
+    }
+    function stopPlan() {
+        api('POST', '/api/testplans/' + selectedId + '/stop').then(function () { pollStatus(); setTimeout(loadDetail, 300); });
+    }
+    function toggleSchedule() {
+        const on = !detail.scheduleEnabled;
+        api('POST', '/api/testplans/' + selectedId + '/schedule/enabled/' + (on ? 1 : 0))
+            // interval 은 켜는 순간 한 번 돈다. 실행 상태도 다시 읽는다
+            .then(function () { loadPlans(); loadDetail(); pollStatus(); }).fail(x => alert(errorText(x)));
+    }
+    function deletePlan() { deletePlans([selectedId]); }
+
+    /** 하나씩 차례로 지운다. 실행 중인 Plan 은 서버가 거절한다(P4) — 실패로 모아 보여 준다 */
+    function deletePlans(ids) {
+        if (!ids.length) { alert('No plans selected.'); return; }
+        const one = ids.length === 1 && plans.find(p => p.id === ids[0]);
+        if (!confirm(one ? 'Delete "' + one.name + '"? Its run history is deleted too.'
+                         : 'Delete ' + ids.length + ' plan(s)? Their run history is deleted too.')) return;
+        const failures = [];
+        let i = 0;
+        const next = function () {
+            if (i >= ids.length) {
+                if (failures.length) alert('Failed:\n' + failures.join('\n'));
+                loadPlans();
+                return;
+            }
+            const id = ids[i++];
+            api('DELETE', '/api/testplans/' + id)
+                .done(function () { checked.delete(id); })
+                .fail(function (x) {
+                    const p = plans.find(q => q.id === id);
+                    failures.push((p ? p.name : '#' + id) + ': ' + errorText(x));
+                })
+                .always(next);
+        };
+        next();
+    }
+    function duplicatePlan() {
+        const names = new Set(plans.map(p => p.name));
+        let name = detail.name + ' (copy)', n = 2;
+        while (names.has(name)) name = detail.name + ' (copy ' + (n++) + ')';
+        const body = {
+            name: name, scheduleType: 'NONE',
+            actions: detail.actions.map(a => ({ deviceId: a.deviceId, target: a.target, value: a.value, dataType: a.dataType,
+                lockSeconds: a.lockSeconds, atSeconds: a.atSeconds, stopOnFailure: a.stopOnFailure }))
+        };
+        api('POST', '/api/testplans', body).then(function (r) {
+            loadPlans().then(function () {
+                planTable.setPageToRow(r.plan.id).catch(function () {});
+                select(r.plan.id);
+            });
+        })
+            .fail(x => alert(errorText(x)));
+    }
+
+    // ── 실행 상태 조회 ─────────────────────────────────────────────
+    let lastRunning = '';
+    function pollStatus() {
+        if (document.hidden) return;
+        return api('GET', '/api/testplans/status').then(function (list) {
+            statuses = {};
+            list.forEach(s => statuses[s.planId] = s);
+            const key = Object.keys(statuses).sort().join(',');
+            if (key !== lastRunning) {          // 시작·종료가 있었다: 목록과 이력을 다시 읽는다
+                lastRunning = key;
+                loadPlans();
+                if (selectedId) loadDetail();
+            } else {
+                planTable.getRows().forEach(r => r.reformat());
+                renderStatus();
+            }
+        });
+    }
+
+    // ── 엑셀 ───────────────────────────────────────────────────────
+    function sheetName(name, used) {
+        let base = String(name).replace(/[\\\/\?\*\[\]:]/g, '_').substring(0, 31), s = base, n = 2;
+        while (used.has(s)) s = base.substring(0, 28) + '~' + (n++);
+        used.add(s);
+        return s;
+    }
+    /** 체크한 Plan 을 템플릿 형식(시트 하나 = Plan 하나)으로 내보낸다. 그대로 다시 import 할 수 있다 */
+    function exportPlans() {
+        const ids = checkedIds();
+        if (!ids.length) { alert('No plans selected.'); return; }
+        // ids 가 비면 서버는 전부를 돌려준다 — 위에서 막았으므로 여기선 늘 체크한 것만 온다
+        api('GET', '/api/testplans/export?ids=' + ids.join(',')).then(function (sheets) {
+            if (!sheets.length) { alert('There is no plan to export.'); return; }
+            const wb = XLSX.utils.book_new(), used = new Set();
+            sheets.forEach(s => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.rows), sheetName(s.name, used)));
+            XLSX.writeFile(wb, 'test_plans.xlsx');
+        });
+    }
+    /** 빈 템플릿: 머리글만 있는 시트 하나. 시트 이름이 Plan 이름이 된다 */
+    function downloadTemplate() {
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([COLUMNS]), 'Plan name');
+        XLSX.writeFile(wb, 'test_plans_template.xlsx');
+    }
+    $('#excelFile').on('change', function (e) {
+        const f = e.target.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = function () {
+            try {
+                const wb = XLSX.read(reader.result, { type: 'binary' });
+                const sheets = wb.SheetNames.map(function (n) {
+                    const ws = wb.Sheets[n];
+                    const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0 } };
+                    return { name: n, startRow: range.s.r + 1,
+                             rows: XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: true, defval: null }) };
+                });
+                sessionStorage.setItem(BATCH_KEY, JSON.stringify({ file: f.name, sheets: sheets }));
+                location.href = '/testplans/batch';
+            } catch (err) {
+                alert('The file could not be read as an Excel workbook.');
+            }
+        };
+        reader.readAsBinaryString(f);
+        $('#excelFile').val('');
+    });
+
+    // ── 시작 ───────────────────────────────────────────────────────
+    $(function () {
+        initPlanTable();
+        initHistoryTable();
+        bindPlanToolbarActions();
+        $('#planSearchField').on('change', applyPlanSearch);
+        $('#planSearchInput').on('input', applyPlanSearch);
+        timeline = TestPlanTimeline.create(document.getElementById('timeline'), { editable: false, onSelect: function () {} });
+        // 확대·축소. onclick 속성으로는 못 쓴다 — 그 안의 timeline 은 document.timeline(Web Animations)으로 읽힌다
+        $(document).on('click', '[data-zoom]', function () {
+            const z = $(this).data('zoom');
+            if (z === 'fit') timeline.fit(); else timeline.zoom(Number(z));
+        });
+        loadPlans().then(function () {
+            const want = SELECTED_ON_LOAD || (new URLSearchParams(location.search)).get('plan');
+            if (want && plans.some(p => String(p.id) === String(want))) {
+                const id = parseInt(want, 10);
+                planTable.setPageToRow(id).catch(function () {});   // 다른 페이지에 있으면 그 페이지로
+                select(id);
+            }
+        });
+        pollStatus();
+        setInterval(pollStatus, 1000);
+        setInterval(function () { if (!document.hidden) loadPlans(); }, 10000);
+        let resizeTimer;
+        $(window).on('resize', function () {
+            if (detail) timeline.render();
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(fitPlanPageSize, 150);
+        });
+    });
+</script>
+</body>
+</html>

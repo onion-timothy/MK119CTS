@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS</title>
+
+    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../css/adminlte.min.css">
+    <link rel="stylesheet" href="../../css/cts-common.css">
+    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <link rel="stylesheet" href="../../css/testplan.css">
+
+    <style>
+        html, body { overflow: hidden; height: 100vh; }
+        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
+        .main-header, .main-footer { flex-shrink: 0; }
+        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+        .content-header { flex-shrink: 0; }
+        /* AdminLTE 의 .content-wrapper > .content 가 여백을 덮으므로 같은 선택자로 준다. 좌·우·하 모두 1.5rem */
+        .content-wrapper > .content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0 1.5rem 1.5rem 1.5rem; }
+
+        /* Plan 카드는 줄어들지 않는다. 아래 영역이 내용만큼 커지려 할 때 이 카드가 같이 눌려 하단이 잘렸다 */
+        .ed-plan-card { flex: 0 0 auto; }
+        /* 이름표 | 입력. 줄 사이, 이름표와 입력 사이에 여백을 둔다 */
+        .ed-plan { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 14px 20px; align-items: center; padding: 16px 18px; }
+        /* 입력이 두 줄로 접혀도 이름표는 첫 줄에 붙는다. 31px = form-control-sm 높이 */
+        .ed-plan > label { align-self: start; line-height: 31px; margin: 0; font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.03em; }
+        .ed-field { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 24px; min-width: 0; }
+        .ed-field #name { max-width: 640px; }
+        .ed-inline { display: flex; align-items: center; gap: 8px; }
+        .ed-sub { font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.03em; }
+        .ed-time { display: flex; align-items: center; gap: 6px; font-size: .875rem; color: #495057; }
+        .ed-time input { width: 58px; }
+        .ed-time input#scheduleIntervalSeconds { width: 84px; }
+        .ed-fit { font-size: 12px; padding: 4px 8px; border-radius: 3px; white-space: nowrap; }
+        .ed-fit.ok { background: #e4f6ea; color: #1e7b3b; }
+        .ed-fit.bad { background: #fde8e8; color: #b42318; }
+        .ed-fit.none { background: #f1f3f5; color: #6c757d; }
+
+        /* 가로로 긴 화면: 표 | 다이어그램. 세로로 긴 화면: 표 / 다이어그램.
+           아래 영역은 내용 높이가 아니라 남은 공간만 쓴다(flex-basis 0) */
+        .ed-main { flex: 1 1 0; min-height: 0; display: flex; gap: 1rem; margin-top: 1rem; }
+        .ed-table { flex: 1.4 1 0; min-width: 0; }
+        .ed-diagram { flex: 1 1 0; min-width: 0; }
+        @media (orientation: portrait) {
+            .ed-main { flex-direction: column; }
+            .ed-table { flex: 1 1 0; min-height: 0; }
+            .ed-diagram { flex: 1.2 1 0; min-height: 0; }
+        }
+        .ed-table .cts-panel-header .btn, .ed-diagram .cts-panel-header .btn { white-space: nowrap; }
+        .ed-table .cts-panel-header .cts-panel-title, .ed-diagram .cts-panel-header .cts-panel-title { flex: 0 0 auto; }
+        .ed-diagram .tpt { flex: 1 1 auto; }
+
+        #actionTable .tabulator-row.ed-selected { background-color: #d6e8ff !important; }
+        #actionTable .tabulator-row.ed-bad .tabulator-cell { color: #b42318; }
+        /* 입력 중인 행: 아직 다이어그램에 반영되지 않았다 */
+        #actionTable .tabulator-row.ed-pending { box-shadow: inset 3px 0 0 #f59f00; }
+        #actionTable .tabulator-row.ed-pending:not(.ed-selected) { background-color: #fff9e6 !important; }
+        .ed-pen { color: #e8590c; font-size: 10px; margin-right: 4px; }
+        #actionTable .tabulator-cell.ed-readonly-cell { color: #6c757d; background: #fafbfc; }
+        #actionTable .tabulator-cell.ed-editable { cursor: text; }
+        /* 테마가 행에 최소 높이(40px)를 걸어 칸(내용 높이)이 행 위쪽만 채우고 아래가 비었다.
+           최소 높이를 풀고 칸 여백으로 높이를 낸다 — 칸이 행을 꽉 채워야 세로 가운데가 행의 가운데다 */
+        #actionTable .tabulator-row { min-height: 0; }
+        #actionTable .tabulator-row .tabulator-cell { padding: 9px 8px; }
+        .ed-warn { color: #b42318; font-size: 11px; margin-right: 4px; }
+
+        .ed-issues { max-height: 110px; overflow-y: auto; font-size: 12px; flex-shrink: 0; }
+        .ed-issue { padding: 3px 10px; color: #b42318; cursor: pointer; border-top: 1px solid #fbe3e3; }
+        .ed-issue:hover { background: #fff5f5; }
+        .ed-issue b { display: inline-block; min-width: 34px; }
+        .ed-readonly { background: #fff4dc; color: #8a5a00; padding: 6px 10px; font-size: 13px; border-radius: 3px; }
+        .ed-legend { padding: 4px 10px; border-top: 1px solid #eef0f2; flex-shrink: 0; }
+        .ed-help { font-size: 11px; color: #868e96; padding: 4px 10px; border-top: 1px solid #eef0f2; flex-shrink: 0; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
+            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item"><a class="nav-link" data-widget="fullscreen" href="#" role="button"><i class="fas fa-expand-arrows-alt"></i></a></li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+            <span class="brand-text font-weight-light">MK119 CTS</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
+                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
+                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
+                    <li class="nav-item"><a href="/testplans" class="nav-link active"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
+                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6"><h1 class="m-0" id="pageTitle">New Test Plan</h1></div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item"><a href="/testplans">Test Plans</a></li>
+                            <li class="breadcrumb-item active" id="crumb">New</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="content">
+            <!-- 등록 정보: 이름 한 줄, 스케줄 한 줄. 저장·취소는 헤더에 -->
+            <div class="cts-panel ed-plan-card">
+                <div class="cts-panel-header">
+                    <h3 class="cts-panel-title">Plan details</h3>
+                    <div class="cts-panel-tools">
+                        <a class="btn btn-sm btn-outline-secondary" href="/testplans" id="cancelBtn">Cancel</a>
+                        <button class="btn btn-sm btn-primary" id="saveBtn" onclick="save()"><i class="fas fa-save"></i> Save</button>
+                    </div>
+                </div>
+                <div class="ed-plan">
+                    <label for="name">Name</label>
+                    <div class="ed-field">
+                        <input id="name" class="form-control form-control-sm" maxlength="100" placeholder="Test plan name">
+                    </div>
+
+                    <label for="scheduleMode">Schedule</label>
+                    <div class="ed-field">
+                        <div class="ed-time">
+                            <select id="scheduleMode" class="form-control form-control-sm" style="width:auto">
+                                <option value="NONE">Manual only</option>
+                                <option value="CRON">Cron</option>
+                                <option value="INTERVAL">Interval</option>
+                            </select>
+                            <select id="scheduleType" class="form-control form-control-sm" style="width:auto">
+                                <option value="SECOND">Every minute at</option>
+                                <option value="MINUTE">Every hour at</option>
+                                <option value="HOUR">Every day at</option>
+                            </select>
+                            <span class="sep-iv">Every</span>
+                            <input id="scheduleIntervalSeconds" type="number" min="1" max="86400" class="form-control form-control-sm" title="Seconds (1-86400)">
+                            <span class="sep-iv">s</span>
+                            <input id="scheduleHour" type="number" min="0" max="23" class="form-control form-control-sm" title="Hour (0-23)">
+                            <span class="sep-h">:</span>
+                            <input id="scheduleMinute" type="number" min="0" max="59" class="form-control form-control-sm" title="Minute (0-59)">
+                            <span class="sep-m">:</span>
+                            <input id="scheduleSecond" type="number" min="0" max="59" class="form-control form-control-sm" title="Second (0-59)">
+                        </div>
+                        <div class="ed-inline" id="enabledGroup">
+                            <span class="ed-sub">Enabled</span>
+                            <button type="button" class="cts-toggle" id="scheduleEnabled"></button>
+                        </div>
+                        <span id="fit" class="ed-fit none">—</span>
+                    </div>
+                </div>
+                <div id="readonlyNote" class="ed-readonly mx-3 mb-3" style="display:none">
+                    <i class="fas fa-lock"></i> This plan is running. Stop it on the list to edit.
+                </div>
+                <div id="planIssues" class="ed-issues"></div>
+            </div>
+
+            <div class="ed-main">
+                <!-- Action 목록: 구성과 실행 순서 -->
+                <div class="cts-panel ed-table">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title">Actions</h3>
+                        <button class="btn btn-sm btn-outline-primary" id="addBtn" onclick="addAction()"><i class="fas fa-plus"></i> Action</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="dupBtn" onclick="duplicateAction()" disabled><i class="fas fa-copy"></i> Duplicate</button>
+                        <button class="btn btn-sm btn-outline-danger" id="delBtn" onclick="deleteAction()" disabled><i class="fas fa-trash"></i> Delete</button>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" id="upBtn" onclick="moveOrder(-1)" disabled title="Write it before the other actions at the same time"><i class="fas fa-arrow-up"></i></button>
+                            <button class="btn btn-outline-secondary" id="downBtn" onclick="moveOrder(1)" disabled title="Write it after the other actions at the same time"><i class="fas fa-arrow-down"></i></button>
+                        </div>
+                        <span class="cts-panel-tools text-muted small" id="tableSummary"></span>
+                    </div>
+                    <div class="cts-panel-body"><div id="actionTable" class="cts-tabulator"></div></div>
+                    <div id="actionIssues" class="ed-issues"></div>
+                    <div class="ed-help">Each action runs at its Run At time (seconds from the start); the earliest one runs at 0 s
+                        (a single action stays at 0 s; deleting the action at 0 s moves the rest earlier).
+                        Actions at the same time are written top to bottom — the arrows change that order. Click a cell to edit it.
+                        A row shows on the timeline as soon as Device, Target, Value and Type are filled in.
+                        Rows marked <i class="fas fa-pen ed-pen"></i> are not on it yet; Esc undoes their changes.</div>
+                </div>
+
+                <!-- 칸별 값 유지 상태 -->
+                <div class="cts-panel ed-diagram">
+                    <div class="cts-panel-header">
+                        <h3 class="cts-panel-title">Value Timeline</h3>
+                        <div class="cts-panel-tools">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" data-zoom="0.5" title="Zoom out"><i class="fas fa-minus"></i></button>
+                                <button class="btn btn-outline-secondary" data-zoom="fit">Fit</button>
+                                <button class="btn btn-outline-secondary" data-zoom="2" title="Zoom in"><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cts-panel-body"><div id="timeline"></div></div>
+                    <!-- 범례는 머리에 두면 폭이 좁을 때 줄이 넘어 머리가 높아진다. 아래에 둔다 -->
+                    <div class="tpt-legend ed-legend">
+                        <span><i class="lg-lock"></i>Locked</span>
+                        <span><i class="lg-hold"></i>Not locked</span>
+                        <span><i class="lg-cut"></i>Overwritten</span>
+                        <span title="The plan stops here if that action fails"><i class="lg-stop"></i>Stop on failure</span>
+                    </div>
+                    <div class="ed-help">Drag a block to change its time · drag the right edge of a locked part to change the lock ·
+                        double-click a lane to add an action for that cell at that time. Values stay after End until written again.</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
+        All rights reserved.
+        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
+    </footer>
+</div>
+
+<script src="../../plugins/jquery/jquery.min.js"></script>
+<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../js/adminlte.js"></script>
+<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
+<script src="../../js/testplan-timeline.js"></script>
+<script th:inline="javascript">
+    const PLAN_ID = /*[[${planId}]]*/ null;
+    const PERIOD = { SECOND: 60, MINUTE: 3600, HOUR: 86400 };
+    const NUMERIC_TYPES = ['UI8', 'SI8', 'UI16AB', 'UI16BA', 'SI16AB', 'SI16BA',
+        'UI32AD', 'UI32CB', 'UI32BC', 'UI32DA', 'SI32AD', 'SI32CB', 'SI32BC', 'SI32DA',
+        'SI64AH', 'SI64GB', 'SI64BG', 'SI64HA', 'FP32AD', 'FP32CB', 'FP32BC', 'FP32DA',
+        'FP64AH', 'FP64GB', 'FP64BG', 'FP64HA'];
+    const TARGET_HINT = {
+        MODBUS: 'e.g. 3_10 (register) or 1_3 (coil)', XGT_PLC: 'e.g. %DW10',
+        ETHERNET_IP: 'Tag name, e.g. TAG1', SNMP: 'OID of a registered simulation',
+        GENERIC: 'Field of a registered simulation', BACNET: 'e.g. analog_value 1',
+        OPC_AGENT: 'Index, e.g. 7', DAEYUN_RCU: '@RCUAI_<n>, @RCUDI_<n> or a TX field'
+    };
+
+    let timeline, table, devices = [], model = { items: [] }, shown = { items: [], end: 0 }, selected = null, order = 0;   // order: uid 발급용
+    let readOnly = false, serverIssues = {}, scheduleEnabled = false, tableUids = '', tableReady;
+
+    // ── 장비·타입 ──────────────────────────────────────────────────
+    function deviceOf(id) { return devices.find(d => d.id === id); }
+
+    /** 이 칸에 맞는 data type 목록. 첫 항목이 기본값이다. '' 는 지정하지 않음. */
+    function typesFor(protocol, target) {
+        const t = (target || '').toUpperCase();
+        if (protocol === 'MODBUS') return /^[12]_/.test(t) ? [''] : NUMERIC_TYPES.filter(x => x !== 'UI8' && x !== 'SI8');
+        if (protocol === 'XGT_PLC') {
+            const size = t.charAt(2);
+            if (size === 'B') return ['UI8', 'SI8'];
+            if (size === 'W') return ['UI16AB', 'UI16BA', 'SI16AB', 'SI16BA'];
+            if (size === 'D') return NUMERIC_TYPES.filter(x => /^(UI32|SI32|FP32)/.test(x));
+            return NUMERIC_TYPES;
+        }
+        if (protocol === 'ETHERNET_IP') return [''].concat(NUMERIC_TYPES.filter(x => /^(SI8|UI8|SI16|UI16|SI32|FP32)/.test(x)), ['BOOL', 'BITS']);
+        return [''].concat(NUMERIC_TYPES);
+    }
+
+    // ── 모델 ───────────────────────────────────────────────────────
+    // model.items 는 표의 행이다(입력 중인 값). 각 행의 applied 는 다이어그램에 반영된 값이다.
+    // 칸을 고쳐 행이 다 채워지면 바로 applied 로 옮긴다(commit). 처음 만든 행은 다 채울 때까지 applied 가 없어 다이어그램에 없다.
+    // Action 은 실행 시각(at) 순으로, 같은 시각이면 표의 순서로 실행된다. 표는 반영된 시각 순으로 늘어놓는다(sortRows).
+    const FIELDS = ['deviceId', 'deviceName', 'protocol', 'target', 'value', 'dataType', 'lockSeconds', 'at', 'stop', 'cells'];
+
+    function find(uid) { return model.items.find(x => x.uid === uid); }
+    function indexOf(uid) { return model.items.findIndex(x => x.uid === uid); }
+
+    function newItem(fields) {
+        const it = Object.assign({ uid: 'n' + (++order), deviceId: null, deviceName: '', protocol: null,
+            target: '', value: '', dataType: null, lockSeconds: 0, at: 0, stop: false, cells: [],
+            applied: null, cellsKey: null, draftIssues: [] }, fields);
+        const d = deviceOf(it.deviceId);
+        if (d) { it.deviceName = d.name; it.protocol = d.protocol; }
+        return it;
+    }
+
+    function snapshot(it) {
+        const s = { uid: it.uid };
+        FIELDS.forEach(f => s[f] = f === 'cells' ? (it.cells || []).slice() : it[f]);
+        return s;
+    }
+
+    function same(f, a, b) { return f === 'cells' ? (a || []).join(',') === (b || []).join(',') : a === b; }
+
+    /** 표의 값이 다이어그램에 반영된 값과 다르면 입력 중이다. */
+    function isPending(it) { return !it.applied || FIELDS.some(f => !same(f, it[f], it.applied[f])); }
+
+    /** 다이어그램에 그리려면 채워야 하는 칸. */
+    function missing(it) {
+        const m = [];
+        if (!deviceOf(it.deviceId)) m.push('Device');
+        if (!it.target) m.push('Target');
+        if (it.value === '' || it.value === null || it.value === undefined) m.push('Value');
+        if (it.target && typesFor(it.protocol, it.target).indexOf(it.dataType || '') < 0) m.push('Type');
+        return m;
+    }
+
+    function missingIssue(m) { return 'Fill in ' + m.join(', ') + '.'; }
+
+    /** 다이어그램 모델: 반영된 Action 만. 같은 시각이면 표의 순서대로다. */
+    function diagram() {
+        return TestPlanTimeline.place({ items: model.items.filter(it => it.applied).map(it => it.applied) });
+    }
+
+    const A15_MSG = 'Two actions would write the same cell at the same time.';
+    const A16_MSG = 'The earliest action must stay at 0 s. Put another action at 0 s first.';
+
+    /** 반영된 Action 들의 문제: 같은 시각·같은 칸(A15) 수와, 가장 이른 Action 이 0초가 아닌지(A16). */
+    function problems() {
+        const d = diagram();
+        return { conflicts: Object.keys(TestPlanTimeline.conflicts(d)).length,
+                 late: d.items.length > 0 && d.sorted[0].at !== 0 };
+    }
+
+    /** 바꾼 뒤 새로 생긴 문제의 메시지. 없으면 null. */
+    function newProblem(before) {
+        const after = problems();
+        if (after.conflicts > before.conflicts) return A15_MSG;
+        if (after.late && !before.late) return A16_MSG;
+        return null;
+    }
+
+    /** 표를 반영된 시각 순으로 늘어놓는다. 같은 시각이면 지금 순서를 지킨다. 아직 반영되지 않은 새 행은 입력한 시각으로 본다. */
+    function sortRows() {
+        const key = it => it.applied ? it.applied.at : (Number(it.at) || 0);
+        model.items = model.items.map((it, i) => ({ it, i })).sort((a, b) => (key(a.it) - key(b.it)) || (a.i - b.i)).map(x => x.it);
+    }
+
+    /**
+     * 바꿔 보고, 같은 시각·같은 칸 충돌(A15)이나 0초에 시작하지 않는 Plan(A16)이 새로 생기면 되돌린다.
+     */
+    function tryChange(fn) {
+        const before = problems();
+        const order0 = model.items.slice();
+        const saved = model.items.map(it => ({ it: it, applied: it.applied && Object.assign({}, it.applied),
+            at: it.at, lockSeconds: it.lockSeconds }));
+        fn();
+        const bad = newProblem(before);
+        if (bad) {
+            model.items = order0;
+            saved.forEach(s => { s.it.applied = s.applied; s.it.at = s.at; s.it.lockSeconds = s.lockSeconds; });
+            tableUids = '';   // 표를 통째로 다시 그려 되돌린다
+            redraw();
+            flash(bad);
+            return false;
+        }
+        sortRows();
+        redraw();
+        return true;
+    }
+
+    /** target·dataType·장비가 바뀌면 서버에서 칸을 다시 받는다. lock 판정과 같은 계산이다. */
+    function cellsKeyOf(it) { return it.deviceId + '|' + it.target + '|' + (it.dataType || ''); }
+
+    function ensureCells(it) {
+        const key = cellsKeyOf(it);
+        if (it.cellsKey === key) return Promise.resolve();
+        if (!it.deviceId || !it.target) { it.cells = []; it.cellsKey = key; return Promise.resolve(); }
+        return Promise.resolve($.ajax({ url: '/api/testplans/cells', method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ actions: [{ deviceId: it.deviceId, target: it.target, dataType: it.dataType }] }) }))
+            .then(function (res) {
+                if (cellsKeyOf(it) !== key) return ensureCells(it);   // 기다리는 사이 또 바뀌었다
+                it.cells = res[0].cells.length ? res[0].cells : [it.target];
+                it.cellsKey = key;
+            });
+    }
+
+    /**
+     * 행의 입력을 다이어그램에 반영한다. 다 채워지지 않았거나 같은 시각·같은 칸 충돌이 생기면 반영하지 않고
+     * 행에 이유를 남긴다. 결과는 반영됐는지(또는 반영할 게 없었는지).
+     */
+    const committing = {};
+    function commit(it) {
+        if (!it || readOnly || !isPending(it)) return Promise.resolve(true);
+        const m = missing(it);
+        if (m.length) { it.draftIssues = [missingIssue(m)]; redraw(); return Promise.resolve(false); }
+        if (committing[it.uid]) return committing[it.uid];
+        const p = ensureCells(it).then(function () {
+            if (!find(it.uid)) return true;                   // 그 사이 지워졌다
+            const before = problems(), prev = it.applied;
+            it.applied = snapshot(it);
+            const bad = newProblem(before);
+            if (bad) {
+                it.applied = prev;
+                it.draftIssues = [bad === A15_MSG ? 'A15 Another action writes the same cell at the same time. Change the time.'
+                                                  : 'A16 ' + A16_MSG];
+            } else {
+                it.draftIssues = [];
+                delete serverIssues[it.uid];
+                sortRows();
+            }
+            redraw();
+            if (bad) flash('Not applied: ' + bad);
+            return !bad;
+        }, function () {
+            it.draftIssues = ['The cells of this target could not be worked out.'];
+            redraw();
+            return false;
+        }).then(function (ok) { delete committing[it.uid]; return ok; });
+        committing[it.uid] = p;
+        return p;
+    }
+
+    /** 입력 중인 값을 버리고 다이어그램에 반영된 값으로 돌린다. 한 번도 반영되지 않은 행은 지운다. */
+    function revert(it) {
+        if (!it || readOnly || !isPending(it)) return;
+        if (!it.applied) {
+            model.items = model.items.filter(x => x !== it);
+            selected = null;
+        } else {
+            FIELDS.forEach(f => it[f] = f === 'cells' ? it.applied.cells.slice() : it.applied[f]);
+            it.cellsKey = cellsKeyOf(it);
+            it.draftIssues = [];
+        }
+        redraw();
+    }
+
+    /** 다른 행으로 옮겨 가면 떠나는 행의 입력을 반영한다. */
+    function leaveRow(nextUid) {
+        if (selected && selected !== nextUid) commit(find(selected));
+    }
+
+    // ── 표 ─────────────────────────────────────────────────────────
+    function rowOf(it, i) {
+        const conf = it.applied && TestPlanTimeline.conflicts(shown)[it.uid];
+        const issues = (serverIssues[it.uid] || []).concat(it.draftIssues || [],
+            conf ? ['A15 Another action writes the same cell at the same time.'] : []);
+        return { uid: it.uid, no: noOf(it), pending: isPending(it), applied: !!it.applied, at: it.at,
+                 deviceId: it.deviceId, deviceName: it.deviceName, protocol: it.protocol,
+                 target: it.target, value: it.value, dataType: it.dataType || '', lockSeconds: it.lockSeconds,
+                 stop: !!it.stop, issues: issues };
+    }
+
+    /** 실행 순서 번호(다이어그램의 #와 같다). 아직 반영되지 않은 새 행은 번호가 없다. */
+    function noOf(it) { return it.applied && it.applied.order !== undefined ? it.applied.order + 1 : '';
+    }
+
+    function editableCell(cell) { return !readOnly; }
+
+    /** Action 이 하나뿐이면 Run At 은 0 에 고정한다. 다른 Action 이 생기면 바꿀 수 있다. */
+    function atEditable(cell) { return !readOnly && model.items.length > 1; }
+
+    /** 행의 장비 프로토콜. 장비를 막 바꾼 칸에서도 맞도록 Device 칸의 값으로 찾는다. */
+    function protocolOfRow(row) {
+        const d = deviceOf(Number(row.getData().deviceId));
+        return d ? d.protocol : row.getData().protocol;
+    }
+
+    /** # 칸: 오류가 있으면 경고, 입력 중이면(아직 다이어그램에 없는 값) 연필, 그리고 순서. */
+    function noHtml(d) {
+        const warn = d.issues.length ? '<i class="fas fa-exclamation-circle ed-warn" title="' + $('<div>').text(d.issues.join('\n')).html() + '"></i>' : '';
+        const pen = d.pending ? '<i class="fas fa-pen ed-pen" title="Not on the timeline yet: fill in the missing fields or fix the issue. Esc undoes the changes."></i>' : '';
+        return warn + pen + d.no;
+    }
+
+    /**
+     * 장비 고르기. 장비가 많아도 찾을 수 있게 입력한 글자로 목록을 좁힌다(이름이나 프로토콜, 여러 낱말은 모두 맞아야 한다).
+     * 비워 두면 전체 목록이 나온다.
+     */
+    function deviceEditorParams() {
+        return {
+            values: devices.map(d => ({ label: d.name + ' · ' + d.protocol, value: d.id })),
+            autocomplete: true, listOnEmpty: true, allowEmpty: false, freetext: false,
+            placeholderEmpty: 'No matching device',
+            elementAttributes: { placeholder: 'Type to search', spellcheck: 'false' },
+            filterFunc: function (term, label) {
+                const l = String(label).toLowerCase();
+                return String(term || '').toLowerCase().split(/\s+/).filter(Boolean).every(w => l.indexOf(w) >= 0);
+            }
+        };
+    }
+
+    /**
+     * 장비 검색칸은 지금 장비 이름으로 열린다. 다 선택해 두어 바로 입력하면 검색어가 되게 한다.
+     * Tabulator 는 입력 중 Enter 를 이름과 똑같을 때만 받으므로, Enter 는 좁혀진 목록에서 강조된(없으면 첫) 장비를 고르게 한다.
+     * 아무것도 입력하지 않고 Enter 를 누르면 지금 장비 그대로 둔다(Tabulator 에 맡긴다).
+     */
+    function openDeviceSearch(el) {
+        setTimeout(function () { const i = el.querySelector('input'); if (i) { i.select(); el.dataset.opened = i.value; } }, 0);
+        if (el.dataset.search) return;
+        el.dataset.search = '1';
+        el.addEventListener('keydown', function (e) {            // 편집기보다 먼저 받도록 capture 로 건다
+            const input = el.querySelector('input');
+            if (e.key !== 'Enter' || !input) return;
+            const list = document.querySelector('.tabulator-edit-list');
+            const focused = list && list.querySelector('.tabulator-edit-list-item.focused');
+            const item = focused || (list && input.value !== el.dataset.opened && list.querySelector('.tabulator-edit-list-item'));
+            if (!item) return;
+            e.preventDefault(); e.stopPropagation();
+            item.click();
+        }, true);
+    }
+
+    // ── 열 폭 ──────────────────────────────────────────────────────
+    // 열 폭의 합을 늘 표 폭과 같게 둔다. 남거나 모자란 폭은 우선순위가 높은 열이 맡는다.
+    // Tabulator 의 fitColumns 는 처음 그릴 때와 표 크기가 바뀔 때만 나누고, 열을 끈 뒤에는 다시 맞추지 않아 직접 맞춘다.
+    const FILL_ORDER = ['deviceId', 'target', 'value'];
+    const FILL_MIN = { deviceId: 120, target: 80, value: 56 };
+    const userSized = new Set();   // 사용자가 폭을 정한 열. 맞출 다른 열이 없을 때만 건드린다
+    let filling = false;
+
+    /** 우선순위. 작을수록 높다. FILL_ORDER 밖의 열은 모두 가장 낮다. */
+    function rankOf(field) { const i = FILL_ORDER.indexOf(field); return i < 0 ? FILL_ORDER.length : i; }
+
+    /** 글자가 잘리지 않는 폭: 머리글과 그려진 칸들의 글자 폭 + 좌우 여백. 편집 중인 칸은 입력칸이라 뺀다. */
+    function textWidth(field) {
+        const col = table.getColumn(field);
+        const range = document.createRange();
+        const widthOf = (textEl, padEl) => {
+            range.selectNodeContents(textEl);
+            const cs = getComputedStyle(padEl);
+            return Math.ceil(range.getBoundingClientRect().width + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight));
+        };
+        const head = col.getElement();
+        let need = widthOf(head.querySelector('.tabulator-col-title'), head.querySelector('.tabulator-col-content'));
+        col.getCells().forEach(function (c) {
+            const el = c.getElement();
+            if (!el.classList.contains('tabulator-editing')) need = Math.max(need, widthOf(el, el));
+        });
+        return need;
+    }
+
+    /**
+     * 열 폭의 합을 표 폭에 맞춘다. 우선순위 열(Device → Target → Value)이 맡는다.
+     *  1) 글자가 잘린 우선순위 열을 넓힌다. 쓸 수 있는 폭은 남는 폭과 다른 우선순위 열의 여유(글자 폭을 넘는 부분)다.
+     *  2) 남으면 가장 높은 열(Device)이 받는다.
+     *  3) 모자라면 우선순위 순으로 글자 폭까지 줄인다.
+     *  4) 그래도 모자라면 끈 열보다 낮은 열만(끈 열이 없으면 모두), 낮은 열부터 최소 폭까지 줄인다 — 높은 열의 글자는 지킨다.
+     *  5) 그래도 모자라면 끈 열을 맞을 만큼만 남긴다. 다 최소 폭이어도 모자라면(좁은 화면) 가로 스크롤이 생긴다.
+     * 사용자가 폭을 정한 열은 맞추는 데 쓰지 않는다(그 폭을 지킨다). 끈 열이 없는 맞춤(창 크기 변경 등)에서
+     * 나머지 열만으로 맞지 않으면 그 열들도 같은 순서로 쓴다.
+     * @param except 방금 사용자가 폭을 바꾼 열. 그 열은 맞추는 데 쓰지 않는다(5 만 예외)
+     */
+    function fillWidth(except) {
+        if (filling || !table) return;
+        const holder = table.element.querySelector('.tabulator-tableholder');
+        if (!holder || !holder.clientWidth) return;
+        const cols = table.getColumns().filter(c => c.isVisible());
+        let diff = holder.clientWidth - cols.reduce((sum, c) => sum + c.getWidth(), 0);   // clientWidth 는 세로 스크롤바를 뺀 폭
+        const width = f => table.getColumn(f).getWidth();
+        const resize = (f, nw) => { const w = width(f); if (nw !== w) { table.getColumn(f).setWidth(nw); diff -= nw - w; } };
+
+        /** others 로 diff 를 맞춘다(1~4). */
+        const adjust = function (others) {
+            const need = {};
+            others.forEach(f => need[f] = Math.max(FILL_MIN[f], textWidth(f)));
+            let room = diff + others.reduce((sum, f) => sum + Math.max(0, width(f) - need[f]), 0);
+            others.forEach(f => {
+                const add = Math.min(need[f] - width(f), room);
+                if (add > 0) { resize(f, width(f) + add); room -= add; }
+            });
+            if (diff > 0 && others.length) resize(others[0], width(others[0]) + diff);
+            others.forEach(f => { if (diff < 0) resize(f, Math.max(Math.min(width(f), need[f]), width(f) + diff)); });
+            others.slice().reverse().forEach(f => {
+                if (diff < 0 && (!except || rankOf(f) > rankOf(except))) resize(f, Math.max(FILL_MIN[f], width(f) + diff));
+            });
+        };
+
+        const free = FILL_ORDER.filter(f => f !== except && !userSized.has(f));
+        const pinned = FILL_ORDER.filter(f => f !== except && userSized.has(f));
+        const cut = f => width(f) < Math.max(FILL_MIN[f], textWidth(f));
+        if (!diff && !free.some(cut)) return;
+        filling = true;
+        try {
+            adjust(free);
+            if (diff && (!except || !free.length)) adjust(pinned);
+            if (diff < 0 && except) {
+                const min = table.getColumn(except).getDefinition().minWidth || 40;
+                resize(except, Math.max(min, width(except) + diff));
+            }
+        } finally {
+            filling = false;
+        }
+    }
+
+    function initTable() {
+        table = new Tabulator('#actionTable', {
+            // 열 폭은 fillWidth 가 맞춘다. 열은 숨기지 않는다. 모두 최소 폭이어도 모자라면 가로로 스크롤한다
+            data: [], index: 'uid', layout: 'fitData', height: '100%',
+            placeholder: 'No actions yet. Add one with + Action.',
+            columnDefaults: { vertAlign: 'middle' },   // 행 높이가 달라도(편집기·아이콘) 모든 칸을 세로 가운데에
+            rowFormatter: paintRow,
+            columns: [
+                { title: '#', field: 'no', width: 58, headerSort: false, hozAlign: 'right', cssClass: 'ed-readonly-cell',
+                  formatter: c => noHtml(c.getRow().getData()) },
+                { title: 'Run At (s)', field: 'at', width: 96, headerSort: false, hozAlign: 'right', editable: atEditable, cssClass: 'ed-editable',
+                  editor: 'number', editorParams: { min: 0, max: 86399, step: 1 },
+                  headerTooltip: 'Seconds from the start when this action runs. The earliest action is at 0 s.' },
+                { title: 'Device', field: 'deviceId', width: 180, minWidth: FILL_MIN.deviceId, headerSort: false, editable: editableCell, cssClass: 'ed-editable',
+                  // 고른 직후에는 행의 deviceName 이 아직 옛 값이다. 칸의 값(deviceId)으로 이름을 찾는다
+                  formatter: c => $('<span>').text((deviceOf(Number(c.getValue())) || {}).name || c.getRow().getData().deviceName || '—').html(),
+                  editor: 'list', editorParams: deviceEditorParams },
+                { title: 'Target', field: 'target', width: 140, minWidth: FILL_MIN.target, headerSort: false, editable: editableCell, cssClass: 'ed-editable',
+                  editor: 'input', editorParams: c => ({ elementAttributes: { placeholder: TARGET_HINT[protocolOfRow(c.getRow())] || '', spellcheck: 'false' } }) },
+                { title: 'Value', field: 'value', width: 70, minWidth: FILL_MIN.value, headerSort: false, hozAlign: 'right', editable: editableCell, cssClass: 'ed-editable', editor: 'input' },
+                { title: 'Type', field: 'dataType', width: 82, headerSort: false, editable: editableCell, cssClass: 'ed-editable',
+                  formatter: c => c.getValue() || '<span class="text-muted">' + (protocolOfRow(c.getRow()) === 'ETHERNET_IP' ? 'tag' : '—') + '</span>',
+                  editor: 'list', editorParams: c => {
+                      const d = c.getRow().getData();
+                      return { values: typesFor(protocolOfRow(c.getRow()), d.target).map(x => ({ label: x === '' ? '(none)' : x, value: x })) };
+                  } },
+                { title: 'Lock', field: 'lockSeconds', width: 64, headerSort: false, hozAlign: 'right', editable: editableCell, cssClass: 'ed-editable',
+                  editor: 'number', editorParams: { min: 0, step: 1 }, headerTooltip: 'Seconds the value is locked. 0 = no lock.' },
+                { title: 'Stop on Failure', field: 'stop', width: 140, headerSort: false, hozAlign: 'center', formatter: 'tickCross',
+                  formatterParams: { crossElement: false },   // 꺼진 행에는 아무것도 그리지 않는다
+                  headerTooltip: 'Stop the plan if this action fails. Otherwise the failure is recorded and the plan goes on.',
+                  cellClick: function (e, cell) {
+                      if (readOnly) return;
+                      const it = find(cell.getRow().getData().uid);
+                      if (!it) return;
+                      it.stop = !it.stop;
+                      redraw();
+                      if (!missing(it).length) commit(it);   // 다른 칸을 고칠 때처럼 바로 반영한다
+                  } },
+            ]
+        });
+        tableReady = new Promise(resolve => table.on('tableBuilt', resolve));
+        // 사용자가 끈 열은 그대로 두고 나머지가 폭을 맞춘다. 끈 열의 폭은 이 이벤트 뒤에 Tabulator 가 한 번 더 정하므로,
+        // 그 열을 줄여야 할 때를 위해 다음 차례에 한 번 더 본다
+        table.on('columnResized', function (col) {
+            userSized.add(col.getField());
+            fillWidth(col.getField());
+            setTimeout(() => fillWidth(col.getField()), 0);
+        });
+        tableReady.then(() => {
+            fillWidth();
+            // 창 크기, 가로·세로 배치가 바뀔 때
+            new ResizeObserver(() => requestAnimationFrame(() => fillWidth())).observe(table.element);
+        });
+        table.on('rowClick', function (e, row) {
+            const uid = row.getData().uid;
+            if (selected === uid) return;
+            leaveRow(uid);
+            selected = uid;
+            paintRows();
+            timeline.set(shown, { selected: selected });
+            updateButtons();
+        });
+        // 다른 행의 칸을 편집하기 시작하면(클릭·Tab) 떠나는 행을 반영한다
+        table.on('cellEditing', function (cell) {
+            if (cell.getField() === 'deviceId') openDeviceSearch(cell.getElement());
+            const uid = cell.getRow().getData().uid;
+            if (selected === uid) return;
+            leaveRow(uid);
+            selected = uid;
+            paintRows();
+            timeline.set(shown, { selected: selected });
+            updateButtons();
+        });
+        table.on('cellEdited', onCellEdited);
+    }
+
+    /** 칸 하나를 고치면 표의 값을 바꾸고, 행이 다 채워졌으면 바로 다이어그램에 반영한다(commit). */
+    function onCellEdited(cell) {
+        const it = find(cell.getRow().getData().uid), f = cell.getField(), v = cell.getValue();
+        if (!it) return;
+        selected = it.uid;
+        if (f === 'at') {
+            it.at = Math.min(86399, Math.max(0, parseInt(v, 10) || 0));
+        } else if (f === 'lockSeconds') {
+            it.lockSeconds = Math.max(0, parseInt(v, 10) || 0);
+        } else if (f === 'value') {
+            const s = String(v === null ? '' : v).trim();
+            it.value = s === '' || isNaN(Number(s)) ? s : Number(s);
+        } else if (f === 'deviceId') {
+            const d = deviceOf(Number(v));
+            if (d) {
+                it.deviceId = d.id; it.deviceName = d.name; it.protocol = d.protocol;
+                const types = typesFor(d.protocol, it.target);
+                if (types.indexOf(it.dataType || '') < 0) it.dataType = types[0] || null;
+            }
+        } else if (f === 'target') {
+            it.target = String(v || '').trim();
+            const types = typesFor(it.protocol, it.target);
+            if (types.indexOf(it.dataType || '') < 0) it.dataType = types[0] || null;
+        } else if (f === 'dataType') {
+            it.dataType = v || null;
+        }
+        const m = missing(it);
+        // 반영하지 못한 이유가 남아 있으면 지금 값으로 다시 본다
+        if (it.draftIssues.length) it.draftIssues = m.length ? [missingIssue(m)] : [];
+        redraw();
+        if (!m.length) commit(it);
+    }
+
+    /**
+     * 순서나 행이 바뀌었으면 통째로, 값만 바뀌었으면 바뀐 칸만 고친다.
+     * 행을 통째로 다시 그리면(reformat) 막 열린 셀 편집기가 사라지므로, 선택·오류 표시는 class 로만 바꾼다.
+     */
+    let lastMarks = {};
+    function syncTable() {
+        const rows = model.items.map(rowOf);
+        const uids = rows.map(r => r.uid).join(',');
+        const mark = r => r.issues.join('|') + '#' + r.pending;
+        if (uids !== tableUids) {
+            tableUids = uids;
+            lastMarks = {};
+            rows.forEach(r => lastMarks[r.uid] = mark(r));
+            table.replaceData(rows).then(() => {
+                fillWidth();   // 행 수가 바뀌면 세로 스크롤바가 생기거나 없어진다
+                if (selected) table.scrollToRow(selected, 'nearest', false).catch(() => {});
+            });
+            return;
+        }
+        table.updateData(rows).then(function () {
+            rows.forEach(function (r) {
+                const key = mark(r);
+                if (lastMarks[r.uid] !== key) {          // 경고·연필은 # 칸만 다시 그린다. 행을 reformat 하면 열린 편집기가 닫힌다
+                    lastMarks[r.uid] = key;
+                    const row = table.getRow(r.uid);
+                    if (row) row.getCell('no').getElement().innerHTML = noHtml(row.getData());
+                }
+            });
+            paintRows();
+            fillWidth();
+        });
+    }
+
+    function paintRow(row) {
+        const d = row.getData(), el = row.getElement();
+        el.classList.toggle('ed-selected', d.uid === selected);
+        el.classList.toggle('ed-bad', d.issues.length > 0);
+        el.classList.toggle('ed-pending', d.pending);
+    }
+
+    function paintRows() { table.getRows().forEach(paintRow); }
+
+    // ── 그리기 ─────────────────────────────────────────────────────
+    function redraw() {
+        shown = diagram();
+        const errs = {};
+        Object.keys(serverIssues).forEach(uid => errs[uid] = true);
+        timeline.set(shown, { selected: selected, errors: errs, editable: !readOnly });
+        syncTable();
+        updateFit();
+        updateButtons();
+        renderIssues();
+    }
+
+    function updateFit() {
+        if (flashTimer) return;   // 경고를 보여 주는 동안은 덮지 않는다
+        const type = scheduleTypeOf(), period = periodOf(type);
+        const $f = $('#fit');
+        if (!period) { $f.attr('class', 'ed-fit none').text('Duration ' + TestPlanTimeline.fmtTime(shown.end)); return; }
+        const ok = shown.end < period;
+        $f.attr('class', 'ed-fit ' + (ok ? 'ok' : 'bad'))
+          .text('Duration ' + shown.end + ' s / period ' + period.toLocaleString() + ' s ' + (ok ? '✓' : '— too long'));
+    }
+
+    function updateButtons() {
+        const idx = selected ? indexOf(selected) : -1;
+        $('#dupBtn, #delBtn').prop('disabled', idx < 0 || readOnly);
+        // ↑↓ 는 같은 시각의 Action 끼리만 순서를 바꾼다
+        $('#upBtn').prop('disabled', readOnly || !sameTimeNeighbor(idx, -1));
+        $('#downBtn').prop('disabled', readOnly || !sameTimeNeighbor(idx, 1));
+        const n = model.items.length, pending = model.items.filter(isPending).length;
+        $('#tableSummary').text(n + ' action' + (n === 1 ? '' : 's') + ' · ' + TestPlanTimeline.fmtTime(shown.end) +
+            (pending ? ' · ' + pending + ' not applied' : ''));
+    }
+
+    function renderIssues() {
+        const $a = $('#actionIssues').empty();
+        model.items.forEach(function (it) {
+            const no = noOf(it) ? '#' + noOf(it) : 'New';
+            (serverIssues[it.uid] || []).concat(it.draftIssues || []).forEach(m => $a.append($('<div class="ed-issue">').html('<b>' + no + '</b> ' + $('<span>').text(m).html())
+                .on('click', () => selectItem(it.uid))));
+        });
+    }
+
+    function selectItem(uid) {
+        leaveRow(uid);
+        selected = uid;
+        redraw();
+        if (uid) table.scrollToRow(uid, 'nearest', false).catch(() => {});
+    }
+
+    // ── 편집 ───────────────────────────────────────────────────────
+    /**
+     * 새 Action. 시각은 고른 행과 같게(같은 시각에 함께 쓰기 쉽게), 고른 행이 없으면 End 로 둔다.
+     * Lane 을 더블클릭하면 그 칸과 그 자리의 시각으로 만든다. 다 채우면 다이어그램에 나온다.
+     */
+    function addAction(fields) {
+        if (readOnly) return;
+        const last = model.items[model.items.length - 1];
+        const base = (selected && find(selected)) || last;
+        const dev = (fields && fields.deviceId) || (base && base.deviceId) || (devices[0] && devices[0].id) || null;
+        const d = deviceOf(dev);
+        const target = (fields && fields.target) || '';
+        const at = fields && fields.at !== undefined ? fields.at : (selected && find(selected) ? find(selected).at : shown.end);
+        const it = newItem({ deviceId: dev, target: target, at: model.items.length ? at : 0,
+            dataType: typesFor(d && d.protocol, target)[0] || null });
+        model.items.push(it);
+        sortRows();
+        selectItem(it.uid);
+        // 새 행의 첫 빈 칸을 바로 편집한다
+        setTimeout(function () { const row = table.getRow(it.uid); if (row) row.getCell(target ? 'value' : 'target').edit(); }, 50);
+    }
+
+    /** 복사본은 1초 뒤에 둔다(같은 시각·같은 칸은 쓸 수 없다). 입력이 다 된 행이므로 바로 다이어그램에 반영해 본다. */
+    function duplicateAction() {
+        const it = find(selected);
+        if (!it) return;
+        const copy = newItem(Object.assign(snapshot(it), { uid: 'n' + (++order), cellsKey: it.cellsKey,
+            at: Math.min(86399, (Number(it.at) || 0) + 1) }));
+        model.items.splice(indexOf(it.uid) + 1, 0, copy);
+        sortRows();
+        selectItem(copy.uid);
+        commit(copy);
+    }
+
+    /** 0초에 실행되는 Action 을 지우면 가장 이른 Action 이 0초가 되도록 남은 Action 을 모두 같은 만큼 앞당긴다. */
+    function deleteAction() {
+        const it = find(selected);
+        if (!it) return;
+        let offset = 0;
+        if (tryChange(() => {
+            model.items = model.items.filter(x => x !== it);
+            offset = shiftToZero();
+        })) {
+            delete serverIssues[it.uid];
+            selected = null;
+            redraw();
+            if (offset) flash('Every action moved ' + offset + ' s earlier so the earliest one runs at 0 s.', 'info');
+        }
+    }
+
+    /**
+     * 다이어그램에 반영된 Action 중 0초인 것이 없으면, 가장 이른 것이 0초가 되도록 모든 Action 의 시각을 같은 만큼 줄인다.
+     * 입력 중인 시각도 같이 줄여 서로의 간격을 지킨다. @return 줄인 초. 줄이지 않았으면 0
+     */
+    function shiftToZero() {
+        const applied = model.items.filter(x => x.applied);
+        if (!applied.length || applied.some(x => x.applied.at === 0)) return 0;
+        const offset = Math.min.apply(null, applied.map(x => x.applied.at));
+        model.items.forEach(x => {
+            if (x.applied) x.applied.at -= offset;
+            x.at = Math.max(0, (Number(x.at) || 0) - offset);
+        });
+        return offset;
+    }
+
+    /** 표에서 idx 행의 위(-1)·아래(+1) 행이 같은 시각인가. */
+    function sameTimeNeighbor(idx, step) {
+        const a = model.items[idx], b = model.items[idx + step];
+        return !!(a && b && a.applied && b.applied && a.applied.at === b.applied.at);
+    }
+
+    /** 같은 시각의 Action 끼리 쓰는 순서를 바꾼다. 실패하면 그 자리에서 멈추므로 순서가 뜻을 가진다. */
+    function moveOrder(step) {
+        const i = indexOf(selected), j = i + step;
+        if (!sameTimeNeighbor(i, step)) return;
+        tryChange(function () {
+            const a = model.items.slice();
+            const t = a[i]; a[i] = a[j]; a[j] = t;
+            model.items = a;
+        });
+    }
+
+    /** 다이어그램에서 고친 값은 표와 반영된 값에 함께 들어간다. */
+    function setBoth(it, f, v) { it[f] = v; if (it.applied) it.applied[f] = v; }
+
+    /** 블록을 끈 시각이 그 Action 의 실행 시각이 된다. */
+    function moveItem(uid, at) {
+        const it = find(uid);
+        if (!it) return;
+        selected = uid;
+        if (model.items.length === 1) {   // Action 이 하나뿐이면 0초에 고정이다
+            redraw();
+            flash('A single action stays at 0 s. Add another action first.');
+            return;
+        }
+        tryChange(() => setBoth(it, 'at', Math.min(86399, Math.max(0, at))));
+    }
+
+    let flashTimer = null;
+    /** 안내를 잠깐 보여 준다. kind 가 'info' 면 경고가 아닌 알림 색이다. */
+    function flash(msg, kind) {
+        $('#fit').attr('class', 'ed-fit ' + (kind === 'info' ? 'none' : 'bad')).text(msg);
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(function () { flashTimer = null; updateFit(); }, 2500);
+    }
+
+    // ── 스케줄 ─────────────────────────────────────────────────────
+    /** 저장할 scheduleType. 화면은 Manual / Cron / Interval 로 고르고, Cron 은 주기 종류를 한 번 더 고른다. */
+    function scheduleTypeOf() {
+        const mode = $('#scheduleMode').val();
+        return mode === 'CRON' ? $('#scheduleType').val() : mode;
+    }
+
+    /** 스케줄 주기(초). 서버의 S3 와 같은 값. interval 이 비었거나 틀리면 0(검사하지 않음 — 저장 때 S2 가 잡는다). */
+    function periodOf(type) {
+        if (type === 'INTERVAL') { const n = Number($('#scheduleIntervalSeconds').val()); return Number.isInteger(n) && n > 0 ? n : 0; }
+        return PERIOD[type] || 0;
+    }
+
+    function showScheduleFields() {
+        const mode = $('#scheduleMode').val(), t = scheduleTypeOf();
+        $('#scheduleType').toggle(mode === 'CRON');
+        $('#scheduleHour, .sep-h').toggle(t === 'HOUR');
+        $('#scheduleMinute, .sep-m').toggle(t === 'MINUTE' || t === 'HOUR');
+        $('#scheduleSecond').toggle(mode === 'CRON');
+        $('#scheduleIntervalSeconds, .sep-iv').toggle(mode === 'INTERVAL');
+        $('#enabledGroup').toggle(mode !== 'NONE');
+        $('#scheduleEnabled').attr('title', mode === 'INTERVAL' ? 'When on, the plan runs as soon as it is saved, then every interval.' : '');
+        updateFit();
+    }
+
+    // ── 저장 ───────────────────────────────────────────────────────
+    /** 입력 중인 행을 모두 반영한 뒤에 저장한다. 반영하지 못한 행이 있으면 그 행을 보여 주고 멈춘다. */
+    function save() {
+        if (readOnly) return;
+        model.items.filter(isPending).reduce((p, it) => p.then(() => commit(it)), Promise.resolve()).then(function () {
+            const left = model.items.find(isPending);
+            if (left) {
+                selected = left.uid;
+                redraw();
+                table.scrollToRow(left.uid, 'nearest', false).catch(() => {});
+                flash((noOf(left) ? '#' + noOf(left) : 'A new action') + ' is not finished. Complete it or press Esc on it to undo.');
+                return;
+            }
+            send();
+        });
+    }
+
+    function send() {
+        const conf = TestPlanTimeline.conflicts(shown);
+        const bad = model.items.find(it => conf[it.uid]);
+        if (bad) { selectItem(bad.uid); alert('Two actions write the same cell at the same time. Change the time.'); return; }
+        // 보내는 순서(실행 순서)의 위치로 서버 오류를 행에 붙인다
+        const items = shown.sorted.map(a => find(a.uid));
+        const t = scheduleTypeOf(), cron = t === 'SECOND' || t === 'MINUTE' || t === 'HOUR';
+        const body = {
+            name: $('#name').val(), scheduleType: t,
+            scheduleHour: t === 'HOUR' ? $('#scheduleHour').val() : null,
+            scheduleMinute: (t === 'MINUTE' || t === 'HOUR') ? $('#scheduleMinute').val() : null,
+            scheduleSecond: cron ? $('#scheduleSecond').val() : null,
+            scheduleIntervalSeconds: t === 'INTERVAL' ? $('#scheduleIntervalSeconds').val() : null,
+            scheduleEnabled: t !== 'NONE' && scheduleEnabled,
+            actions: TestPlanTimeline.toActions(shown)
+        };
+        $('#saveBtn').prop('disabled', true);
+        $.ajax({ url: PLAN_ID ? '/api/testplans/' + PLAN_ID : '/api/testplans', method: PLAN_ID ? 'PUT' : 'POST',
+            contentType: 'application/json', data: JSON.stringify(body) })
+            .done(function (r) { location.href = '/testplans?plan=' + r.plan.id; })
+            .fail(function (x) {
+                $('#saveBtn').prop('disabled', false);
+                const b = x.responseJSON || {};
+                serverIssues = {};
+                const plan = [];
+                (b.errors || []).forEach(function (e) {
+                    if (e.action !== null && e.action !== undefined && items[e.action]) {
+                        (serverIssues[items[e.action].uid] = serverIssues[items[e.action].uid] || []).push(e.rule + ' ' + e.message);
+                    } else {
+                        plan.push(e.rule + ' ' + e.message);
+                    }
+                });
+                if (b.error) plan.push(b.error);
+                $('#planIssues').html(plan.map(m => '<div class="ed-issue">' + $('<span>').text(m).html() + '</div>').join(''));
+                const first = items.find(it => serverIssues[it.uid]);
+                if (first) selected = first.uid;
+                redraw();
+            });
+    }
+
+    // ── 시작 ───────────────────────────────────────────────────────
+    function loadPlan(p) {
+        $('#pageTitle').text(p.name); $('#crumb').text('Edit'); $('#name').val(p.name);
+        const type = p.scheduleType || 'NONE';
+        $('#scheduleMode').val(type === 'NONE' || type === 'INTERVAL' ? type : 'CRON');
+        if (PERIOD[type]) $('#scheduleType').val(type);
+        $('#scheduleHour').val(p.scheduleHour); $('#scheduleMinute').val(p.scheduleMinute); $('#scheduleSecond').val(p.scheduleSecond);
+        $('#scheduleIntervalSeconds').val(p.scheduleIntervalSeconds);
+        scheduleEnabled = !!p.scheduleEnabled;
+        $('#scheduleEnabled').toggleClass('on', scheduleEnabled);
+        model.items = TestPlanTimeline.fromActions(p.actions).items.map(function (a) {
+            const it = Object.assign(a, { uid: 'n' + (++order), draftIssues: [] });
+            it.cellsKey = cellsKeyOf(it);
+            it.applied = snapshot(it);       // 저장된 Action 은 처음부터 다이어그램에 있다
+            return it;
+        });
+        readOnly = !!p.running;
+        $('#readonlyNote').toggle(readOnly);
+        $('#saveBtn, #addBtn, #name, #scheduleMode, #scheduleType, #scheduleHour, #scheduleMinute, #scheduleSecond, #scheduleIntervalSeconds')
+            .prop('disabled', readOnly);
+    }
+
+    $(function () {
+        initTable();
+        timeline = TestPlanTimeline.create(document.getElementById('timeline'), {
+            editable: true,
+            onSelect: selectItem,
+            onMove: moveItem,
+            onLock: function (uid, v) { const it = find(uid); if (it) { selected = uid; setBoth(it, 'lockSeconds', v); redraw(); } },
+            // Lane 을 더블클릭하면 그 칸을 그 시각에 쓰는 Action 을 만든다
+            onAdd: function (lane, at) { addAction({ deviceId: lane.deviceId, target: lane.cell, at: at }); }
+        });
+        $('#scheduleMode, #scheduleType').on('change', showScheduleFields);
+        $('#scheduleIntervalSeconds').on('input', updateFit);
+        // 확대·축소. onclick 속성으로는 못 쓴다 — 그 안의 timeline 은 document.timeline(Web Animations)으로 읽힌다
+        $(document).on('click', '[data-zoom]', function () {
+            const z = $(this).data('zoom');
+            if (z === 'fit') timeline.fit(); else timeline.zoom(Number(z));
+        });
+        $('#scheduleEnabled').on('click', function () { if (readOnly) return; scheduleEnabled = !scheduleEnabled; $(this).toggleClass('on', scheduleEnabled); });
+        $(document).on('keydown', function (e) {
+            if ($(e.target).is(':input')) return;   // 셀 편집기의 Enter·Esc 는 그 칸만 끝낸다
+            if (e.key === 'Delete' && selected) deleteAction();
+            else if (e.key === 'Enter' && selected) commit(find(selected));
+            else if (e.key === 'Escape' && selected) revert(find(selected));
+        });
+        // 표 바깥을 누르면 입력 중인 행을 반영한다. 열린 셀 편집기가 blur 로 값을 넘긴 뒤에 본다.
+        // 목록 편집기(Device·Type)의 펼침 목록은 body 에 붙으므로 표 바깥으로 치지 않는다.
+        $(document).on('mousedown', function (e) {
+            if ($(e.target).closest('#actionTable, .tabulator-popup-container, .tabulator-edit-list').length) return;
+            setTimeout(function () { if (selected) commit(find(selected)); }, 0);
+        });
+        const reqs = [$.getJSON('/api/device/devices')];
+        if (PLAN_ID) reqs.push($.getJSON('/api/testplans/' + PLAN_ID));
+        $.when.apply($, reqs).done(function (d, p) {
+            const list = PLAN_ID ? d[0] : d;
+            devices = list.filter(x => x.protocol !== 'DB').sort((a, b) => a.name < b.name ? -1 : 1);
+            if (PLAN_ID) loadPlan(p[0]);
+            showScheduleFields();
+            tableReady.then(function () {
+                redraw();
+                timeline.fit();
+            });
+        }).fail(function () { alert('The test plan could not be loaded.'); location.href = '/testplans'; });
+        $(window).on('resize', () => timeline.render());
+    });
+</script>
+</body>
+</html>

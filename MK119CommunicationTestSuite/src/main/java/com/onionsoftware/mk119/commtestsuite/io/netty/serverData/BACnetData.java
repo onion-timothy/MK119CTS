@@ -42,7 +42,7 @@ public class BACnetData extends ServerData {
     @Override
     public boolean setServerData(Simulation simulation, double value, ServerDataChangeSource source) {
         String target = simulation.getTarget();
-        if (isBlockedByLock(target, source)) return false;
+        if (isBlockedByLock(target, null, source)) return false;
         bacnetService.getSimulationValues().put(simulation.getId(), (float) value);
         fireChangeEvent(source, target, value, simulation);
         return true;
@@ -67,7 +67,7 @@ public class BACnetData extends ServerData {
     @Override
     public boolean setServerData(String target, double value, DataType dataType,
                                  ServerDataChangeSource source, Integer lockSeconds) {
-        if (isBlockedByLock(target, source)) return false;
+        if (isBlockedByLock(target, null, source)) return false;
 
         Optional<Simulation> opt = simulationByTarget(target);
         if (!opt.isPresent()) {
@@ -79,9 +79,10 @@ public class BACnetData extends ServerData {
 
         bacnetService.getSimulationValues().put(simulation.getId(), (float) value);
         if (source == ServerDataChangeSource.API_WRITE) {
-            lock(target, lockSeconds);
+            applyApiLock(target, lockSeconds);
         }
         fireChangeEvent(source, target, value, Collections.singletonList(target), simulation);
+        if (source == ServerDataChangeSource.API_WRITE) notifyLocksIfChanged();
         return true;
     }
 
