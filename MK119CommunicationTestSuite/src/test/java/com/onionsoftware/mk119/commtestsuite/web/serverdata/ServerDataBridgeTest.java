@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -79,7 +78,6 @@ class ServerDataBridgeTest {
     void aNewSubscriberGetsTheSourceOfCellsThatKeepTheSameValue() {
         SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         ServerDataSessionRegistry registry = mock(ServerDataSessionRegistry.class);
-        when(registry.getActive(34)).thenReturn(Optional.empty());
         ServerDataBridge bridge = new ServerDataBridge();
         ReflectionTestUtils.setField(bridge, "messagingTemplate", template);
         ReflectionTestUtils.setField(bridge, "sessionRegistry", registry);

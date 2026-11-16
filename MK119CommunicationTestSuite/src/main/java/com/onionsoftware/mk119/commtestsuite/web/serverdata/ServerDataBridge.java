@@ -214,8 +214,7 @@ public class ServerDataBridge implements ServerDataListener {
             batch.put("ts", System.currentTimeMillis());
             // 스냅샷만 번호를 올리면 30초에 한 번씩만 움직여, 화면이 갱신되고 있는지
             // 알기 어렵다. 시뮬레이션이 쓴 묶음도 같은 카운터를 올린다.
-            sessionRegistry.getActive(deviceId)
-                    .ifPresent(info -> batch.put("seq", info.seq.incrementAndGet()));
+            batch.put("seq", sessionRegistry.nextSeq(deviceId));
             batch.put("changes", new ArrayList<>(slice));
             if (i == 0 && !touched.isEmpty()) batch.put("touched", touched);
             // 바뀐 칸만이 아니라 지금 잠긴 칸 전체. 화면은 이걸로 통째로 바꾼다

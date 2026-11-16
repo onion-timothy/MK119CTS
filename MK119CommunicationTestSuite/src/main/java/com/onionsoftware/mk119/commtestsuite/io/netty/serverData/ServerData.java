@@ -471,8 +471,8 @@ public abstract class ServerData {
     }
 
     /**
-     * 만료 없는 lock 만 푼다. 편집 세션이 끝날 때 부른다.
-     * 만료 없는 lock 은 편집 세션만 걸 수 있으므로 곧 세션 자신의 lock 이다.
+     * 만료 없는 lock 만 푼다. 이 장비의 마지막 편집 세션이 끝날 때 부른다.
+     * 만료 없는 lock 은 편집 세션이 살아 있을 때만 걸리므로 곧 세션들이 건 lock 이다.
      * 초 단위 lock 은 누가 걸었든 — 세션 자신이라도 — 만료될 때까지 둔다.
      */
     public void clearPermanentLocks() {

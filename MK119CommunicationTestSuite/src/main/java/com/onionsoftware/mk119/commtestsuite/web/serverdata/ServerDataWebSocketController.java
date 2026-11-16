@@ -18,9 +18,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * ServerData 편집 WebSocket 컨트롤러. enter/write/ack 처리 + 주기적 스냅샷 push.
@@ -70,7 +74,7 @@ public class ServerDataWebSocketController {
             return;
         }
         replyToUser(user, statusMsg("granted", null));
-        pushSnapshot(deviceId, claimed.get());
+        pushSnapshot(deviceId, Collections.singletonList(claimed.get()));
     }
 
     // ------------------------------------------------------------------
@@ -137,8 +141,9 @@ public class ServerDataWebSocketController {
     public void ack(@DestinationVariable int deviceId,
                     SimpMessageHeaderAccessor headers) {
         String user = ServerDataSessionRegistry.userOf(headers.getUser());
-        String activeUser = sessionRegistry.getActive(deviceId).map(i -> i.user).orElse("<none>");
-        LoggerFactory.getLogger("serverdata").info("ACK received: device={}, user={}, activeUser={}, wsSession={}", deviceId, user, activeUser, headers.getSessionId());
+        List<String> activeUsers = sessionRegistry.getActiveSessions(deviceId).stream()
+                .map(i -> i.user).collect(Collectors.toList());
+        LoggerFactory.getLogger("serverdata").info("ACK received: device={}, user={}, activeUsers={}, wsSession={}", deviceId, user, activeUsers, headers.getSessionId());
         if (user == null || !sessionRegistry.isActiveEditor(deviceId, user)) return;
         sessionRegistry.touchByUser(user);
     }
@@ -147,17 +152,21 @@ public class ServerDataWebSocketController {
     public void pushSnapshotsToActiveSessions() {
         for (Map.Entry<Integer, IOServer> e : ioServerInstances.getServers().entrySet()) {
             int deviceId = e.getKey();
-            sessionRegistry.getActive(deviceId).ifPresent(info -> pushSnapshot(deviceId, info));
+            Collection<ServerDataSessionRegistry.SessionInfo> sessions = sessionRegistry.getActiveSessions(deviceId);
+            if (!sessions.isEmpty()) pushSnapshot(deviceId, sessions);
         }
     }
 
-    private void pushSnapshot(int deviceId, ServerDataSessionRegistry.SessionInfo info) {
+    /** 스냅샷은 디바이스당 한 번만 만들어 세션마다 보낸다. 큰 장비는 하나가 255KB 다. */
+    private void pushSnapshot(int deviceId, Collection<ServerDataSessionRegistry.SessionInfo> sessions) {
         Optional<IOServer> serverOpt = ioServerInstances.getServerInstance(deviceId);
         if (!serverOpt.isPresent() || serverOpt.get().getServerData() == null) return;
-        long seq = info.seq.incrementAndGet();
+        long seq = sessionRegistry.nextSeq(deviceId);
         ServerDataSnapshot snap = ServerDataSnapshot.of(seq, serverOpt.get().getServerData());
-        LoggerFactory.getLogger("serverdata").info("SNAPSHOT push: device={}, user={}, seq={}, lastAckAgo={}ms", deviceId, info.user, seq, System.currentTimeMillis() - info.lastAckTs);
-        replyToUser(info.user, snap);
+        for (ServerDataSessionRegistry.SessionInfo info : sessions) {
+            LoggerFactory.getLogger("serverdata").info("SNAPSHOT push: device={}, user={}, seq={}, lastAckAgo={}ms", deviceId, info.user, seq, System.currentTimeMillis() - info.lastAckTs);
+            replyToUser(info.user, snap);
+        }
     }
 
     private Map<String, Object> statusMsg(String status, String reason) {

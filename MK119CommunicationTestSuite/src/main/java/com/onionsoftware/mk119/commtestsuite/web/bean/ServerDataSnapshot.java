@@ -1,6 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.web.bean;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
+import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
+import com.onionsoftware.mk119.commtestsuite.enums.DataType;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.*;
@@ -20,6 +22,27 @@ public class ServerDataSnapshot {
     /** 프로토콜별 payload. 스키마는 {@link #of(long, ServerData)} 참조. */
     public Map<String, Object> payload;
     public Set<String> locks;
+    /**
+     * 이 장비에 등록된 target 목록. 값 맵에는 없는 것(등록만 되고 아직 한 번도 안 쓰인 target)까지
+     * 화면이 행으로 그릴 수 있게 하려는 것이다. 값 맵만 보면 그런 target 은 아예 보이지 않아,
+     * 등록이 잘못된 것인지 아직 주기가 안 돈 것인지 구분할 수 없었다.
+     * <p>
+     * 값을 격자로 그리는 프로토콜(MODBUS·XGT)에는 싣지 않는다 — 화면이 쓰지 않는데 장비 하나에
+     * 수천 건이 30초마다 오간다. BACnet 도 싣지 않는다 — {@code payload.objects} 가 이미 같은 일을 한다.
+     */
+    public List<TargetInfo> registry;
+
+    /** registry 한 줄. 값이 아니라 '이 target 이 무엇인가' 를 담는다. */
+    public static class TargetInfo {
+        public String target;
+        public Integer simulationId;
+        public String name;
+        /** Simulation 의 첫 정책이 정한 CTS DataType. 정책이 없으면 null. */
+        public String dataType;
+        /** 프로토콜이 실제로 내보내는 타입. EtherNet/IP 의 CIP 타입만 채운다. */
+        public String wireType;
+        public boolean enabled;
+    }
 
     public static ServerDataSnapshot of(long seq, ServerData sd) {
         ServerDataSnapshot snap = new ServerDataSnapshot();
@@ -66,6 +89,7 @@ public class ServerDataSnapshot {
             OPCAgentData o = (OPCAgentData) sd;
             snap.protocol = Protocol.OPC_AGENT;
             snap.payload.put("values", o.getValues());
+            snap.registry = registryOf(sd, false);
         } else if (sd instanceof DaeyunData) {
             DaeyunData d = (DaeyunData) sd;
             snap.protocol = Protocol.DAEYUN_RCU;
@@ -74,10 +98,12 @@ public class ServerDataSnapshot {
             snap.payload.put("analogChannels", d.getAnalogChannelValues(32));
             snap.payload.put("digitalChannels", digital);
             snap.payload.put("txFields", new LinkedHashMap<>(d.getTxFieldsIdValueMap()));
+            snap.registry = registryOf(sd, false);
         } else if (sd instanceof SnmpData) {
             SnmpData s = (SnmpData) sd;
             snap.protocol = Protocol.SNMP;
             snap.payload.put("oids", new LinkedHashMap<>(s.getOidValueMap()));
+            snap.registry = registryOf(sd, false);
         } else if (sd instanceof EthernetIPData) {
             EthernetIPData e = (EthernetIPData) sd;
             snap.protocol = Protocol.ETHERNET_IP;
@@ -101,10 +127,12 @@ public class ServerDataSnapshot {
                 }
             }
             snap.payload.put("tags", tags);
+            snap.registry = registryOf(sd, true);
         } else if (sd instanceof GenericData) {
             GenericData g = (GenericData) sd;
             snap.protocol = Protocol.GENERIC;
-            snap.payload.put("fields", new LinkedHashMap<>(g.getTxFieldsIdValueMap()));
+            snap.payload.put("fields", genericFields(g));
+            snap.registry = registryOf(sd, false);
         } else if (sd instanceof BACnetData) {
             BACnetData b = (BACnetData) sd;
             snap.protocol = Protocol.BACNET;
@@ -125,9 +153,61 @@ public class ServerDataSnapshot {
         return snap;
     }
 
+    /**
+     * 이 장비의 Simulation 을 target 목록으로 낸다. {@link ServerData#indexedSimulations()} 를 쓰므로
+     * DB 를 다시 보지 않는다.
+     *
+     * @param withCipType EtherNet/IP 일 때 true. target 에서 옛 타입 접두어를 떼고 CIP 타입을 채운다
+     */
+    private static List<TargetInfo> registryOf(ServerData sd, boolean withCipType) {
+        List<TargetInfo> out = new ArrayList<>();
+        for (Simulation s : sd.indexedSimulations()) {
+            if (s == null || s.getTarget() == null) continue;
+            TargetInfo info = new TargetInfo();
+            info.target = withCipType ? EthernetIPTypes.tagOf(s.getTarget()) : s.getTarget();
+            info.simulationId = s.getId();
+            info.name = s.getName();
+            info.enabled = s.getEnabled() == Simulation.ENABLED;
+            DataType dataType = firstDataType(s);
+            info.dataType = dataType == null ? null : dataType.name();
+            if (withCipType) {
+                CIPData.Type cip = EthernetIPTypes.cipTypeOf(dataType);
+                info.wireType = cip == null ? null : cip.name();
+            }
+            out.add(info);
+        }
+        return out;
+    }
+
+    /** Simulation 의 첫 정책이 정한 DataType. 정책이 없으면 null. */
+    private static DataType firstDataType(Simulation s) {
+        List<SimulationPolicy> policies = s.getPolicies();
+        return (policies == null || policies.isEmpty()) ? null : policies.get(0).getData_type();
+    }
+
     private static int[] toUnsigned(byte[] b) {
         int[] out = new int[b.length];
         for (int i = 0; i < b.length; i++) out[i] = b[i] & 0xFF;
+        return out;
+    }
+
+    /**
+     * GENERIC 의 값: 장비의 프로토콜 정의에 선언된 타겟을 그 순서대로 모두(값이 없으면 0), 그 뒤에 목록 밖의 키
+     * (docs/PROTOCOL_ENGINE_DESIGN.md 9.3).
+     */
+    private static Map<String, Object> genericFields(GenericData g) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry registry =
+                com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry.current();
+        com.onionsoftware.mk119.commtestsuite.protocol.Definition def = registry == null || g.getIoServer() == null
+                ? null : registry.forDevice(g.getIoServer().getDevice());
+        if (def != null) {
+            for (String t : def.catalog.keySet()) {
+                Double v = g.getTxFieldsIdValueMap().get(t);
+                out.put(t, v == null ? 0.0 : v);
+            }
+        }
+        for (Map.Entry<String, Double> e : g.getTxFieldsIdValueMap().entrySet()) out.putIfAbsent(e.getKey(), e.getValue());
         return out;
     }
 }
