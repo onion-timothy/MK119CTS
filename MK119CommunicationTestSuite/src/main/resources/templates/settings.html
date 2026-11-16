@@ -1,27 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MK119 CTS</title>
 
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <link rel="stylesheet" href="../../css/cts-common.css">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
     <!-- Tabulator -->
-    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
 
     <style>
-        html, body { overflow: hidden; height: 100vh; }
-        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
-        .main-header, .main-footer { flex-shrink: 0; }
-        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
-        .content-header { flex-shrink: 0; }
-        .content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
         /* Landscape (default): 좌측 column 에 Socket(상)·Clients(하), 우측 column 에 Logs 전체 세로. */
-        .content > .container-fluid {
-            flex: 1 1 auto; min-height: 0; display: grid; gap: 1rem;
-            padding: 0 1rem 1rem 1rem;
+        .cts-grid {
+            flex: 1 1 auto; min-height: 0; display: grid; gap: var(--cts-page-gap);
             grid-template-columns: minmax(420px, 1fr) 1.4fr;
             grid-template-rows: 1fr 1fr;
             grid-template-areas:
@@ -34,74 +27,20 @@
 
         /* Portrait: 세로로 쭉 쌓고, Socket/Clients 는 아담하게, Logs 는 남는 공간 전부. */
         @media (orientation: portrait) {
-            .content > .container-fluid {
+            .cts-grid {
                 display: flex; flex-direction: column;
                 grid-template-columns: none; grid-template-rows: none; grid-template-areas: none;
             }
         }
 
-        /* 공통 패널: devices.html 톤에 맞춘다 */
-        .cts-panel {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            background-color: #fff;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
-        /* 다른 페이지들의 .table-toolbar 와 톤을 맞춘다. 제목은 toolbar 좌측에 작게 넣는다. */
-        .cts-panel-header {
-            background-color: #fff;
-            border-bottom: 1px solid #dee2e6;
-            padding: 6px 10px;
-            display: flex; align-items: center; gap: 0.25rem;
-            flex-shrink: 0;
-            min-height: 42px;
-        }
-        .cts-panel-title {
-            margin: 0 0.5rem 0 0; padding: 0;
-            font-size: 0.875rem; font-weight: 600; color: #495057;
-            text-transform: uppercase; letter-spacing: 0.02em;
-        }
-        .cts-panel-tools { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; flex-wrap: nowrap; }
-        .cts-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-        .cts-panel-footer {
-            background-color: #fff;
-            border-top: 1px solid #dee2e6;
-            padding: 6px 10px;
-            display: flex; align-items: center; gap: 0.25rem;
-            flex-shrink: 0;
-            min-height: 42px;
-        }
-
-        /* Tabulator 공통 (devices.html 테마 재사용) */
-        .cts-tabulator { border: none !important; border-radius: 0 !important; font-size: 0.9rem; flex: 1 1 auto; min-height: 0; }
-        .cts-tabulator .tabulator-header {
-            background-color: #fff;
-            border-bottom: 2px solid #007bff;
-            font-weight: 600;
-            color: #495057;
-        }
-        .cts-tabulator .tabulator-header .tabulator-col { background-color: transparent; border-right: none; }
-        .cts-tabulator .tabulator-cell { border-right: none; padding: 10px 12px; }
-        .cts-tabulator .tabulator-row { border-bottom: 1px solid #f1f3f5; transition: background-color 0.12s ease; }
-        .cts-tabulator .tabulator-row.tabulator-row-even { background-color: #fbfcfd; }
-        .cts-tabulator .tabulator-row:hover { background-color: #eef5ff !important; }
-        .cts-tabulator .tabulator-row.tabulator-selected { background-color: #d6e8ff !important; }
-        .cts-tabulator .tabulator-footer,
-        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
-            background: #fff !important; background-image: none !important;
-        }
-        .cts-tabulator .tabulator-footer { border-top: 1px solid #dee2e6 !important; padding: 0; }
-        .cts-tabulator .tabulator-footer .tabulator-footer-contents { padding: 6px 10px; }
-        .cts-tabulator .tabulator-footer .tabulator-page { border-radius: 3px; margin: 0 2px; transition: background-color 0.12s ease; }
-        .cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover { background-color: #eef5ff; border-color: #b8dcff; }
-        .cts-tabulator .tabulator-footer .tabulator-page.active { background-color: #007bff; color: #fff; border-color: #007bff; }
-        .cts-tabulator .tabulator-footer .tabulator-page.disabled { opacity: 0.4; }
-
         /* Realtime logs: 콘솔 뷰 */
         .logs-view {
+            /*
+             * 카드 본문(.cts-card > .card-body)은 flex 자식이지 flex 통이 아니다.
+             * 그래서 여기 flex:1 은 먹지 않아, 로그가 적으면 글이 있는 만큼만 어두웠다.
+             * 높이를 직접 100% 로 받아 칸 전체가 터미널 바탕이 되게 한다.
+             */
+            height: 100%;
             flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto;
             background-color: #1e1f22; color: #d7d9db;
             font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
@@ -263,8 +202,7 @@
         function syncAutoscrollBtn() {
             const btn = document.getElementById('logsAutoscrollBtn');
             if (!btn) return;
-            btn.classList.toggle('btn-primary', autoscroll);
-            btn.classList.toggle('btn-outline-secondary', !autoscroll);
+            btn.classList.toggle('active', autoscroll);
             btn.setAttribute('aria-pressed', autoscroll ? 'true' : 'false');
         }
 
@@ -341,39 +279,44 @@
             });
         }
 
+        // 기준 행 높이. 실제 높이는 CtsTable 이 표 높이를 나눠떨어지게 조금 늘린다
+        const ROW_H = 40;
+
         function buildSocketTable(devices) {
             socketTable = new Tabulator('#socketTable', {
                 data: devices,
                 layout: 'fitData',
                 height: '100%',
+                renderVertical: 'basic',
                 pagination: true,
                 paginationSize: 10,
                 selectableRows: 1,
                 placeholder: 'No devices',
-                columns: [
-                    { title: 'ID', field: 'id', width: 70, hozAlign: 'right' },
-                    { title: 'Name', field: 'name' },
-                    { title: 'Transport', field: 'transport', width: 110 },
-                    { title: 'Protocol', field: 'protocol', width: 130 },
-                    { title: 'Host', field: 'host' },
-                    { title: 'Port', field: 'port', width: 90, hozAlign: 'right' },
+                columns: CtsTable.columns([
+                    { title: 'ID', field: 'id', kind: 'number' },
+                    { title: 'Name', field: 'name', kind: 'text' },
+                    { title: 'Transport', field: 'transport', kind: 'text' },
+                    { title: 'Protocol', field: 'protocol', kind: 'text' },
+                    { title: 'Host', field: 'host', kind: 'text' },
+                    { title: 'Port', field: 'port', kind: 'number' },
                     {
-                        title: 'Action', field: '_action', width: 110, headerSort: false, hozAlign: 'center',
+                        // 버튼이 머리글보다 넓어 줄이면 버튼이 잘린다 — 체크박스 열처럼 폭을 고정한다
+                        title: 'Action', field: '_action', kind: 'action', width: 90, resizable: false, headerSort: false,
                         formatter: function (cell) {
                             const d = cell.getRow().getData();
-                            return '<button class="btn btn-sm btn-info sock-test-btn" data-host="' + escapeHtml(d.host) +
+                            return '<button class="btn btn-sm btn-outline-primary sock-test-btn" data-host="' + escapeHtml(d.host) +
                                 '" data-port="' + d.port + '" data-transport="' + escapeHtml(d.transport) + '">' +
                                 '<i class="fas fa-plug"></i> Test</button>';
                         }
                     }
-                ]
+                ])
             });
             socketTable.on('rowClick', function (e, row) {
                 // row 클릭 시 클라이언트 뷰 자동 로드. 단, 액션 버튼 클릭은 아래 리스너가 처리.
                 if (e.target.closest('button')) return;
                 loadClientsFor(row.getData());
             });
-            CtsTable.enhanceResize(socketTable);
+            CtsTable.attach(socketTable, { rowH: ROW_H });
         }
 
         function bindSocketSearch() {
@@ -420,28 +363,32 @@
                 data: [],
                 layout: 'fitData',
                 height: '100%',
+                renderVertical: 'basic',
+                pagination: true,
+                paginationSize: 10,
                 placeholder: 'Select a device above to view connected clients',
-                columns: [
-                    { title: 'Remote Host', field: 'remoteHost' },
-                    { title: 'Remote Port', field: 'remotePort', width: 120, hozAlign: 'right' },
-                    { title: 'TX', field: 'tx', width: 100, hozAlign: 'right' },
-                    { title: 'RX', field: 'rx', width: 100, hozAlign: 'right' },
+                columns: CtsTable.columns([
+                    { title: 'Remote Host', field: 'remoteHost', kind: 'text' },
+                    { title: 'Remote Port', field: 'remotePort', kind: 'number' },
+                    { title: 'TX', field: 'tx', kind: 'number' },
+                    { title: 'RX', field: 'rx', kind: 'number' },
                     {
-                        title: 'Uptime', field: 'uptime', width: 120, hozAlign: 'right',
+                        title: 'Uptime', field: 'uptime', kind: 'number',
                         formatter: function (cell) { return sessionTimeFormat(cell.getValue()); }
                     },
                     {
-                        title: 'Action', field: '_action', width: 140, headerSort: false, hozAlign: 'center',
+                        // 버튼이 머리글보다 넓어 줄이면 버튼이 잘린다 — 체크박스 열처럼 폭을 고정한다
+                        title: 'Action', field: '_action', kind: 'action', width: 140, resizable: false, headerSort: false,
                         formatter: function (cell) {
                             const d = cell.getRow().getData();
-                            return '<button class="btn btn-sm btn-danger client-disc-btn" data-addr="' +
+                            return '<button class="btn btn-sm btn-outline-danger client-disc-btn" data-addr="' +
                                 escapeHtml(d.remoteHost) + ':' + d.remotePort + '">' +
                                 '<i class="fas fa-times"></i> Disconnect</button>';
                         }
                     }
-                ]
+                ])
             });
-            CtsTable.enhanceResize(clientsTable);
+            CtsTable.attach(clientsTable, { rowH: ROW_H });
         }
 
         function bindClientsActions() {
@@ -513,77 +460,21 @@
         /*]]>*/
     </script>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('settings')}"></th:block>
+    <th:block th:replace="~{fragments/tabler :: navbar('Settings', ~{})}"></th:block>
 
-    <!-- Preloader -->
-    <div class="preloader flex-column justify-content-center align-items-center">
-        <img class="animation__shake" src="../../img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
-    </div>
-
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-        </ul>
-        <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-
-    <!-- Sidebar -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <div class="sidebar">
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
-                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
-                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
-                    <li class="nav-item"><a href="/testplans" class="nav-link"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
-                    <li class="nav-item"><a href="/settings" class="nav-link active"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
-                </ul>
-            </nav>
-        </div>
-    </aside>
-
-    <!-- Content -->
-    <div class="content-wrapper">
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6"><h1 class="m-0">Settings</h1></div>
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="/">Home</a></li>
-                            <li class="breadcrumb-item active">Settings</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section class="content">
-            <div class="container-fluid">
+    <div class="page-wrapper">
+        <div class="page-body">
+            <div class="container-fluid cts-grid">
 
                 <!-- Socket Test -->
-                <div class="cts-panel panel-socket">
-                    <div class="cts-panel-header">
-                        <h3 class="cts-panel-title">Socket Test</h3>
-                        <div class="cts-panel-tools" style="gap:0.25rem;">
-                            <select id="socketSearchField" class="form-control form-control-sm" style="width:auto;">
+                <div class="card cts-card panel-socket">
+                    <div class="card-header">
+                        <h3 class="card-title">Socket Test</h3>
+                        <div class="card-actions">
+                            <select id="socketSearchField" class="form-select form-select-sm" style="width:auto;">
                                 <option value="name">Name</option>
                                 <option value="address">Address</option>
                                 <option value="protocol">Protocol</option>
@@ -592,36 +483,36 @@
                                    placeholder="Search..." style="width:180px; min-width:0;">
                         </div>
                     </div>
-                    <div class="cts-panel-body">
+                    <div class="card-body p-0">
                         <div id="socketTable" class="cts-tabulator"></div>
                     </div>
                 </div>
 
                 <!-- Clients -->
-                <div class="cts-panel panel-clients">
-                    <div class="cts-panel-header">
-                        <h3 class="cts-panel-title">Clients</h3>
-                        <div class="cts-panel-tools">
+                <div class="card cts-card panel-clients">
+                    <div class="card-header">
+                        <h3 class="card-title">Clients</h3>
+                        <div class="card-actions">
                             <span id="selectedDeviceTag" class="selected-device-tag">No device selected</span>
                         </div>
                     </div>
-                    <div class="cts-panel-body">
+                    <div class="card-body p-0">
                         <div id="clientsTable" class="cts-tabulator"></div>
                     </div>
                 </div>
 
                 <!-- Realtime Logs -->
-                <div class="cts-panel panel-logs">
-                    <div class="cts-panel-header">
-                        <h3 class="cts-panel-title">Realtime Logs</h3>
-                        <div class="cts-panel-tools logs-toolbar">
+                <div class="card cts-card panel-logs">
+                    <div class="card-header">
+                        <h3 class="card-title">Realtime Logs</h3>
+                        <div class="card-actions logs-toolbar">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button class="btn btn-outline-secondary lvl-btn" data-level="ALL" onclick="setLevel('ALL')">All</button>
                                 <button class="btn btn-outline-danger lvl-btn" data-level="ERROR" onclick="setLevel('ERROR')">Error</button>
                                 <button class="btn btn-outline-warning lvl-btn" data-level="WARN" onclick="setLevel('WARN')">Warn</button>
                                 <button class="btn btn-outline-primary lvl-btn" data-level="INFO" onclick="setLevel('INFO')">Info</button>
                             </div>
-                            <select id="logsSearchField" class="form-control form-control-sm" style="width:auto;">
+                            <select id="logsSearchField" class="form-select form-select-sm" style="width:auto;">
                                 <option value="all">All</option>
                                 <option value="subject">Subject</option>
                                 <option value="message">Message</option>
@@ -630,11 +521,11 @@
                                    placeholder="Search..." style="width:160px; min-width:0;">
                         </div>
                     </div>
-                    <div class="cts-panel-body">
+                    <div class="card-body p-0">
                         <div id="logsView" class="logs-view"></div>
                     </div>
-                    <div class="cts-panel-footer logs-toolbar">
-                        <button id="logsAutoscrollBtn" type="button" class="btn btn-sm btn-primary"
+                    <div class="card-footer logs-toolbar d-flex align-items-center gap-1">
+                        <button id="logsAutoscrollBtn" type="button" class="btn btn-sm btn-outline-primary"
                                 aria-pressed="true" onclick="toggleAutoscroll()">
                             <i class="fas fa-angle-double-down"></i> Auto-scroll
                         </button>
@@ -644,34 +535,24 @@
                         <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
                             <i class="fas fa-trash"></i> Clear
                         </button>
-                        <span class="logs-count ml-auto" title="shown / buffered">
+                        <span class="logs-count ms-auto" title="shown / buffered">
                             <i class="far fa-eye"></i> <span id="logsCount">0 / 0</span>
                         </span>
                     </div>
                 </div>
 
             </div>
-        </section>
+        </div>
+        <!-- /.page-body -->
     </div>
-
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
-    </footer>
+    <!-- /.page-wrapper -->
 </div>
+<!-- /.page -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- Bootstrap -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE -->
-<script src="../../js/adminlte.js"></script>
-<!-- Tabulator -->
-<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
-<script src="../../js/cts-table.js"></script>
-<!-- WebSocket / STOMP -->
-<script src="../../plugins/sockjs/sockjs.min.js"></script>
-<script src="../../plugins/stomp/stomp.umd.min.js"></script>
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script src="/plugins/sockjs/sockjs.min.js"></script>
+<script src="/plugins/stomp/stomp.umd.min.js"></script>
 </body>
 </html>

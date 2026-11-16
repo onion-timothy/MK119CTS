@@ -1,961 +1,528 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MK119 CTS</title>
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <th:block th:replace="~{fragments/tabler :: tree-assets}"></th:block>
+    <title>MK119 CTS — Device</title>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/css/cts-device-form.css">
 
-    <!-- Google Font: Source Sans Pro -->
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <!-- Theme style -->
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <!-- jTree -->
-    <link rel="stylesheet" href="../../css/style.min.css"/>
-    <!-- BS Stepper -->
-    <link rel="stylesheet" href="../../plugins/bs-stepper/css/bs-stepper.min.css">
-    <!-- JSON Editor -->
-    <link href="../../plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
-    <!-- bootstrap slider -->
-    <link rel="stylesheet" href="../../plugins/bootstrap-slider/css/bootstrap-slider.min.css">
+    <style>
+        /*
+         * 세로 화면(또는 좁은 창): 카드를 위아래로 쌓는다. 늘어나는 카드(그룹 트리·프로토콜 정의)가
+         * 남는 높이를 나눠 가져 페이지 영역을 다 쓰고, 최소 높이를 합쳐도 모자라면 칸 전체가 세로로 스크롤한다.
+         * 가로 화면: 좌(장비·그룹·연결) / 우(프로토콜 설정·패킷 기술자).
+         */
+        .ed-body { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+                   display: flex; flex-direction: column; gap: var(--cts-page-gap); }
+        /* 쌓을 때는 칸 구분 없이 카드가 바로 줄을 선다 */
+        .ed-col { display: contents; }
+        .ed-body .card { flex: 0 0 auto; }
+        .ed-body .ed-grow { flex: 1 1 0; min-height: 14rem; }
+        @media (min-width: 1100px) and (orientation: landscape) {
+            .ed-body { overflow: hidden; display: grid;
+                       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+            /* 낮은 화면에서 최소 높이를 합쳐도 모자라면 그 칸만 세로로 스크롤한다 */
+            .ed-col { display: flex; flex-direction: column; gap: var(--cts-page-gap); min-height: 0; min-width: 0;
+                      overflow-y: auto; }
+            .ed-body .ed-grow { flex: 1 1 0; min-height: 0; }
+            /* 트리는 몇 줄은 보여야 고를 수 있다 */
+            .ed-body #group-card { min-height: 12rem; }
+            /* 프로토콜 정의를 쓰지 않는 프로토콜은 설정 카드가 오른쪽 칸을 채운다 */
+            .ed-body:not(.has-definition) #settings-card { flex: 1 1 0; min-height: 0; }
+        }
+        /*
+         * 장비·연결 카드의 칸 배치. 화면 폭이 아니라 카드 폭을 본다 — 같은 카드가
+         * 가로 화면에선 좁은 칸에, 세로 화면에선 넓은 줄에 들어가기 때문이다.
+         */
+        .ed-cq { container-type: inline-size; }
+        .ed-grid { display: grid; gap: .75rem .5rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+        .ed-grid > .ed-wide { grid-column: 1 / -1; }
+        .ed-conn-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+        /* 한 줄로 펴는 기준은 가장 좁은 칸(select)이 글을 자르지 않는 폭이다 */
+        @container (min-width: 29rem) {
+            .ed-dev-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+            .ed-dev-grid > .ed-name { grid-column: auto; }
+        }
+        @container (min-width: 33rem) {
+            .ed-conn-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) minmax(0, 3fr) minmax(0, 2fr); }
+        }
+        .ed-grid .form-label { margin-bottom: .35rem; }
+
+        /* 입력칸 아래 한 줄 상태. 비어 있으면 자리를 차지하지 않는다 */
+        .ed-status { font-size: .78rem; margin-top: .3rem; color: var(--tblr-secondary); }
+        .ed-grid > .ed-status { margin-top: -.4rem; }
+        .ed-status:empty { display: none; }
+        .ed-status.is-bad { color: var(--tblr-red); }
+        .ed-status.is-ok { color: var(--tblr-green); }
+
+        /* 프로토콜이 하는 일 */
+        .ed-note { font-size: .8rem; color: var(--tblr-secondary); margin-bottom: 1rem; }
+        .ed-note:empty { display: none; }
+
+        .ed-sub { font-weight: normal; color: var(--tblr-secondary); font-size: .8rem; margin-left: .35rem; }
+
+        /* 그룹 트리 카드. 트리가 본문을 꽉 채우고 그 안에서 스크롤한다 */
+        #group-tree { height: 100%; }
+        .ed-search { width: 180px; min-width: 0; }
+
+    </style>
 
     <script th:inline="javascript">
         /*<![CDATA[*/
-        let device;
-        let communicationSettings;
+        let device;              // 고치는 장비. 새로 만들 때는 undefined
+        let registered = null;   // 등록된 장비 전부. 못 받아 오면 null 로 두고 겹침 검사를 건너뛴다
+        const groupPaths = {};   // group id → 'ROOT / test1'
+        let groupTree;           // 그룹 트리 (static/js/cts-tree.js)
+        let selectedGroup = null;
+        let startGroup = 1;      // 들어온 그룹. Cancel 하면 여기로 돌아간다
 
-        document.addEventListener('DOMContentLoaded', function () {
-            window.stepper = new Stepper(document.querySelector('.bs-stepper'))
-        });
-        let tree;
+        // 프로토콜·설정 칸 정의는 js/cts-device-form.js 에 있다. 스크립트가 body 끝에서 올라오므로 시작할 때 받는다
+        let PROTOCOLS, PROTOCOL_ORDER, SETTINGS;
+        let definition;          // 프로토콜 정의 카드 (js/cts-definition-card.js)
 
-        let diCount;
-        let doCount;
-        let aiCount;
-        let rsCount;
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, m =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+        }
 
-        function onload() {
-            $('#tree-container').jstree({
-                'core': {
-                    'themes': {
-                        'responsive': true,
-                        "variant": "large"
-                    },
-                    'check_callback': true,
-                    'data': {
-                        "url": "/api/group/groups/treeData"
-                    }
-                },
-                "types": {
-                    "group": {
-                        "icon": "fas fa-folder",
-                    }
-                },
-                "plugins": [
-                    "types", "wholerow", "sort"
-                ],
-            }).on("select_node.jstree", function (e, data) {
-                if (data.node.type === 'group') {
-                    $.jstree.reference('#tree-container').open_node(data.node.id);
+        function protocol() { return $('#protocol').val(); }
+
+        // ── 연결: 겹침 판정 ─────────────────────────────────────
+        // ApiController.findEndpointConflict 와 같은 규칙이다. DB·BACnet 은 장비마다 여는 포트가 없어 빠진다.
+
+        function bindsEndpoint(p) { return p !== 'DB' && p !== 'BACNET'; }
+
+        function isWildcard(h) {
+            h = String(h == null ? '' : h).trim();
+            return h === '0.0.0.0' || h === '::' || h === '[::]' || h === '*';
+        }
+
+        /** 지금 입력의 엔드포인트. 판정할 수 없으면 null. */
+        function currentEndpoint() {
+            const p = protocol();
+            const port = parseInt($('#port').val(), 10);
+            if (!bindsEndpoint(p) || isNaN(port)) return null;
+            return { host: String($('#host').val() || '').trim(), port: port, transport: $('#transport').val() };
+        }
+
+        function clashes(ep, d) {
+            if (!ep || !bindsEndpoint(d.protocol) || d.transport !== ep.transport || Number(d.port) !== ep.port) return false;
+            const h = String(d.host == null ? '' : d.host).trim();
+            return isWildcard(ep.host) || isWildcard(h) || ep.host === h;
+        }
+
+        function others() {
+            return (registered || []).filter(d => !device || d.id !== device.id);
+        }
+
+        function nameOwner() {
+            const name = $('#name').val();
+            if (!name) return null;
+            return others().filter(d => d.name === name)[0] || null;
+        }
+
+        function endpointText(d) {
+            return d.host + ':' + d.port + '/' + d.transport;
+        }
+
+        // ── 화면 맞추기 ─────────────────────────────────────────
+
+        /** 이름·엔드포인트 아래 상태 줄을 지금 입력에 맞춘다. */
+        function refreshChecks() {
+            const owner = nameOwner();
+            $('#name-status').attr('class', 'ed-status' + (owner ? ' is-bad' : ''))
+                .text(owner ? 'Already used by a device in ' + (groupPaths[owner.group && owner.group.id] || 'another group') + '.' : '');
+
+            const p = protocol();
+            const $ep = $('#endpoint-status');
+            const ep = currentEndpoint();
+            if (p === 'DB') {
+                $ep.attr('class', 'ed-status ed-wide').text('A DB device connects out over JDBC. It has no host or port to bind.');
+            } else if (p === 'BACNET') {
+                $ep.attr('class', 'ed-status ed-wide').text('Every BACnet device shares 0.0.0.0:47808/UDP.');
+            } else if (!ep || registered == null) {
+                $ep.attr('class', 'ed-status ed-wide').text('');
+            } else {
+                const hit = others().filter(d => clashes(ep, d));
+                if (hit.length) {
+                    $ep.attr('class', 'ed-status ed-wide is-bad').html('Already used by <b>' + esc(hit[0].name) + '</b> ('
+                        + esc(endpointText(hit[0])) + ')' + (hit.length > 1 ? ' and ' + (hit.length - 1) + ' more' : '') + '.');
+                } else {
+                    $ep.attr('class', 'ed-status ed-wide is-ok').text('No other device uses this endpoint.');
                 }
-            }).on("ready.jstree", function () {
-                // 시작할 때 루트 노드를 열어준다.
-                if (device != null) {
-                    $.jstree.reference('#tree-container').open_node('g_' + device.group.id);
-                    $.jstree.reference('#tree-container').select_node('g_' + device.group.id);
-                }
+            }
+        }
+
+        /** 프로토콜을 바꿨을 때 — 전송 계층, 설정 칸, 패킷 기술자를 그 프로토콜 것으로 바꾼다. */
+        function applyProtocol() {
+            const p = protocol();
+            const info = PROTOCOLS[p];
+
+            const $t = $('#transport');
+            const was = $t.val();
+            $t.empty();
+            info.transports.forEach(t => $t.append(new Option(t, t)));
+            $t.val(info.transports.indexOf(was) >= 0 ? was : info.transports[0]);
+            // 하나뿐이면 고를 게 없다는 걸 보여 준다
+            $t.prop('disabled', info.transports.length === 1);
+
+            $('.ed-proto').hide();
+            $('.ed-proto[data-protocol="' + p + '"]').show();
+            $('#settings-card').toggle(!!SETTINGS[p]);
+            $('#proto-title').text(info.text + ' settings');
+            $('#proto-note').text(info.note || '');
+
+            $('.ed-body').toggleClass('has-definition', !!info.definition);
+            $('#definition-card').toggle(!!info.definition);
+            if (info.definition) definition.setProtocol(p);
+
+            applyEndpoint();
+        }
+
+        // BACnet 이 채워 넣은 host/port 인지. 다른 프로토콜로 옮기면 지운다
+        let endpointForced = false;
+
+        function applyEndpoint() {
+            const p = protocol();
+            const $host = $('#host'), $port = $('#port');
+
+            const fixed = p === 'BACNET';
+            if (fixed) {
+                $host.val('0.0.0.0');
+                $port.val(47808);
+                endpointForced = true;
+            } else if (endpointForced) {
+                $host.val('0.0.0.0');
+                $port.val('');
+                endpointForced = false;
+            }
+            $host.prop('readonly', fixed);
+            $port.prop('readonly', fixed);
+
+            // DB 는 나가서 붙는 쪽이라 열 포트가 없다
+            $('#host-cell, #port-cell').toggle(p !== 'DB');
+
+            const info = PROTOCOLS[p];
+            const def = info.port && info.port[$('#transport').val()];
+            $port.attr('placeholder', def ? 'Default ' + def : 'Port');
+            refreshChecks();
+        }
+
+        // ── 그룹 ────────────────────────────────────────────────
+
+        function showGroupPath() {
+            $('#group-path').text(selectedGroup == null ? '' : (groupPaths[selectedGroup] || ''));
+        }
+
+        /** 그룹만 보이는 트리. 장비 줄은 걸러 낸다 */
+        function mountGroupTree() {
+            groupTree = CtsTree.create(document.getElementById('group-tree'), {
+                url: '/api/device/devices/treeData',
+                filter: row => row.type === 'group',
+                expandAll: true,
+                initialSelect: 'g_' + startGroup,
+                onSelect: function (node) {
+                    selectedGroup = parseInt(node.id.split('_')[1], 10);
+                    showGroupPath();
+                },
+                // 들어온 그룹이 없어졌으면 맨 위 그룹을 고른다
+                onReady: function (t) {
+                    if (!t.selected() && t.roots.length) t.select(t.roots[0]);
+                },
             });
-            diCount = $('#diCount').bootstrapSlider();
-            doCount = $('#doCount').bootstrapSlider();
-            aiCount = $('#aiCount').bootstrapSlider();
-            rsCount = $('#rsCount').bootstrapSlider();
 
-            device = [[${device}]];
-            if (device) {
-                communicationSettings = device.communicationSettings;
-                loadEditDevice(device);
-            } else {
-                onTransportChange(1)
-            }
+            const input = document.getElementById('group-search');
+            let timer;
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { groupTree.search(input.value); }, 200);
+            });
         }
 
-        function loadEditDevice(device) {
-            $('#title').text("Edit device '" + device.name + "'");
-            $('#menuText').text('Edit device');
-            $('#name').val(device.name);
-            $('#enabled').val(device.enabled);
-            $('#log').val(device.log);
-            $.jstree.reference('#tree-container').open_node('g_1');
-            $('#transport').val(device.transport);
-            onTransportChange(device.transport);
-            $('#host').val(device.host);
-            $('#port').val(device.port);
-            let protocolSelector = $('#protocol');
-            protocolSelector.val(device.protocol);
-            protocolSelector.prop('disabled', true);
-            $('#devId').val(device.id);
-        }
-
-        function validatePanel1() {
-            let name = $('#name').val();
-            if (name === '') {
-                alert('Name cannot be empty.');
-            } else {
-                stepper.next();
-            }
-        }
-
-        function validatePanel2() {
-            let group = $.jstree.reference('#tree-container').get_selected()[0];
-            if (typeof(group) === 'undefined') {
-                alert('Group not selected.');
-            } else {
-                $.ajax({
-                    url: '/api/device/devices/' + group.replace('g_', ''),
-                    type: 'GET',
-                    success: function (data) {
-                        let deviceNames = data.map(item => item.name);
-                        let name = $('#name');
-
-                        if(device && device.name === name.val()){
-                            stepper.next();
-                        } else {
-                            if (deviceNames.indexOf(name.val()) > -1) {
-                                alert('Entered name is duplicated in selected group.')
-                            } else {
-                                stepper.next();
-                            }
-                        }
-                    }
+        /** 'ROOT / test1' 꼴의 경로. 이름 겹침 안내와 카드 머리에 쓴다 */
+        function loadGroupPaths() {
+            return $.getJSON('/api/group/groups/treeData').done(function (rows) {
+                const byId = {};
+                rows.forEach(r => { byId[r.id] = r; });
+                rows.forEach(r => {
+                    const names = [];
+                    for (let n = r, guard = 0; n && guard < 64; n = byId[n.parent], guard++) names.unshift(n.text);
+                    groupPaths[parseInt(r.id.split('_')[1], 10)] = names.join(' / ');
                 });
-            }
+                showGroupPath();
+            });
         }
 
-        let rxJsonEditor;
-        let txJsonEditor;
-        let rxJsonRCUEditor;
-        let txJsonRCUEditor;
+        // ── 저장 ────────────────────────────────────────────────
 
-        const rxExample = [{"rx_id":"modbus-rtu-uid-1-fc-3","length":8,"fields":[{"field_id":"unit_id","data_type":"UI8","required_value":1},{"field_id":"fc","data_type":"UI8","required_value":3},{"field_id":"register","data_type":"UI16AB","required_value":null},{"field_id":"count","data_type":"UI16AB","required_value":null},{"field_id":"crc16","data_type":"SI16AB","required_value":null}]}];
-        const txExample = [{"tx_id":"modbus-rtu-uid-1-fc-3","fields":[{"field_id":"unit_id","field_type":"REFERENCE","data_type":"UI8","value":"@unit_id"},{"field_id":"fc","field_type":"REFERENCE","data_type":"UI8","value":"@fc"},{"field_id":"byte_count","field_type":"REFERENCE","data_type":"UI8","value":"@count*2"},{"field_id":"registers","field_type":"ITERATION","data_type":"SI16AB","value":null,"iteration_count":"@count"},{"field_id":"crc","field_type":"CRC16","data_type":"SI16AB","value":0}]}];
-
-        function validatePanel3() {
-            let host = $('#host').val();
-            let port = $('#port').val();
-            let protocol = $('#protocol').val();
-            if (host === '' || port === '') {
-                alert('Host and port is cannot be empty.');
-            } else {
-                stepper.next();
-
-                if (protocol === 'GENERIC') {
-                    showForm('formGeneric');
-                    if (rxJsonEditor)
-                        rxJsonEditor.destroy();
-                    if (txJsonEditor)
-                        txJsonEditor.destroy();
-                    rxJsonEditor = new JSONEditor(document.getElementById("rxJson"), {});
-                    txJsonEditor = new JSONEditor(document.getElementById("txJson"), {});
-                    rxJsonEditor.set(device == null ? rxExample : communicationSettings.rx);
-                    txJsonEditor.set(device == null ? txExample : communicationSettings.tx);
-                } else if (protocol === 'MODBUS') {
-                    showForm('formModbus');
-                    if (device != null) {
-                        $('#uid').val(communicationSettings.unitId);
-                        $('#packetType').val(communicationSettings.packetType);
-                        $('#registers1').val(communicationSettings.registers);
-                    }
-                } else if (protocol === 'XGT_PLC') {
-                    showForm('formLSISXGT');
-                    if (device != null) {
-                        $('#cpuid').val(communicationSettings.cpuId);
-                        $('#blocksize').val((communicationSettings.maxBlockSize))
-                        $('#registers2').val(communicationSettings.registers);
-                    }
-                } else if (protocol === 'DAEYUN_RCU') {
-                    showForm('formMKRCU');
-                    if (rxJsonRCUEditor)
-                        rxJsonRCUEditor.destroy();
-                    if (txJsonRCUEditor)
-                        txJsonRCUEditor.destroy();
-                    rxJsonRCUEditor = new JSONEditor(document.getElementById("rxJsonRCU"), {});
-                    txJsonRCUEditor = new JSONEditor(document.getElementById("txJsonRCU"), {});
-                    rxJsonRCUEditor.set(rxExample);
-                    txJsonRCUEditor.set(txExample);
-
-                    if (device != null) {
-                        rxJsonRCUEditor.set(communicationSettings.rx);
-                        txJsonRCUEditor.set(communicationSettings.tx);
-                        $('#cpuAddr').val(communicationSettings.cpuAddr);
-                        diCount.bootstrapSlider('setValue', communicationSettings.diCount);
-                        doCount.bootstrapSlider('setValue', communicationSettings.doCount);
-                        aiCount.bootstrapSlider('setValue', communicationSettings.aiCount);
-                        rsCount.bootstrapSlider('setValue', communicationSettings.rsCount);
-                    }
-                } else if (protocol === 'SNMP') {
-                    showForm('formSNMP');
-                    if (device != null) {
-                        $('#snmpVersion').val(communicationSettings.snmpVersion);
-                        $('#getCommunity').val(communicationSettings.getCommunity);
-                        $('#setCommunity').val(communicationSettings.setCommunity);
-                    }
-                } else if (protocol === 'BACNET') {
-                    showForm('formBACnet');
-                    if (device != null) {
-                        $('#deviceInstanceId').val(communicationSettings.deviceInstanceId);
-                        $('#broadcast').val(communicationSettings.broadcast);
-                    }
-                } else if (protocol === 'OPC_AGENT') {
-                    showForm('formMKOPCAgent');
-                    $('#agentTagsCount').val(communicationSettings.registers);
-                } else if (protocol === 'DB') {
-                    showForm('formDB');
-                    if (device != null) {
-                        $('#dbDriver').val(communicationSettings.dbdriver);
-                        $('#dbUrl').val(communicationSettings.dbUrl);
-                        $('#dbUsername').val(communicationSettings.dbUsername);
-                        document.getElementById("dbPassword").value = communicationSettings.dbPassword;
-                        $('#dbDatabase').val(communicationSettings.dbDatabase);
-                    }
-                } else if (protocol === 'ETHERNET_IP') {
-                    showForm('formEthernetIP');
-                }
-            }
+        /** 알리고 그 칸으로 데려간다. 단계가 없으니 첫 문제에서 멈춘다. */
+        function complain(message, el) {
+            alert(message);
+            if (typeof el === 'string') el = document.querySelector(el);
+            if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
+            return null;
         }
 
-        let formIds = ['formGeneric', 'formModbus', 'formLSISXGT', 'formMKRCU', 'formSNMP', 'formBACnet', 'formMKOPCAgent', 'formDB', 'formEthernetIP'];
-
-        function showForm(formId) {
-            for (let i = 0; i < formIds.length; i++) {
-                $('#' + formIds[i]).hide();
-            }
-            $('#' + formId).show();
+        /** 프로토콜 설정 칸을 읽는다. 문제가 있으면 알리고 null. */
+        function readSettings(p) {
+            const cs = CtsDeviceForm.read(p);
+            const bad = CtsDeviceForm.problems(p, cs)[0];
+            return bad ? complain(bad.message, '#' + bad.id) : cs;
         }
 
-        function addDevice() {
-            let dev = {};
-            dev.transport = $('#transport').val();
-            dev.protocol = $('#protocol').val();
-            dev.host = $('#host').val();
-            dev.port = $('#port').val();
-            dev.name = $('#name').val();
-            dev.enabled = $('#enabled').val();
-            dev.log = $('#log').val();
-            let group = {};
-            group.id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
-            group.name = null;
-            group.parentId = null;
-            dev.group = group;
+        function fillSettings(p, cs) {
+            CtsDeviceForm.fill(p, cs);
+        }
 
-            if (device != null) {
-                dev.id = $('#devId').val();
+        function backTo(group) {
+            location.href = '/?group=' + (group || 1);
+        }
+
+        function cancelEdit() {
+            backTo(device ? device.group.id : startGroup);
+        }
+
+        function doSubmit() {
+            const p = protocol();
+            const name = $('#name').val();
+            if (name.trim() === '') return complain('Name cannot be empty.', '#name');
+            const owner = nameOwner();
+            if (owner) {
+                return complain('Device name “' + name + '” is already used in '
+                    + (groupPaths[owner.group && owner.group.id] || 'another group') + '. Names must be unique.', '#name');
+            }
+            if (selectedGroup == null) return complain('Select a group.', '#group-tree');
+
+            const dev = {
+                name: name,
+                enabled: $('#enabled').val(),
+                log: $('#log').val(),
+                group: { id: selectedGroup, name: null, parentId: null },
+                protocol: p,
+                transport: $('#transport').val(),
+                host: '',
+                port: null,
+            };
+            if (device) dev.id = device.id;
+
+            if (p !== 'DB') {
+                dev.host = String($('#host').val() || '').trim();
+                if (dev.host === '') return complain('Host cannot be empty.', '#host');
+                const port = $('#port').val().trim();
+                if (!/^\d+$/.test(port) || +port > 65535) return complain('Port must be a whole number from 0 to 65535.', '#port');
+                dev.port = parseInt(port, 10);
             }
 
-            let communicationSettings = {};
-            if (dev.protocol === 'GENERIC') {
-                communicationSettings.rx = rxJsonEditor.get();
-                communicationSettings.tx = txJsonEditor.get();
-            } else if (dev.protocol === 'MODBUS') {
-                communicationSettings.unitId = $('#uid').val();
-                communicationSettings.packetType = $('#packetType').val();
-                communicationSettings.registers = $('#registers1').val();
+            const cs = readSettings(p);
+            if (!cs) return;
+            if (PROTOCOLS[p].definition) {
+                const list = definition.problems(p);
+                definition.mark(list);
+                if (list.length) return complain(list[0].message, '#' + list[0].id);
+                Object.assign(cs, definition.read());
+            }
+            dev.communicationSettings = cs;
 
-                if(communicationSettings.unitId === '' || isNaN(communicationSettings.unitId)){
-                    alert('Unit ID must assigned to number.');
-                    return;
-                }
-                if (communicationSettings.unitId < 0 || communicationSettings.unitId > 255) {
-                    alert('Invalid Unit ID. Modbus Unit ID must in 0~255.');
-                    return;
-                }
-                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)){
-                    alert('Registers count must assigned to number.');
-                    return;
-                }
-            } else if (dev.protocol === 'XGT_PLC') {
-                communicationSettings.cpuId = $('#cpuid').val();
-                communicationSettings.maxBlockSize = $('#blocksize').val();
-                communicationSettings.registers = $('#registers2').val();
-
-                if(communicationSettings.cpuId === '' || isNaN(communicationSettings.cpuId)) {
-                    alert('CPU ID must assigned to number.')
-                    return
-                }
-                if (communicationSettings.cpuId < 0 || communicationSettings.cpuId > 255) {
-                    alert('Invalid CPU ID. XGT CPU ID must in 0~255.')
-                    return
-                }
-
-                if(communicationSettings.maxBlockSize === '' || isNaN(communicationSettings.maxBlockSize)) {
-                    alert('Block size must assigned to number.')
-                    return
-                }
-                if (communicationSettings.maxBlockSize < 1 || communicationSettings.cpuId > 1400) {
-                    alert('Invalid Block size. Block size must in 1~1400.')
-                    return
-                }
-
-                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)){
-                    alert('Registers count must assigned to number.');
-                    return;
-                }
-            } else if (dev.protocol === 'DAEYUN_RCU') {
-                communicationSettings.rx = rxJsonRCUEditor.get();
-                communicationSettings.tx = txJsonRCUEditor.get();
-                communicationSettings.cpuAddr = $('#cpuAddr').val();
-                communicationSettings.diCount = diCount.bootstrapSlider('getValue');
-                communicationSettings.doCount = doCount.bootstrapSlider('getValue');
-                communicationSettings.aiCount = aiCount.bootstrapSlider('getValue');
-                communicationSettings.rsCount = rsCount.bootstrapSlider('getValue');
-
-                if(communicationSettings.cpuAddr === '' || isNaN(communicationSettings.cpuAddr)) {
-                    alert('CPU ID must assigned to number.')
-                    return
-                }
-                if (communicationSettings.cpuAddr < 0 || communicationSettings.cpuAddr > 255) {
-                    alert('Invalid CPU Address. MK RCU CPU Address must in 0~255.')
-                    return
-                }
-            } else if (dev.protocol === 'SNMP') {
-                communicationSettings.snmpVersion = $('#snmpVersion').val();
-                communicationSettings.getCommunity = $('#getCommunity').val();
-                communicationSettings.setCommunity = $('#setCommunity').val();
-                if(communicationSettings.snmpVersion === '' || isNaN(communicationSettings.snmpVersion)) {
-                    alert('SNMP Version must assigned to number.')
-                    return
-                }
-                if (communicationSettings.snmpVersion < 0 || communicationSettings.snmpVersion > 1) {
-                    alert('Invalid SNMP Version. SNMP Version must in 1 or 2.')
-                    return
-                }
-            } else if (dev.protocol === 'BACNET') {
-                communicationSettings.deviceInstanceId = $('#deviceInstanceId').val();
-                communicationSettings.broadcast = $('#broadcast').val();
-
-                if(communicationSettings.deviceInstanceId === '' || isNaN(communicationSettings.deviceInstanceId)) {
-                    alert('BACnet device instance number must assigned to number.')
-                    return
-                }
-                if (communicationSettings.deviceInstanceId < 1 || communicationSettings.deviceInstanceId > 65536) {
-                    alert('Invalid BACnet device instance number. BACnet device instance number must in 1~65536.')
-                    return
-                }
-                if(communicationSettings.broadcast === ''){
-                    alert('BACnet broadcast address cannot be empty.')
-                    return
-                }
-            } else if (dev.protocol === 'OPC_AGENT') {
-                communicationSettings.registers = $('#agentTagsCount').val();
-                if(communicationSettings.registers === '' || isNaN(communicationSettings.registers)) {
-                    alert('OPC Agent tags count must assigned to number.')
-                    return
-                }
-            } else if (dev.protocol === 'DB') {
-                communicationSettings.dbdriver = $('#dbDriver').val();
-                communicationSettings.dbUrl = $('#dbUrl').val();
-                communicationSettings.dbUsername = $('#dbUsername').val();
-                communicationSettings.dbPassword = document.getElementById("dbPassword").value;
-                communicationSettings.dbDatabase = $('#dbDatabase').val();
-
-                if(communicationSettings.dbdriver === ''){
-                    alert('DB Driver cannot be empty.')
-                    return
-                }
-                if(communicationSettings.dbUrl === ''){
-                    alert('DB URL cannot be empty.')
-                    return
-                }
-                if(communicationSettings.dbUsername === ''){
-                    alert('DB Username cannot be empty.')
-                    return
-                }
-                if(communicationSettings.dbPassword === ''){
-                    alert('DB Password cannot be empty.')
-                    return
-                }
-                if(communicationSettings.dbDatabase === ''){
-                    alert('DB name cannot be empty.')
-                    return
-                }
-            } else if (dev.protocol === 'ETHERNET_IP') {
-                communicationSettings.cpuSlot = $('#cpuSlot').val();
-
-                if(communicationSettings.cpuSlot === ''){
-                    alert('CPU slot number cannot be empty.')
-                    return
-                }
+            // 단건 저장은 서버가 엔드포인트 겹침을 보지 않는다(일괄 등록만 막는다). 열리지 않을 장비가 되므로 여기서 묻는다
+            const ep = currentEndpoint();
+            const hit = ep ? others().filter(d => clashes(ep, d)) : [];
+            if (hit.length && !confirm('Endpoint ' + ep.host + ':' + ep.port + '/' + ep.transport + ' is already used by '
+                    + hit.map(d => d.name).join(', ') + '.\nThis device will fail to open it.\n\nSave anyway?')) {
+                return;
             }
 
-            dev.communicationSettings = communicationSettings;
             $.ajax({
-                url: device == null ? '/api/device/addDevice' : '/api/device/updateDevice',
-                type: device == null ? 'PUT' : 'POST',
+                url: device ? '/api/device/updateDevice' : '/api/device/addDevice',
+                type: device ? 'POST' : 'PUT',
                 contentType: 'application/json',
                 data: JSON.stringify(dev),
-                success: function () {
-                    location.href = '/';
-                },
+                success: function () { backTo(dev.group.id); },
                 error: function (request) {
-                    if (request.responseText.includes('UNIQUE')) {
-                        alert("Cannot create with the same name within a group.");
-                    } else
-                        alert(request.status + request.responseText);
+                    if (String(request.responseText).indexOf('UNIQUE') >= 0) {
+                        alert('Device name “' + dev.name + '” is already used. Names must be unique.');
+                    } else {
+                        alert(request.status + ' ' + request.responseText);
+                    }
                 }
             });
         }
 
-        const tcp_protocols = [
-            {value: 'GENERIC', text: 'Generic'},
-            {value: 'MODBUS', text: 'Modbus'},
-            {value: 'XGT_PLC', text: 'LSIS-XGT'},
-            {value: 'DAEYUN_RCU', text: 'MK RCU'},
-            {value: 'DB', text: 'DB'},
-            {value: 'ETHERNET_IP', text: 'Ethernet/IP'}
-        ]
+        // ── 시작 ────────────────────────────────────────────────
 
-        const udp_protocols = [
-            {value: 'GENERIC', text: 'Generic'},
-            {value: 'MODBUS', text: 'Modbus'},
-            {value: 'XGT_PLC', text: 'LSIS-XGT'},
-            {value: 'SNMP', text: 'SNMP'},
-            {value: 'BACNET', text: 'BACnet'},
-            {value: 'OPC_AGENT', text: 'MK OPC Agent'},
-            {value: 'DB', text: 'DB'}
-        ]
+        document.addEventListener('DOMContentLoaded', function () {
+            device = [[${device}]];
+            if (device == null) device = undefined;
+            ({ PROTOCOLS, PROTOCOL_ORDER, SETTINGS } = CtsDeviceForm);
+            CtsDeviceForm.mount();
+            definition = CtsDefinitionCard.mount(document.getElementById('definition-card'));
 
-        function onTransportChange() {
-            let transport = $('#transport').val()
-            let protocol = $('#protocol');
-            protocol.empty()
-            let p = transport === 'TCP' ? tcp_protocols : udp_protocols;
-            p.forEach(option => {
-                protocol.append($('<option>', {
-                    value: option.value,
-                    text: option.text
-                }))
-            })
-            onProtocolChange(1)
-        }
+            const $p = $('#protocol');
+            PROTOCOL_ORDER.forEach(p => $p.append(new Option(PROTOCOLS[p].text, p)));
 
-        function onProtocolChange() {
-            let host = $('#host')
-            let port = $('#port')
-            let transport = $('#transport').val()
-            let protocol = $('#protocol').val()
+            const queryGroup = parseInt(new URLSearchParams(location.search).get('group'), 10);
+            startGroup = device ? device.group.id : (isNaN(queryGroup) ? 1 : queryGroup);
 
-            host.attr('readonly', false)
-            host.attr('placeholder', 'Binding host for device')
-            host.val('')
-            port.attr('readonly', false)
-            port.attr('placeholder', 'Binding port for device')
-            port.val('')
-
-            let hostForm = $('#hostFormGroup')
-            let portForm = $('#portFormGroup')
-            hostForm.show()
-            portForm.show()
-
-            if (protocol === 'MODBUS') {
-                port.attr('placeholder', 502)
-            } else if (protocol === 'XGT_PLC') {
-                port.attr('placeholder', transport === 'TCP' ? 2004 : 2005)
-            } else if (protocol === 'DAEYUN_RCU') {
-                port.attr('placeholder', 1470)
-            } else if (protocol === 'SNMP') {
-                port.attr('placeholder', 161)
-            } else if (protocol === 'BACNET') {
-                host.attr('readonly', true)
-                host.val('0.0.0.0')
-                port.attr('readonly', true)
-                port.val(47808)
-            } else if (protocol === 'OPC_AGENT') {
-                port.attr('placeholder', 9999)
-            } else if (protocol === 'ETHERNET_IP') {
-                port.attr('placeholder', 44818)
-            } else if (protocol === 'DB') {
-                hostForm.hide()
-                portForm.hide()
+            if (device) {
+                $('#pageTitle').text('Edit device');
+                $('#pageSubtitle').text(device.name + ' · ' + (PROTOCOLS[device.protocol] || { text: device.protocol }).text);
+                $('#name').val(device.name);
+                $('#enabled').val(device.enabled);
+                $('#log').val(device.log);
+                // 프로토콜은 저장 뒤에 바꿀 수 없다. 딸린 설정과 시뮬레이션 target 형식이 통째로 달라진다
+                $p.val(device.protocol).prop('disabled', true);
+                $('#protocol-hint').text('Protocol is fixed after saving');
+                fillSettings(device.protocol, device.communicationSettings);
+                definition.load().then(() => definition.set(device.protocol, device.communicationSettings));
+                applyProtocol();
+                $('#transport').val(device.transport);
+                if (device.protocol !== 'BACNET') {
+                    $('#host').val(device.host);
+                    $('#port').val(device.port);
+                }
+                applyEndpoint();
+            } else {
+                $('#pageTitle').text('Add device');
+                $('#host').val('0.0.0.0');
+                definition.load().then(() => definition.set(protocol(), {}));
+                applyProtocol();
             }
-        }
 
+            mountGroupTree();
+            loadGroupPaths();
+            // 겹침 검사용. 못 받아 와도 입력은 멀쩡해야 하고, 저장 때 서버가 이름 중복을 다시 막는다
+            $.getJSON('/api/device/devices').done(function (list) {
+                registered = list;
+                refreshChecks();
+            });
+
+            $p.on('change', applyProtocol);
+            $('#transport').on('change', applyEndpoint);
+            $('#name, #host, #port').on('input', refreshChecks);
+        });
         /*]]>*/
     </script>
 </head>
-<body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <!-- Left navbar links -->
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
-        </ul>
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('devices')}"></th:block>
 
-        <!-- Right navbar links -->
-        <ul class="navbar-nav ml-auto">
-            <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
-                </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <!-- /.navbar -->
-
-    <!-- Main Sidebar Container -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <!-- Brand Logo -->
-        <a href="#" class="brand-link">
-            <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <!-- Sidebar Menu -->
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <!-- Add icons to the links using the .nav-icon class
-                         with font-awesome or any other icon font library -->
-
-                    <li class="nav-item">
-                        <a href="/" class="nav-link">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>
-                                Devices
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>
-                                Value Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>
-                                Error Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/testplans" class="nav-link">
-                            <i class="nav-icon fas fa-tasks"></i>
-                            <p>
-                                Test Plans
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Settings
-                            </p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <!-- /.sidebar-menu -->
+    <th:block th:replace="~{fragments/tabler :: navbar('', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list">
+            <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="doSubmit()">Save</button>
         </div>
-        <!-- /.sidebar -->
-    </aside>
+    </div>
 
-    <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper">
-        <!-- Content Header (Page header) -->
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0" id="title">Add device</h1>
-                    </div><!-- /.col -->
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active" id="menuText">Add Device</li>
-                        </ol>
-                    </div><!-- /.col -->
-                </div><!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </div>
-        <!-- /.content-header -->
-
-        <!-- Main content -->
-        <section class="content">
-            <div class="container-fluid">
-                <!-- Small boxes (Stat box) -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card card-default">
+    <div class="page-wrapper">
+        <div class="page-body">
+            <div class="container-fluid cts-root">
+                <form class="ed-body" onsubmit="return false" autocomplete="off">
+                    <!-- 무엇이고 어디에 두는가 -->
+                    <div class="ed-col">
+                        <div class="card cts-card">
                             <div class="card-header">
-                                <h3 class="card-title">Information of device</h3>
+                                <h3 class="card-title">Device</h3>
                             </div>
-                            <div class="card-body p-2">
-                                <div class="bs-stepper linear">
-                                    <div class="bs-stepper-header" role="tablist">
-                                        <div class="step active" data-target="#test-l-1">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger1"
-                                                    aria-controls="test-l-1" aria-selected="true">
-                                                <span class="bs-stepper-circle">1</span>
-                                                <span class="bs-stepper-label">Management information</span>
-                                            </button>
-                                        </div>
-                                        <div class="bs-stepper-line"></div>
-                                        <div class="step" data-target="#test-l-2">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger2"
-                                                    aria-controls="test-l-2" aria-selected="false" disabled="disabled">
-                                                <span class="bs-stepper-circle">2</span>
-                                                <span class="bs-stepper-label">Group location</span>
-                                            </button>
-                                        </div>
-                                        <div class="bs-stepper-line"></div>
-                                        <div class="step" data-target="#test-l-3">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger3"
-                                                    aria-controls="test-l-3" aria-selected="false" disabled="disabled">
-                                                <span class="bs-stepper-circle">3</span>
-                                                <span class="bs-stepper-label">Communication settings</span>
-                                            </button>
-                                        </div>
-                                        <div class="bs-stepper-line"></div>
-                                        <div class="step" data-target="#test-l-4">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger4"
-                                                    aria-controls="test-l-4" aria-selected="false" disabled="disabled">
-                                                <span class="bs-stepper-circle">4</span>
-                                                <span class="bs-stepper-label">Protocol settings</span>
-                                            </button>
-                                        </div>
+                            <div class="card-body ed-cq">
+                                <div class="ed-grid ed-dev-grid">
+                                    <div class="ed-wide ed-name">
+                                        <label class="form-label" for="name">Name</label>
+                                        <input type="text" class="form-control" id="name"
+                                               placeholder="Displayed name for device">
+                                        <div class="ed-status" id="name-status"></div>
                                     </div>
-                                    <div class="bs-stepper-content">
-                                        <form onsubmit="return false">
-                                            <div id="test-l-1" role="tabpanel"
-                                                 class="bs-stepper-pane active dstepper-block"
-                                                 aria-labelledby="stepper1trigger1">
-                                                <input id="devId" type="hidden"/>
-                                                <div class="form-group">
-                                                    <label for="name">Device name</label>
-                                                    <input type="text" class="form-control form-control-border"
-                                                           id="name" placeholder="Displayed name for device">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="enabled">Initial state</label>
-                                                    <select class="custom-select form-control-border" id="enabled">
-                                                        <option value="1">Enabled</option>
-                                                        <option value="0">Disabled</option>
-                                                    </select>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="log">Packet log</label>
-                                                    <select class="custom-select form-control-border" id="log">
-                                                        <option value="1">Enabled</option>
-                                                        <option value="0" selected="selected">Disabled</option>
-                                                    </select>
-                                                </div>
-                                                <button class="btn btn-primary" onclick="validatePanel1()">Next</button>
-                                            </div>
-                                            <div id="test-l-2" role="tabpanel" class="bs-stepper-pane"
-                                                 aria-labelledby="stepper1trigger2">
-                                                <div class="form-group">
-                                                    <div id="tree-container"></div>
-                                                </div>
-                                                <button class="btn btn-primary" onclick="stepper.previous()">Previous
-                                                </button>
-                                                <button class="btn btn-primary" onclick="validatePanel2()">Next</button>
-                                            </div>
-                                            <div id="test-l-3" role="tabpanel" class="bs-stepper-pane"
-                                                 aria-labelledby="stepper1trigger3">
-                                                <div class="form-group">
-                                                    <label for="transport">Transport</label>
-                                                    <select class="custom-select form-control-border" id="transport" oninput="onTransportChange()">
-                                                        <option value="TCP">TCP</option>
-                                                        <option value="UDP">UDP</option>
-                                                    </select>
-                                                    <label for="protocol">Protocol</label>
-                                                    <select class="custom-select form-control-border" id="protocol" oninput="onProtocolChange()">
-                                                        <option value="GENERIC">Generic</option>
-                                                        <option value="MODBUS">Modbus</option>
-                                                        <option value="XGT_PLC">LSIS-XGT</option>
-                                                        <option value="DAEYUN_RCU">MK RCU</option>
-                                                        <option value="SNMP">SNMP</option>
-                                                        <option value="BACNET">BACnet</option>
-                                                        <option value="OPC_AGENT">MK OPC Agent</option>
-                                                        <option value="DB">DB</option>
-                                                        <option value="ETHERNET_IP">Ethernet/IP</option>
-                                                    </select>
-                                                    <div class="form-group" id="hostFormGroup">
-                                                        <label for="host">Host</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="host" placeholder="Binding host for device">
-                                                    </div>
-                                                    <div class="form-group" id="portFormGroup">
-                                                        <label for="port">Port</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="port" placeholder="Binding port for device" oninput="this.value|=0"/>
-                                                    </div>
-                                                </div>
-                                                <button class="btn btn-primary" onclick="stepper.previous()">Previous
-                                                </button>
-                                                <button class="btn btn-primary" onclick="validatePanel3()">Next</button>
-                                            </div>
-                                            <div id="test-l-4" role="tabpanel" class="bs-stepper-pane"
-                                                 aria-labelledby="stepper1trigger4">
-                                                <div id="formGeneric" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="rxJson">Packet parser descriptor(RX for device)</label>
-                                                        <div id="rxJson"></div>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="txJson">Packet generator descriptor(TX for device)</label>
-                                                        <div id="txJson"></div>
-                                                    </div>
-
-                                                </div>
-                                                <div id="formModbus" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="uid">Unit ID</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="uid" placeholder="Unit ID for modbus device" oninput="this.value|=0">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="packetType">Packet Type</label>
-                                                        <select class="custom-select form-control-border"
-                                                                id="packetType">
-                                                            <option value="0">Modbus-RTU</option>
-                                                            <option value="1">Modbus-TCP</option>
-                                                        </select>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="registers1">Registers</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="registers1" placeholder="Registers count for Modbus device" oninput="this.value|=0">
-                                                    </div>
-                                                </div>
-                                                <div id="formLSISXGT" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="cpuid">CPU ID</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="cpuid" placeholder="CPU ID for PLC device" oninput="this.value|=0">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="blocksize">Max block size</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="blocksize"
-                                                               placeholder="Max size per block read request" oninput="this.value|=0">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="registers2">Registers</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="registers2" placeholder="Registers count for XGT device" oninput="this.value|=0">
-                                                    </div>
-                                                </div>
-                                                <div id="formMKRCU" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="cpuAddr">CPU Address</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="cpuAddr" placeholder="CPU Address for MK RCU" oninput="this.value|=0">
-                                                    </div>
-                                                    <label for="diCount">DI Channels</label>
-                                                    <div class="slider-green">
-                                                        <input id="diCount" data-slider-id='diCount' type="text"
-                                                               data-slider-min="1" data-slider-max="32"
-                                                               data-slider-step="1" data-slider-value="8"/>
-                                                    </div>
-                                                    <label for="doCount">DO Channels</label>
-                                                    <div class="slider-green">
-                                                        <input id="doCount" data-slider-id='doCount' type="text"
-                                                               data-slider-min="1" data-slider-max="32"
-                                                               data-slider-step="1" data-slider-value="8"/>
-                                                    </div>
-                                                    <label for="aiCount">AI Channels</label>
-                                                    <div class="slider-green">
-                                                        <input id="aiCount" data-slider-id='aiCount' type="text"
-                                                               data-slider-min="1" data-slider-max="8"
-                                                               data-slider-step="1" data-slider-value="4"/>
-                                                    </div>
-                                                    <!--label for="rsCount">RS Channels</label>
-                                                    <div class="slider-green">
-                                                        <input id="rsCount" data-slider-id='rsCount' type="text"
-                                                               data-slider-min="1" data-slider-max="1"
-                                                               data-slider-step="1" data-slider-value="1"/>
-                                                    </div-->
-                                                    <div class="form-group">
-                                                        <label for="rxJsonRCU">Packet parser descripter(RX for device)</label>
-                                                        <div id="rxJsonRCU"></div>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="txJsonRCU">Packet generator descripter(TX for device)</label>
-                                                        <div id="txJsonRCU"></div>
-                                                    </div>
-                                                </div>
-                                                <div id="formSNMP" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="snmpVersion">SNMP Version</label>
-                                                        <select class="custom-select form-control-border"
-                                                                id="snmpVersion">
-                                                            <option value="0">SNMPv1</option>
-                                                            <option value="1">SNMPv2</option>
-                                                            <!--option value="2">SNMPv3</option-->
-                                                        </select>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="getCommunity">Get community</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="getCommunity"
-                                                               placeholder="Community string for snmp read">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="setCommunity">Set community</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="setCommunity"
-                                                               placeholder="Community string for snmp write">
-                                                    </div>
-                                                </div>
-                                                <div id="formBACnet" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="deviceInstanceId">BACnet local device number</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="deviceInstanceId"
-                                                               placeholder="Instance number of BACnet local device" oninput="this.value|=0">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="broadcast">BACnet broadcast address</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="broadcast"
-                                                               placeholder="Broadcast address of BACnet network">
-                                                    </div>
-                                                </div>
-                                                <div id="formMKOPCAgent" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="agentTagsCount">Count of agent's tags</label>
-                                                        <input type="number" class="form-control form-control-border"
-                                                               id="agentTagsCount"
-                                                               placeholder="Tags count of OPC agent device" oninput="this.value|=0">
-                                                    </div>
-                                                </div>
-                                                <div id="formDB" style="display: none">
-                                                    <h4>Connection</h4>
-                                                    <div class="form-group">
-                                                        <label for="dbDriver">Driver</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="dbDriver"
-                                                               placeholder="JDBC driver class name for connection">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="dbUrl">URL</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="dbUrl"
-                                                               placeholder="JDBC URL for connection">
-                                                    </div>
-                                                    <h4>Credential</h4>
-                                                    <div class="form-group">
-                                                        <label for="dbUsername">Username</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="dbUsername"
-                                                               placeholder="Username for access database server">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="dbPassword">Password</label>
-                                                        <input type="password" class="form-control form-control-border"
-                                                               id="dbPassword"
-                                                               placeholder="Password for access database server">
-                                                    </div>
-                                                    <h4>Database</h4>
-                                                    <div class="form-group">
-                                                        <label for="dbDatabase">Database name</label>
-                                                        <input type="text" class="form-control form-control-border"
-                                                               id="dbDatabase"
-                                                               placeholder="Database name to access">
-                                                    </div>
-                                                </div>
-                                                <div id="formEthernetIP" style="display: none">
-                                                    <div class="form-group">
-                                                        <label for="cpuSlot">CPU slot number</label>
-                                                        <input type="number" class="form-control form-control-border" id="cpuSlot" placeholder="CPU slot number in backplane" oninput="this.value|=0">
-                                                    </div>
-                                                </div>
-                                                <button class="btn btn-primary mt-5" onclick="stepper.previous()">
-                                                    Previous
-                                                </button>
-                                                <button class="btn btn-primary mt-5" onclick="addDevice()">Submit
-                                                </button>
-                                            </div>
-                                        </form>
+                                    <div>
+                                        <label class="form-label" for="enabled">Initial state</label>
+                                        <select class="form-select" id="enabled">
+                                            <option value="1">Enabled</option>
+                                            <option value="0">Disabled</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="log">Packet log</label>
+                                        <select class="form-select" id="log">
+                                            <option value="1">Enabled</option>
+                                            <option value="0" selected>Disabled</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
-                            <!-- /.card-body -->
                         </div>
-                        <!-- /.card -->
-                    </div>
-                </div>
-                <!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </section>
-        <!-- /.content -->
-    </div>
-    <!-- /.content-wrapper -->
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 1.0.1
-        </div>
-    </footer>
-</div>
-<!-- ./wrapper -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../js/adminlte.js"></script>
-<script src="../../js/jstree.min.js"></script>
-<!-- BS-Stepper -->
-<script src="../../plugins/bs-stepper/js/bs-stepper.min.js"></script>
-<!-- JSON Editor -->
-<script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
-<!-- Bootstrap slider -->
-<script src="../../plugins/bootstrap-slider/bootstrap-slider.min.js"></script>
+                        <div class="card cts-card ed-grow" id="group-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Group<span class="ed-sub" id="group-path"></span></h3>
+                                <div class="card-actions">
+                                    <input id="group-search" type="search" class="form-control form-control-sm ed-search"
+                                           placeholder="Search groups...">
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="group-tree"></div>
+                            </div>
+                        </div>
+
+                        <div class="card cts-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Connection<span class="ed-sub" id="protocol-hint"></span></h3>
+                            </div>
+                            <div class="card-body ed-cq">
+                                <div class="ed-grid ed-conn-grid">
+                                    <div>
+                                        <label class="form-label" for="protocol">Protocol</label>
+                                        <select class="form-select" id="protocol"></select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="transport">Transport</label>
+                                        <select class="form-select" id="transport"></select>
+                                    </div>
+                                    <div id="host-cell">
+                                        <label class="form-label" for="host">Host</label>
+                                        <input type="text" class="form-control" id="host"
+                                               placeholder="Binding host for device">
+                                    </div>
+                                    <div id="port-cell">
+                                        <label class="form-label" for="port">Port</label>
+                                        <input type="text" class="form-control" id="port" inputmode="numeric"
+                                               placeholder="Port">
+                                    </div>
+                                    <div class="ed-status ed-wide" id="endpoint-status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 어떻게 말하는가 -->
+                    <div class="ed-col">
+                        <div class="card cts-card" id="settings-card">
+                            <div class="card-header">
+                                <h3 class="card-title" id="proto-title"></h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="ed-note" id="proto-note"></div>
+
+                                <th:block th:replace="~{fragments/device-form :: settings}"></th:block>
+                            </div>
+                        </div>
+
+                        <th:block th:replace="~{fragments/device-form :: definition-card}"></th:block>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<th:block th:replace="~{fragments/tabler :: tree-scripts}"></th:block>
+<script src="/js/cts-range.js"></script>
+<script src="/js/cts-datatypes.js"></script>
+<script src="/js/cts-datatype-picker.js"></script>
+<script src="/js/TypedBuffer.js"></script>
+<script src="/js/cts-device-form.js"></script>
+<script src="/js/cts-definition-card.js"></script>
 </body>
 </html>

@@ -1,149 +1,93 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MK119 CTS</title>
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <link rel="stylesheet" href="../../css/cts-common.css">
-    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
-    <link rel="stylesheet" href="../../css/testplan.css">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <title>MK119 CTS — Batch Add Test Plans</title>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <!-- testplan.css 의 .cts-tabulator 는 뒤에 오는 cts-table.css 가 Tabler 색으로 덮는다 (testplans 와 같다) -->
+    <link rel="stylesheet" href="/css/testplan.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
+    <link rel="stylesheet" href="/css/cts-batch.css">
     <style>
-        html, body { overflow: hidden; height: 100vh; margin: 0; }
-        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; overflow: hidden; }
-        .main-header, .main-footer { flex-shrink: 0; }
-        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
-        .content-wrapper > section.content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
-        .batch-root { display: flex; flex-direction: column; height: 100%; padding: 0 1.5rem 1.5rem 1.5rem; gap: 10px; min-height: 0; }
-        .batch-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .batch-panes { flex: 1 1 auto; min-height: 0; display: grid; gap: 10px; grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        /* 가로로 길면 좌(시트 목록) · 우(시트 내용), 세로로 길면 위아래 */
+        .cts-batch-panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 2fr); }
         @media (orientation: landscape) {
-            .batch-panes { grid-template-columns: minmax(260px, 0.6fr) minmax(0, 1.6fr); grid-template-rows: 1fr; }
+            .cts-batch-panes { grid-template-columns: minmax(260px, 0.6fr) minmax(0, 1.6fr); grid-template-rows: minmax(0, 1fr); }
         }
-        .status-bar { font-size: .85rem; color: #6c757d; }
-        .status-bar.bad { color: #b42318; }
-        .status-bar.ok { color: #1e7b3b; }
-        .file-issues { color: #b42318; font-size: .85rem; }
-        .error-chip { color: #b42318; font-size: .8rem; white-space: normal; word-break: break-word; }
-        .warn-chip { color: #8a5a00; font-size: .8rem; white-space: normal; }
-        .cts-tabulator .tabulator-row.row-error { background-color: #fdecea !important; }
-        .cts-tabulator .tabulator-row.tp-current { background-color: #d6e8ff !important; }
+        .cts-batch-panes .card-body { display: flex; flex-direction: column; }
+        .cts-tabulator .tabulator-row.tp-current { background-color: var(--tblr-primary-lt) !important; }
         .tl-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
-        .tl-head h6 { margin: 0; font-size: 11px; font-weight: 700; color: #495057; text-transform: uppercase; letter-spacing: .04em; }
+        .tl-head h6 { margin: 0; font-size: 11px; font-weight: 700; color: var(--tblr-secondary); text-transform: uppercase; letter-spacing: .04em; }
         #timeline.tpt { height: 220px; flex: 0 0 auto; }
-        #rowTable { border-top: 1px solid #dee2e6 !important; }
+        #rowTable { border-top: 1px solid var(--tblr-border-color) !important; }
+        /* 두 표는 칸의 남는 높이를 채운다. Tabulator 가 박는 height:100% 를 무시해야 위의 타임라인을 빼고 채운다 */
+        #sheetTable, #rowTable { flex: 1 1 0; min-height: 0; height: auto !important; }
         #rowTable .tabulator-cell.tabulator-editable { cursor: text; }
-        #busyOverlay { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .45); align-items: center; justify-content: center; }
-        #busyOverlay.show { display: flex; }
-        #busyOverlay .busy-box { background: #fff; border-radius: 6px; padding: 24px 32px; display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 260px; }
-        #busyOverlay .spinner { width: 42px; height: 42px; border-radius: 50%; border: 4px solid #e9ecef; border-top-color: #007bff; animation: busySpin .8s linear infinite; }
-        @keyframes busySpin { to { transform: rotate(360deg); } }
+        /* 시트 전체에 걸린 문제는 카드 제목 옆에 붙인다. 제목처럼 대문자로 바꾸지 않는다 */
+        #rowsTitle .error-chip { text-transform: none; }
     </style>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
-<div id="busyOverlay"><div class="busy-box"><div class="spinner"></div><div id="busyText">Registering…</div></div></div>
-<div class="wrapper">
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
-            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
-        </ul>
-    </nav>
+<body>
+<th:block th:replace="~{fragments/tabler :: busy-overlay}"></th:block>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('testplans')}"></th:block>
 
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <div class="sidebar">
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
-                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
-                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
-                    <li class="nav-item"><a href="/testplans" class="nav-link active"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
-                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
-                </ul>
-            </nav>
+    <th:block th:replace="~{fragments/tabler :: navbar('Batch Add Test Plans', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list align-items-center">
+            <span class="cts-batch-status" id="statusLine">No file loaded.</span>
+            <button type="button" class="btn btn-outline-secondary" onclick="$('#excelFile').click()"><i class="fas fa-file-excel"></i> Choose Excel</button>
+            <a class="btn btn-outline-secondary" href="/testplans" onclick="sessionStorage.removeItem(BATCH_KEY)">Cancel</a>
+            <button type="button" id="registerBtn" class="btn btn-primary" disabled onclick="doRegister()">Register</button>
         </div>
-    </aside>
-
-    <div class="content-wrapper">
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6"><h1 class="m-0">Import Test Plans</h1></div>
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="/">Home</a></li>
-                            <li class="breadcrumb-item"><a href="/testplans">Test Plans</a></li>
-                            <li class="breadcrumb-item active">Import</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section class="content">
-            <div class="batch-root">
-                <div class="batch-toolbar">
-                    <input type="file" id="excelFile" accept=".xlsx" style="display:none">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="$('#excelFile').click()"><i class="fas fa-file-excel"></i> Choose Excel</button>
-                    <button type="button" id="registerBtn" class="btn btn-primary btn-sm" disabled onclick="doRegister()"><i class="fas fa-check"></i> Register</button>
-                    <a class="btn btn-outline-secondary btn-sm" href="/testplans" onclick="sessionStorage.removeItem(BATCH_KEY)"><i class="fas fa-times"></i> Cancel</a>
-                    <span class="status-bar ml-2" id="statusLine">No file loaded.</span>
-                </div>
-                <div class="file-issues" id="fileIssues"></div>
-                <div class="batch-panes">
-                    <div class="cts-panel">
-                        <div class="cts-panel-header"><h3 class="cts-panel-title">Plan list</h3></div>
-                        <div class="cts-panel-body"><div id="sheetTable" class="cts-tabulator"></div></div>
-                    </div>
-                    <div class="cts-panel">
-                        <div class="cts-panel-header"><h3 class="cts-panel-title" id="rowsTitle">Plan</h3></div>
-                        <div class="cts-panel-body">
-                            <div class="tl-head">
-                                <h6>Timeline</h6>
-                                <div class="tpt-legend ml-2">
-                                    <span><i class="lg-lock"></i>Locked</span>
-                                    <span><i class="lg-hold"></i>Written, not locked</span>
-                                    <span><i class="lg-cut"></i>Overwritten</span>
-                                    <span><i class="lg-stop"></i>Stop on failure</span>
-                                </div>
-                                <div class="ml-auto btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary" data-zoom="0.5" title="Zoom out"><i class="fas fa-minus"></i></button>
-                                    <button class="btn btn-outline-secondary" data-zoom="fit">Fit</button>
-                                    <button class="btn btn-outline-secondary" data-zoom="2" title="Zoom in"><i class="fas fa-plus"></i></button>
-                                </div>
-                            </div>
-                            <div id="timeline"></div>
-                            <div class="tl-head">
-                                <h6>Actions</h6>
-                                <span class="text-muted small ml-auto">Row numbers are the Excel rows. Blank rows are skipped. Click a cell to fix it here.</span>
-                            </div>
-                            <div id="rowTable" class="cts-tabulator"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
     </div>
 
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
-    </footer>
+    <div class="page-wrapper">
+        <div class="page-body">
+            <input type="file" id="excelFile" accept=".xlsx" style="display:none">
+            <div class="alert alert-danger cts-batch-issues" id="fileIssues" hidden></div>
+            <div class="cts-batch-panes">
+                <div class="card cts-card">
+                    <div class="card-header"><h3 class="card-title">Plan list</h3></div>
+                    <div class="card-body p-0"><div id="sheetTable" class="cts-tabulator"></div></div>
+                </div>
+                <div class="card cts-card">
+                    <div class="card-header"><h3 class="card-title" id="rowsTitle">Plan</h3></div>
+                    <div class="card-body p-0">
+                        <div class="tl-head">
+                            <h6>Timeline</h6>
+                            <div class="tpt-legend ms-2">
+                                <span><i class="lg-lock"></i>Locked</span>
+                                <span><i class="lg-hold"></i>Written, not locked</span>
+                                <span><i class="lg-cut"></i>Overwritten</span>
+                                <span><i class="lg-stop"></i>Stop on failure</span>
+                            </div>
+                            <div class="ms-auto btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" data-zoom="0.5" title="Zoom out"><i class="fas fa-minus"></i></button>
+                                <button class="btn btn-outline-secondary" data-zoom="fit">Fit</button>
+                                <button class="btn btn-outline-secondary" data-zoom="2" title="Zoom in"><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+                        <div id="timeline"></div>
+                        <div class="tl-head">
+                            <h6>Actions</h6>
+                            <span class="text-secondary small ms-auto">Row numbers are the Excel rows. Blank rows are skipped. Click a cell to fix it here.</span>
+                        </div>
+                        <div id="rowTable" class="cts-tabulator"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../../js/adminlte.js"></script>
-<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
-<script src="../../js/cts-table.js"></script>
-<script src="../../js/xlsx.full.min.js"></script>
-<script src="../../js/testplan-timeline.js"></script>
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script src="/js/xlsx.full.min.js"></script>
+<script src="/js/testplan-timeline.js"></script>
 <script>
     const BATCH_KEY = 'batchAddTestPlans';
     const COLUMNS = ['RunAtSeconds', 'Device', 'Target', 'Value', 'DataType', 'LockSeconds', 'StopOnFailure'];
@@ -174,34 +118,44 @@
         return out;
     }
 
+    // 기준 행 높이. 실제 높이는 CtsTable 이 표 높이를 나눠떨어지게 조금 늘린다
+    const ROW_H = 36;
+
     function init() {
         sheetTable = new Tabulator('#sheetTable', {
-            data: [], layout: 'fitData', height: '100%', placeholder: 'No sheets.',
+            data: [], layout: 'fitData', height: '100%', renderVertical: 'basic',
+            pagination: true, paginationSize: 10, paginationButtonCount: 3, placeholder: 'No sheets.',
             rowFormatter: r => r.getElement().classList.toggle('tp-current', r.getData().index === current),
-            columns: [
-                { title: 'Plan name (sheet)', field: 'name', minWidth: 120, editor: 'input' },
-                { title: 'Actions', field: 'actions', width: 80, hozAlign: 'right' },
-                { title: 'Status', field: 'status', width: 110, formatter: c => c.getValue() },
-            ]
+            columns: CtsTable.columns([
+                { title: 'Plan name (sheet)', field: 'name', kind: 'text', editor: 'input' },
+                { title: 'Actions', field: 'actions', kind: 'number' },
+                { title: 'Status', field: 'status', kind: 'text', formatter: c => c.getValue() },
+            ])
         });
         sheetTable.on('rowClick', (e, r) => showSheet(r.getData().index));
-        CtsTable.enhanceResize(sheetTable);
+        CtsTable.attach(sheetTable, { rowH: ROW_H });
         rowTable = new Tabulator('#rowTable', {
-            data: [], layout: 'fitData', height: '100%', placeholder: 'No actions in this sheet.',
+            data: [], layout: 'fitData', height: '100%', renderVertical: 'basic',
+            pagination: true, paginationSize: 10, placeholder: 'No actions in this sheet.',
             rowFormatter: r => r.getElement().classList.toggle('row-error', !!(r.getData().errors || []).length),
-            columns: [
-                { title: 'Row', field: 'row', width: 60, hozAlign: 'right' },
-                { title: 'Run At (s)', field: 'RunAtSeconds', width: 90, hozAlign: 'right', editor: 'input' },
-                { title: 'Device', field: 'Device', minWidth: 110, editor: 'input' },
-                { title: 'Target', field: 'Target', width: 110, editor: 'input' },
-                { title: 'Value', field: 'Value', width: 80, hozAlign: 'right', editor: 'input' },
-                { title: 'DataType', field: 'DataType', width: 90, editor: 'input' },
-                { title: 'Lock', field: 'LockSeconds', width: 60, hozAlign: 'right', editor: 'input' },
-                { title: 'Stop on Failure', field: 'StopOnFailure', width: 120, formatter: c => boolText(c.getValue()),
+            columns: CtsTable.columns([
+                { title: 'Row', field: 'row', kind: 'number' },
+                { title: 'Run At (s)', field: 'RunAtSeconds', kind: 'number', editor: 'input' },
+                { title: 'Device', field: 'Device', kind: 'text', editor: 'input' },
+                { title: 'Target', field: 'Target', kind: 'text', editor: 'input' },
+                { title: 'Value', field: 'Value', kind: 'number', editor: 'input' },
+                { title: 'DataType', field: 'DataType', kind: 'text', editor: 'input' },
+                { title: 'Lock', field: 'LockSeconds', kind: 'number', editor: 'input' },
+                { title: 'Stop on Failure', field: 'StopOnFailure', kind: 'text', formatter: c => boolText(c.getValue()),
                   editor: 'list', editorParams: { values: { '': '(blank)', 'TRUE': 'TRUE', 'FALSE': 'FALSE' } } },
-                { title: 'Problem', field: 'errors', minWidth: 200, headerSort: false,
-                  formatter: c => (c.getValue() || []).map(e => '<div class="error-chip">' + esc(e.rule + ' ' + e.message) + '</div>').join('') }
-            ]
+                // 행 높이가 고정이라 한 줄로 잇는다. 하나씩 보려면 툴팁
+                { title: 'Problem', field: 'errors', kind: 'text', headerSort: false,
+                  tooltip: (e, c) => (c.getValue() || []).map(x => x.rule + ' ' + x.message).join('\n'),
+                  formatter: c => {
+                      const list = c.getValue() || [];
+                      return list.length ? '<span class="error-chip">' + list.map(x => esc(x.rule + ' ' + x.message)).join(' · ') + '</span>' : '';
+                  } }
+            ])
         });
         // Tabulator v6 는 cellEdited 를 생성자 옵션으로 주면 무시한다
         sheetTable.on('cellEdited', function (cell) {
@@ -213,7 +167,7 @@
             writeBack(cell.getRow().getData(), cell.getField(), cell.getValue());
             changed();
         });
-        CtsTable.enhanceResize(rowTable);
+        CtsTable.attach(rowTable, { rowH: ROW_H });
         timeline = TestPlanTimeline.create(document.getElementById('timeline'), { editable: false, onSelect: function () {} });
         $('[data-zoom]').on('click', function () {
             const z = $(this).data('zoom');
@@ -273,7 +227,7 @@
                 sessionStorage.setItem(BATCH_KEY, JSON.stringify(payload));
                 validate();
             } catch (err) {
-                $('#statusLine').attr('class', 'status-bar ml-2 bad').text('The file could not be read as an Excel workbook.');
+                $('#statusLine').attr('class', 'cts-batch-status bad').text('The file could not be read as an Excel workbook.');
             }
         };
         reader.readAsBinaryString(f);
@@ -282,18 +236,18 @@
 
     function validate() {
         const seq = ++validateSeq;
-        $('#statusLine').attr('class', 'status-bar ml-2').text('Checking ' + (payload.file || 'the file') + '…');
+        $('#statusLine').attr('class', 'cts-batch-status').text('Checking ' + (payload.file || 'the file') + '…');
         $.ajax({ url: '/api/testplans/validate', method: 'POST', contentType: 'application/json',
             data: JSON.stringify({ sheets: payload.sheets }) })
             .done(function (r) { if (seq === validateSeq) show(r); })
-            .fail(function () { if (seq === validateSeq) $('#statusLine').attr('class', 'status-bar ml-2 bad').text('The check failed. Try again.'); });
+            .fail(function () { if (seq === validateSeq) $('#statusLine').attr('class', 'cts-batch-status bad').text('The check failed. Try again.'); });
     }
 
     function show(r) {
         clearTimeout(pendingTimer);
         if (isEditing()) { pendingTimer = setTimeout(function () { show(r); }, 200); return; }
         result = r;
-        $('#fileIssues').html((r.errors || []).map(e => esc(e.rule + ' ' + e.message)).join('<br>'));
+        $('#fileIssues').html((r.errors || []).map(e => esc(e.rule + ' ' + e.message)).join('<br>')).prop('hidden', !(r.errors || []).length);
         const sheets = payload.sheets.map(function (s, i) {
             const o = (r.sheets || [])[i] || { errors: [], warnings: [] };
             const nErr = o.errors.length;
@@ -304,7 +258,7 @@
         sheetTable.replaceData(sheets);
         const bad = sheets.filter((s, i) => ((r.sheets || [])[i] || { errors: [] }).errors.length).length;
         $('#registerBtn').prop('disabled', !r.ok);
-        $('#statusLine').attr('class', 'status-bar ml-2 ' + (r.ok ? 'ok' : 'bad')).text(
+        $('#statusLine').attr('class', 'cts-batch-status ' + (r.ok ? 'ok' : 'bad')).text(
             (payload.file || 'File') + ': ' + sheets.length + ' sheet(s), ' + (r.ok ? 'ready to register.'
                 : (bad ? bad + ' with errors. Fix them in the table or choose the file again.' : 'the file has errors.')));
         showSheet(Math.min(current, Math.max(0, sheets.length - 1)));
@@ -324,7 +278,7 @@
         rows.forEach(x => x.errors = byRow[x.row] || []);
         const sheetLevel = o.errors.filter(e => !e.row || !rows.some(x => x.row === e.row));
         $('#rowsTitle').html(esc(sheet.name) + (sheetLevel.length
-            ? ' <span class="error-chip ml-2" style="text-transform:none">' + sheetLevel.map(e => esc(e.rule + ' ' + e.message)).join(' · ') + '</span>' : ''));
+            ? ' <span class="error-chip ms-2">' + sheetLevel.map(e => esc(e.rule + ' ' + e.message)).join(' · ') + '</span>' : ''));
         rowTable.replaceData(rows);
         drawTimeline(rows, badRows);
     }

@@ -1,0 +1,36 @@
+/*
+ * 검색되는 select (js/cts-select.js). 골격은 tom-select.bootstrap5.css, 색·테두리는 tabler-vendors.css 가 맡고
+ * 여기에는 이 프로젝트의 규칙만 둔다. 순서: tom-select.bootstrap5 → tabler-vendors → 이 파일.
+ */
+
+/* 컨트롤은 늘 한 줄. 고른 글이 길면 잘린다 (네이티브 select 와 같다) */
+.ts-wrapper.cts-ts.single .ts-control { flex-wrap: nowrap; }
+.ts-wrapper.cts-ts.single .ts-control > .item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 검색이 없는 컨트롤은 글을 치는 칸이 아니다 */
+.ts-wrapper.cts-ts.single .ts-control { cursor: pointer; }
+
+/* 작은 칸(form-select-sm) — 같은 줄의 form-control-sm 과 높이가 같게 */
+.ts-wrapper.cts-ts-sm .ts-control {
+    min-height: 0;
+    padding-top: var(--tblr-btn-input-sm-padding-y, .125rem);
+    padding-bottom: var(--tblr-btn-input-sm-padding-y, .125rem);
+    font-size: var(--tblr-btn-input-sm-font-size, .75rem);
+    line-height: var(--tblr-btn-input-sm-line-height, 1.5);
+}
+.ts-wrapper.cts-ts-sm { min-height: 0; }
+
+/* 드롭다운: 칸보다 좁지 않고(js 가 min-width), 글이 길면 그만큼, 화면을 넘지 않는다 */
+.ts-dropdown.cts-ts-dropdown {
+    width: auto !important;
+    max-width: min(480px, calc(100vw - 16px));
+    z-index: 1090;
+    font-size: .8125rem;
+}
+.ts-dropdown.cts-ts-dropdown .option { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ts-dropdown.cts-ts-dropdown .optgroup-header { font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--tblr-secondary); }
+.ts-dropdown.cts-ts-dropdown .dropdown-input { font-size: .8125rem; }
+
+/* Tabulator 칸 편집기: 칸을 꽉 채운다 */
+.tabulator-cell .ts-wrapper.cts-ts-cell { height: 100%; display: flex; align-items: center; }
+.tabulator-cell .ts-wrapper.cts-ts-cell .ts-control { width: 100%; }

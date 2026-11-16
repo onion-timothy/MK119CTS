@@ -1,27 +1,23 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MK119 CTS</title>
 
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <link rel="stylesheet" href="../../css/cts-common.css">
-    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
-    <link rel="stylesheet" href="../../css/testplan.css">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <!-- testplan.css 는 아직 AdminLTE 화면들과 공유한다. 겹치는 .cts-tabulator 는
+         뒤에 오는 cts-table.css 가 Tabler 색으로 덮게 둔다 -->
+    <link rel="stylesheet" href="/css/testplan.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
 
     <style>
-        html, body { overflow: hidden; height: 100vh; }
-        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
-        .main-header, .main-footer { flex-shrink: 0; }
-        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
-        .content-header { flex-shrink: 0; }
-        .content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
         /* 가로로 긴 화면: 좌(목록) · 우(세부). 세로로 긴 화면: 상(목록) · 하(세부). */
         /* 좌우는 AdminLTE 의 .content 좌우 .5rem + 1rem = 1.5rem. 하단도 같게 1.5rem 을 둔다 */
-        .tp-split { flex: 1 1 auto; min-height: 0; display: flex; gap: 1rem; padding: 0 1rem 1.5rem 1rem; }
+        .tp-split { flex: 1 1 auto; min-height: 0; display: flex; gap: var(--cts-page-gap); }
         .tp-list { flex: 0 0 440px; min-width: 0; container-type: inline-size; container-name: tplist; }
         .tp-detail { flex: 1 1 auto; min-width: 0; }
         @media (orientation: portrait) {
@@ -30,9 +26,17 @@
             .tp-detail { flex: 1 1 auto; min-height: 0; }
         }
 
-        .tp-detail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px; display: flex;
+        /*
+         * 세부 영역은 카드 본문 높이를 다 쓴다(아래가 비지도, 넘쳐 스크롤되지도 않게). 가로·세로 같다.
+         *   윗줄: Status · Schedule · Summary 를 한 줄로
+         *   아랫줄: 남는 높이는 모두 Run history
+         * Timeline 은 편집기에서만 보인다. 아주 낮은 화면에서 최소 높이를 못 채우면 그때만 스크롤한다.
+         */
+        .tp-detail > .card-body { display: flex; flex-direction: column; }
+        .tp-detail-body { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 10px; display: flex;
             flex-direction: column; gap: 10px; }
-        .tp-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+        .tp-history-section { flex: 1 1 0; min-height: 180px; }
+        .tp-facts { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
         .tp-fact { border: 1px solid #eef0f2; border-radius: 4px; padding: 8px 10px; background: #fcfcfd; }
         .tp-fact h6 { font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 6px 0; }
         .tp-fact .tp-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 1px 0; }
@@ -43,9 +47,7 @@
         .tp-section > header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #eef0f2; }
         .tp-section > header h6 { font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase;
             letter-spacing: 0.03em; margin: 0; }
-        .tp-timeline-section .tpt { height: 260px; flex: 0 0 auto; }
-        .tp-history-section #historyTable { height: 220px; }
-        .tp-placeholder { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; color: #adb5bd; }
+        /* 비었을 때의 한 줄은 .cts-empty (css/cts-empty.css) 가 맡는다 */
         .tp-actions .btn { white-space: nowrap; }
         .cts-tabulator .tabulator-row.tp-current { background-color: #d6e8ff !important; }
         @media (max-width: 900px) { .tp-actions .btn-text { display: none; } }
@@ -70,85 +72,50 @@
         .cts-tabulator .tabulator-footer .tabulator-page.disabled { opacity: 0.4; }
     </style>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a></li>
-            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
-        </ul>
-        <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-                <a class="nav-link" href="javascript:downloadTemplate()" role="button" title="Download an empty Excel template">
-                    <i class="fas fa-file-excel"></i>
-                </a>
-            </li>
-            <li class="nav-item"><a class="nav-link" data-widget="fullscreen" href="#" role="button"><i class="fas fa-expand-arrows-alt"></i></a></li>
-        </ul>
-    </nav>
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('testplans')}"></th:block>
 
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <div class="sidebar">
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                    <li class="nav-item"><a href="/" class="nav-link"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
-                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
-                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
-                    <li class="nav-item"><a href="/testplans" class="nav-link active"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
-                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
-                </ul>
-            </nav>
+    <th:block th:replace="~{fragments/tabler :: navbar('Test Plans', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list">
+            <button type="button" class="btn btn-sm" onclick="downloadTemplate()" title="Download an empty Excel template">
+                <i class="fas fa-file-excel"></i> Template
+            </button>
         </div>
-    </aside>
+    </div>
 
-    <div class="content-wrapper">
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6"><h1 class="m-0">Test Plans</h1></div>
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="/">Home</a></li>
-                            <li class="breadcrumb-item active">Test Plans</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section class="content">
+    <div class="page-wrapper">
+        <div class="page-body">
             <input type="file" id="excelFile" accept=".xlsx" style="display:none">
             <div class="tp-split">
                 <!-- 목록 -->
-                <div class="cts-panel tp-list">
-                    <div class="cts-panel-header">
-                        <h3 class="cts-panel-title">Plans</h3>
-                        <div class="cts-panel-tools tp-list-tools">
+                <div class="card cts-card tp-list">
+                    <div class="card-header">
+                        <h3 class="card-title">Plans</h3>
+                        <div class="card-actions ms-auto tp-list-tools">
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-action="export" title="Export the checked plans to the Excel template">
                                 <i class="fas fa-file-export"></i> <span class="btn-text">Export</span></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete the checked plans">
                                 <i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
-                            <select id="planSearchField" class="form-control form-control-sm" style="width:auto;">
+                            <select id="planSearchField" class="form-select form-select-sm" style="width:auto;">
                                 <option value="name">Name</option>
                                 <option value="state">State</option>
                             </select>
                             <input id="planSearchInput" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:140px; min-width:0;">
                         </div>
                     </div>
-                    <div class="cts-panel-body">
+                    <div class="card-body p-0">
                         <div id="planTable" class="cts-tabulator"></div>
                     </div>
                 </div>
 
                 <!-- 세부 -->
-                <div class="cts-panel tp-detail">
-                    <div class="cts-panel-header">
-                        <h3 class="cts-panel-title" id="detailTitle">Select a plan</h3>
-                        <div class="cts-panel-tools tp-actions" id="detailTools" style="display:none">
+                <div class="card cts-card tp-detail">
+                    <div class="card-header">
+                        <h3 class="card-title" id="detailTitle">Select a plan</h3>
+                        <div class="card-actions ms-auto tp-actions" id="detailTools" style="display:none">
                             <button class="btn btn-sm btn-success" id="runBtn" onclick="runPlan()"><i class="fas fa-play"></i> <span class="btn-text">Run</span></button>
                             <button class="btn btn-sm btn-outline-danger" id="stopBtn" onclick="stopPlan()"><i class="fas fa-stop"></i> <span class="btn-text">Stop</span></button>
                             <a class="btn btn-sm btn-outline-secondary" id="editBtn" href="#"><i class="fas fa-pen"></i> <span class="btn-text">Edit</span></a>
@@ -156,8 +123,8 @@
                             <button class="btn btn-sm btn-outline-danger" id="deleteBtn" onclick="deletePlan()"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
                         </div>
                     </div>
-                    <div class="cts-panel-body">
-                        <div class="tp-placeholder" id="detailEmpty">Select a plan on the list to see its details.</div>
+                    <div class="card-body p-0">
+                        <div class="cts-empty" id="detailEmpty">Select a plan on the list to see its details.</div>
                         <div class="tp-detail-body" id="detailBody" style="display:none">
                             <div class="tp-facts">
                                 <div class="tp-fact">
@@ -180,70 +147,47 @@
                                     <div class="tp-row"><span>Duration</span><span id="sumDuration">—</span></div>
                                 </div>
                             </div>
-                            <div class="tp-section tp-timeline-section">
-                                <header>
-                                    <h6>Timeline</h6>
-                                    <div class="tpt-legend ml-3">
-                                        <span><i class="lg-lock"></i>Locked</span>
-                                        <span><i class="lg-hold"></i>Written, not locked</span>
-                                        <span><i class="lg-cut"></i>Overwritten</span>
-                                        <span><i class="lg-stop"></i>Stop on failure</span>
-                                        <span><i class="lg-play"></i>Now</span>
-                                    </div>
-                                    <div class="ml-auto btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary" data-zoom="0.5" title="Zoom out"><i class="fas fa-minus"></i></button>
-                                        <button class="btn btn-outline-secondary" data-zoom="fit">Fit</button>
-                                        <button class="btn btn-outline-secondary" data-zoom="2" title="Zoom in"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                </header>
-                                <div id="timeline"></div>
-                            </div>
                             <div class="tp-section tp-history-section">
                                 <header><h6>Run history</h6><span class="text-muted small ml-2">latest 50 · click a run for its actions</span></header>
-                                <div id="historyTable" class="cts-tabulator"></div>
+                                <div id="historyTable" class="cts-tabulator cts-fill"></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+        <!-- /.page-body -->
 
         <!-- 실행 1회의 Action 결과 -->
-        <div class="modal fade" id="runModal" tabindex="-1" role="dialog" aria-hidden="true">
-            <div class="modal-dialog modal-xl" role="document">
+        <div class="modal fade" id="runModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="runModalTitle">Run</h5>
-                        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-0"><div id="runActionsTable" class="cts-tabulator" style="height:420px"></div></div>
                 </div>
             </div>
         </div>
     </div>
-
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block"><b>Version</b> 1.0.1</div>
-    </footer>
+    <!-- /.page-wrapper -->
 </div>
+<!-- /.page -->
 
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../../js/adminlte.js"></script>
-<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
-<script src="../../js/cts-table.js"></script>
-<script src="../../js/xlsx.full.min.js"></script>
-<script src="../../js/testplan-timeline.js"></script>
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script src="/js/xlsx.full.min.js"></script>
+<script src="/js/testplan-timeline.js"></script>
 <script th:inline="javascript">
     const SELECTED_ON_LOAD = /*[[${selectedPlan}]]*/ null;
     const BATCH_KEY = 'batchAddTestPlans';
     const COLUMNS = ['RunAtSeconds', 'Device', 'Target', 'Value', 'DataType', 'LockSeconds', 'StopOnFailure'];
     const SCHEDULE_LABEL = { NONE: 'Manual only', SECOND: 'Every minute', MINUTE: 'Every hour', HOUR: 'Every day', INTERVAL: 'Interval' };
 
-    let planTable, historyTable, runActionsTable, timeline;
-    let plans = [], selectedId = null, detail = null, detailModel = null, statuses = {};
+    let planTable, historyTable, runActionsTable;
+    let plans = [], selectedId = null, detail = null, statuses = {};
     const checked = new Set();
     let planSelectAllBox = null;
 
@@ -296,12 +240,12 @@
     function initPlanTable() {
         // Export 할 Plan 은 체크박스로 고른다. 행 클릭은 세부 보기다 — Tabulator 의 행 선택을 쓰면 둘이 섞인다
         planTable = new Tabulator('#planTable', {
-            data: [], index: 'id', layout: 'fitData', height: '100%',
+            data: [], index: 'id', layout: 'fitData', height: '100%', renderVertical: 'basic',
             pagination: true, paginationSize: 10, paginationButtonCount: 3,
             placeholder: 'No test plans yet. Create one or import an Excel file.',
             rowFormatter: function (row) { row.getElement().classList.toggle('tp-current', row.getData().id === selectedId); },
-            columns: [
-                { field: 'id', hozAlign: 'center', headerHozAlign: 'center', headerSort: false, width: 36, title: '', resizable: false,
+            columns: CtsTable.columns([
+                { field: 'id', kind: 'action', headerSort: false, width: 36, title: '', resizable: false,
                   // 머리글의 Select all: 검색에 걸린 Plan 이 전부 체크면 비우고, 아니면 전부 체크한다.
                   titleFormatter: function (cell, formatterParams, onRendered) {
                       planSelectAllBox = document.createElement('input');
@@ -326,10 +270,10 @@
                       cell.getRow().reformat();
                       syncPlanSelectAll();
                   } },
-                { title: 'Name', field: 'name', minWidth: 120 },
-                { title: 'State', field: 'id', width: 130, headerSort: false, formatter: c => stateHtml(c.getRow().getData()) },
-                { title: 'Next run', field: 'nextRunAt', width: 120, formatter: c => c.getValue() ? fmtDateTime(c.getValue()) : '<span class="text-muted">—</span>' }
-            ],
+                { title: 'Name', field: 'name', kind: 'text' },
+                { title: 'State', field: 'id', kind: 'text', headerSort: false, formatter: c => stateHtml(c.getRow().getData()) },
+                { title: 'Next run', field: 'nextRunAt', kind: 'text', formatter: c => c.getValue() ? fmtDateTime(c.getValue()) : '<span class="text-muted">—</span>' }
+            ]),
             rowContextMenu: [
                 { label: "<i class='fas fa-pen'></i> Edit plan",
                   action: function (e, row) {
@@ -343,12 +287,8 @@
         });
         planTable.on('rowClick', function (e, row) { select(row.getData().id); });
         planTable.on('dataFiltered', function () { setTimeout(syncPlanSelectAll); });
-        CtsTable.enhanceResize(planTable);
-        planTable.on('tableBuilt', function () {
-            injectPlanFooterButtons();
-            requestAnimationFrame(function () { requestAnimationFrame(fitPlanPageSize); });
-        });
-        planTable.on('pageLoaded', function () { requestAnimationFrame(fitPlanPageSize); });
+        CtsTable.attach(planTable, { rowH: PLAN_BASE_ROW_H });
+        planTable.on('tableBuilt', injectPlanFooterButtons);
     }
 
     function loadPlans() {
@@ -426,38 +366,9 @@
         footerContents.insertBefore(el, footerContents.firstChild);
     }
 
-    /** 표 높이에 맞게 pageSize 와 행 높이를 정한다(devices / simulations / errors 의 fitTablePageSize 와 같은 방식) */
+    // 기준 행 높이. 실제 높이는 CtsTable 이 표 높이를 나눠떨어지게 조금 늘린다
     const PLAN_BASE_ROW_H = 40;
-    function fitPlanPageSize() {
-        const root = planTable && planTable.element;
-        const body = root && root.closest('.cts-panel-body');
-        if (!body) return;
-        root.style.height = '';
-        const header = root.querySelector('.tabulator-header');
-        const footer = root.querySelector('.tabulator-footer');
-        const holder = root.querySelector('.tabulator-tableholder');
-        const avail = body.clientHeight - (header ? header.offsetHeight : 0) - (footer ? footer.offsetHeight : 0);
-        if (avail <= 0) return;
-
-        const pageSize = Math.max(1, Math.floor(avail / PLAN_BASE_ROW_H));
-        const rowH = avail / pageSize;
-        const pad = Math.max(2, (rowH - 22 - 1) / 2);
-        let styleEl = document.getElementById('planTable-row-h-style');
-        if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = 'planTable-row-h-style';
-            document.head.appendChild(styleEl);
-        }
-        styleEl.textContent =
-            '#planTable .tabulator-row { height: ' + rowH + 'px !important; min-height: ' + rowH + 'px !important; } ' +
-            '#planTable .tabulator-cell { padding-top: ' + pad + 'px !important; padding-bottom: ' + pad + 'px !important; }';
-        if (pageSize !== planTable.getPageSize()) planTable.setPageSize(pageSize);
-        if (holder) {
-            holder.style.setProperty('height', avail + 'px', 'important');
-            holder.style.setProperty('max-height', avail + 'px', 'important');
-            holder.style.setProperty('min-height', avail + 'px', 'important');
-        }
-    }
+    const RUN_BASE_ROW_H = 36;
 
     // ── 세부 ───────────────────────────────────────────────────────
     function select(id) {
@@ -480,7 +391,6 @@
             .done(function (p, r) {
                 if (id !== selectedId) return;
                 detail = p[0];
-                detailModel = TestPlanTimeline.fromActions(detail.actions);
                 renderDetail();
                 historyTable.replaceData(r[0]);
             })
@@ -504,7 +414,7 @@
         renderStatus();
     }
 
-    /** 실행 상태와 playhead. 1초마다 다시 그린다. */
+    /** 실행 상태. 1초마다 다시 그린다. */
     function renderStatus() {
         if (!detail) return;
         const st = statuses[detail.id];
@@ -513,12 +423,8 @@
         $('#stopBtn').prop('disabled', !running);
         $('#editBtn').toggleClass('disabled', running).attr('title', running ? 'Stop the plan to edit it.' : '');
         $('#deleteBtn').prop('disabled', running);
-        let playhead = null;
         if (running) {
-            const items = detailModel.items;
-            const nextAt = st.nextAction < items.length ? items[st.nextAction].at : detailModel.end;
             const remain = Math.max(0, (st.nextAt - Date.now()) / 1000);
-            playhead = Math.max(0, nextAt - remain);
             const done = Math.min(st.nextAction, st.totalActions);
             $('#statusText').html('<span>State</span><span>' + badge('RUNNING', 'RUNNING') + '</span>');
             $('#progressWrap').show();
@@ -530,40 +436,41 @@
             $('#statusText').html('<span>Last run</span><span>' + (last ? badge(last.result) + ' ' + fmtDateTime(last.startedAt) : badge(null, 'Never run')) + '</span>');
             $('#progressWrap').hide(); $('#statusMore').hide();
         }
-        timeline.set(detailModel, { playhead: playhead });
     }
 
     function initHistoryTable() {
         historyTable = new Tabulator('#historyTable', {
-            data: [], index: 'id', layout: 'fitData', height: '220px',
+            data: [], index: 'id', layout: 'fitData', height: '100%', renderVertical: 'basic',
+            pagination: true, paginationSize: 5, paginationButtonCount: 3,
             placeholder: 'No runs yet.',
-            columns: [
-                { title: 'Started', field: 'startedAt', width: 140, formatter: c => fmtDateTime(c.getValue()) },
-                { title: 'Trigger', field: 'triggerType', width: 100 },
-                { title: 'Result', field: 'result', width: 170, formatter: c => badge(c.getValue()) },
-                { title: 'Duration', field: 'endedAt', width: 90, formatter: c => durationOf(c.getRow().getData()) },
-                { title: 'Failed', field: 'failedActions', width: 70, hozAlign: 'right' },
-                { title: 'Message', field: 'message', minWidth: 120, formatter: c => c.getValue() || '' }
-            ]
+            columns: CtsTable.columns([
+                { title: 'Started', field: 'startedAt', kind: 'text', formatter: c => fmtDateTime(c.getValue()) },
+                { title: 'Trigger', field: 'triggerType', kind: 'text' },
+                { title: 'Result', field: 'result', kind: 'text', formatter: c => badge(c.getValue()) },
+                { title: 'Duration', field: 'endedAt', kind: 'number', formatter: c => durationOf(c.getRow().getData()) },
+                { title: 'Failed', field: 'failedActions', kind: 'number' },
+                { title: 'Message', field: 'message', kind: 'text', formatter: c => c.getValue() || '' }
+            ])
         });
         historyTable.on('rowClick', function (e, row) { openRun(row.getData()); });
-        CtsTable.enhanceResize(historyTable);
+        CtsTable.attach(historyTable, { rowH: RUN_BASE_ROW_H });
         runActionsTable = new Tabulator('#runActionsTable', {
-            data: [], layout: 'fitData', height: '420px', placeholder: 'No action ran.',
-            columns: [
-                { title: '#', field: 'seq', width: 50, formatter: c => c.getValue() + 1 },
-                { title: 'Time', field: 'executedAt', width: 140, formatter: c => fmtDateTime(c.getValue()) },
-                { title: 'Device', field: 'deviceId', width: 140, formatter: c => deviceName(c.getValue()) },
-                { title: 'Target', field: 'target', width: 130 },
-                { title: 'Value', field: 'value', width: 90, hozAlign: 'right' },
-                { title: 'Type', field: 'dataType', width: 90, formatter: c => c.getValue() || '' },
-                { title: 'Lock', field: 'lockSeconds', width: 60, hozAlign: 'right' },
-                { title: 'Status', field: 'status', width: 100, formatter: c => badge(c.getValue()) },
-                { title: 'HTTP', field: 'httpStatus', width: 60, formatter: c => c.getValue() || '' },
-                { title: 'Error', field: 'error', minWidth: 160, formatter: c => c.getValue() ? $('<div>').text(c.getValue()).html() : '' }
-            ]
+            data: [], layout: 'fitData', height: '420px', renderVertical: 'basic',
+            pagination: true, paginationSize: 10, placeholder: 'No action ran.',
+            columns: CtsTable.columns([
+                { title: '#', field: 'seq', kind: 'number', formatter: c => c.getValue() + 1 },
+                { title: 'Time', field: 'executedAt', kind: 'text', formatter: c => fmtDateTime(c.getValue()) },
+                { title: 'Device', field: 'deviceId', kind: 'text', formatter: c => deviceName(c.getValue()) },
+                { title: 'Target', field: 'target', kind: 'text' },
+                { title: 'Value', field: 'value', kind: 'number' },
+                { title: 'Type', field: 'dataType', kind: 'text', formatter: c => c.getValue() || '' },
+                { title: 'Lock', field: 'lockSeconds', kind: 'number' },
+                { title: 'Status', field: 'status', kind: 'text', formatter: c => badge(c.getValue()) },
+                { title: 'HTTP', field: 'httpStatus', kind: 'number', formatter: c => c.getValue() || '' },
+                { title: 'Error', field: 'error', kind: 'text', formatter: c => c.getValue() ? $('<div>').text(c.getValue()).html() : '' }
+            ])
         });
-        CtsTable.enhanceResize(runActionsTable);
+        CtsTable.attach(runActionsTable, { rowH: RUN_BASE_ROW_H });
     }
 
     function deviceName(id) {
@@ -573,7 +480,7 @@
 
     function openRun(run) {
         $('#runModalTitle').text('Run ' + fmtDateTime(run.startedAt) + ' · ' + run.triggerType + ' · ' + run.result.replace(/_/g, ' '));
-        $('#runModal').modal('show');
+        CtsModal.show('#runModal');
         api('GET', '/api/testplans/runs/' + run.id).then(function (d) {
             setTimeout(function () { runActionsTable.replaceData(d.actions); runActionsTable.redraw(true); }, 200);
         });
@@ -711,12 +618,6 @@
         bindPlanToolbarActions();
         $('#planSearchField').on('change', applyPlanSearch);
         $('#planSearchInput').on('input', applyPlanSearch);
-        timeline = TestPlanTimeline.create(document.getElementById('timeline'), { editable: false, onSelect: function () {} });
-        // 확대·축소. onclick 속성으로는 못 쓴다 — 그 안의 timeline 은 document.timeline(Web Animations)으로 읽힌다
-        $(document).on('click', '[data-zoom]', function () {
-            const z = $(this).data('zoom');
-            if (z === 'fit') timeline.fit(); else timeline.zoom(Number(z));
-        });
         loadPlans().then(function () {
             const want = SELECTED_ON_LOAD || (new URLSearchParams(location.search)).get('plan');
             if (want && plans.some(p => String(p.id) === String(want))) {
@@ -728,12 +629,6 @@
         pollStatus();
         setInterval(pollStatus, 1000);
         setInterval(function () { if (!document.hidden) loadPlans(); }, 10000);
-        let resizeTimer;
-        $(window).on('resize', function () {
-            if (detail) timeline.render();
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(fitPlanPageSize, 150);
-        });
     });
 </script>
 </body>

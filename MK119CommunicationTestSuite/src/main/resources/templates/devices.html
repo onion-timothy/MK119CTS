@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,21 +7,13 @@
 
     <!-- Google Font: Source Sans Pro -->
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <!-- Theme style -->
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <link rel="stylesheet" href="../../css/cts-common.css">
-    <!-- jTree -->
-    <link rel="stylesheet" href="../../css/style.min.css"/>
-    <!-- Tabulator -->
-    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
+    <th:block th:replace="~{fragments/tabler :: tree-assets}"></th:block>
 
     <style>
-        html, body { overflow: hidden; height: 100vh; }
-        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
-        .main-header, .main-footer { flex-shrink: 0; }
-        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
-        #tree-container { height: 100%; overflow: auto; }
 
         /* 메인 카드: 툴바가 card-header 로 이동했으므로 카드를 container 로 삼는다. */
         .cts-main-card { container-type: inline-size; container-name: devs; }
@@ -38,77 +30,6 @@
             #devicesSearchInput { width: 100px !important; }
         }
 
-        /* Tabulator 자체(=#devicesTable) 보더/라운드 제거 (패널이 대신 감쌈) */
-        #devicesTable {
-            border: none !important;
-            border-radius: 0 !important;
-            font-size: 0.9rem;
-        }
-        /* 헤더: 볼드, 세로 보더 제거, 액센트 라인 */
-        #devicesTable .tabulator-header {
-            background-color: #fff;
-            border-bottom: 2px solid #007bff;
-            font-weight: 600;
-            color: #495057;
-        }
-        #devicesTable .tabulator-header .tabulator-col {
-            background-color: transparent;
-            border-right: none;
-        }
-        /* 로우: 세로 보더 제거, 얇은 가로 구분선 */
-        #devicesTable .tabulator-cell {
-            border-right: none;
-            padding: 12px 12px;
-        }
-        #devicesTable .tabulator-row {
-            border-bottom: 1px solid #f1f3f5;
-            transition: background-color 0.12s ease;
-        }
-        /* 지브라 스트라이프 */
-        #devicesTable .tabulator-row.tabulator-row-even {
-            background-color: #fbfcfd;
-        }
-        /* 호버 하이라이트 */
-        #devicesTable .tabulator-row:hover {
-            background-color: #eef5ff !important;
-        }
-        /* 선택된 로우 */
-        #devicesTable .tabulator-row.tabulator-selected {
-            background-color: #d6e8ff !important;
-        }
-        /* Footer(pagination) - 흰 배경 + 상단 구분선 (테마 회색 override) */
-        #devicesTable .tabulator-footer,
-        #devicesTable .tabulator-footer .tabulator-footer-contents {
-            background: #fff !important;
-            background-color: #fff !important;
-            background-image: none !important;
-        }
-        #devicesTable .tabulator-footer {
-            border-top: 1px solid #dee2e6 !important;
-            padding: 0;
-        }
-        #devicesTable .tabulator-footer .tabulator-footer-contents {
-            padding: 6px 10px;
-        }
-        /* 페이지 버튼 폴리시 */
-        #devicesTable .tabulator-footer .tabulator-page {
-            border-radius: 3px;
-            margin: 0 2px;
-            transition: background-color 0.12s ease;
-        }
-        #devicesTable .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover {
-            background-color: #eef5ff;
-            border-color: #b8dcff;
-        }
-        #devicesTable .tabulator-footer .tabulator-page.active {
-            background-color: #007bff;
-            color: #fff;
-            border-color: #007bff;
-        }
-        #devicesTable .tabulator-footer .tabulator-page.disabled {
-            opacity: 0.4;
-        }
-    
         /* 뷰포트 방향에 따라 트리/본문 배치를 전환한다.
            가로가 길면 좌우, 세로가 길면 상하. 인라인 flex 비율을 덮어쓰므로 !important 가 필요하다. */
         @media (orientation: portrait) {
@@ -128,22 +49,17 @@
 
         let groupSelected = '[[${group}]]';
 
+        /** 편집기가 지금 보고 있는 그룹을 미리 골라 두게 넘긴다 */
+        function addDeviceUrl() {
+            const id = tree && tree.selected();
+            return '/addDevice' + (id ? '?group=' + id.split('_')[1] : '');
+        }
+
         String.format = function () {
             let args = arguments;
             return args[0].replace(/{(\d+)}/g, function (match, num) {
                 num = Number(num) + 1;
                 return typeof (args[num]) != 'undefined' ? args[num] : match;
-            });
-        }
-
-        // 헤더 텍스트가 잘리지 않도록 최소치 보장 (명시 width가 있어도 헤더보다 좁으면 늘림)
-        function withHeaderMinWidth(cols) {
-            return cols.map(function (c) {
-                if (!c || !c.title) return c;
-                let needed = Math.max(80, c.title.length * 9 + 40);
-                if (c.width !== undefined && c.width < needed) c.width = needed;
-                if (c.width === undefined && (c.minWidth === undefined || c.minWidth < needed)) c.minWidth = needed;
-                return c;
             });
         }
 
@@ -177,66 +93,18 @@
         }
 
         function onload() {
-            $('[data-toggle="tooltip"]').tooltip()
-            tree = $('#tree-container').jstree({
-                'core': {
-                    'themes': {
-                        'responsive': true,
-                        "variant": "large"
-                    },
-                    'check_callback': true,
-                    'data': {
-                        'url': '/api/device/devices/treeData',
-                        'data': function (node) {
-                            return {'id': node.id === '#' ? 0 : node.id.split("_")[1]};
-                        }
-                    },
-                    "multiple" : false,
-                },
-                "types": {
-                    "group": {
-                        "icon": "fas fa-folder",
-                        "valid_children": ["device", "group"]
-                    },
-                    "device": {
-                        "icon": "fas fa-server"
-                    }
-                },
-                "plugins": [
-                    "types", "wholerow", "contextmenu", "sort", "search"
-                ],
-                'search': {
-                    'case_insensitive': true,
-                    'show_only_matches': true,
-                    'show_only_matches_children': true
-                },
-                'contextmenu': {
-                    'items': customMenu
-                },
-                'sort': function (a, b) {
-                    let n1 = this.get_node(a);
-                    let n2 = this.get_node(b);
-                    if (n1.type !== n2.type) {
-                        return n1.type === 'group' ? -1 : 1;
-                    }
-                    return String(n1.text).localeCompare(String(n2.text), undefined, {numeric: true});
-                },
-            }).on("select_node.jstree", function (e, data) {
-                if (data.node.type === 'device') {
-                    // Clicking a device in the tree selects (and opens) its parent group,
-                    // so the devices table shows the group the device belongs to.
-                    const parentId = data.node.parent;
-                    if (parentId && parentId !== '#') {
-                        const $t = $('#tree-container');
-                        $t.jstree('deselect_node', data.node.id);
-                        $t.jstree('open_node', parentId);
-                        $t.jstree('select_node', parentId);
-                    }
-                    return;
-                }
-                if (data.node.type === 'group') {
-                    $.jstree.reference('#tree-container').open_node(data.node.id);
-                    $('#group-title').text('Devices of ' + data.node.text);
+            tree = CtsTree.create(document.getElementById('tree-container'), {
+                url: '/api/device/devices/treeData',
+                // ?group= 로 들어온 그룹을 고른다. ROOT 면 그것만 펼치고, 아니면 끝까지 펼쳐야 찾는다
+                expandAll: groupSelected !== '1',
+                expandOnSelect: true,
+                initialSelect: 'g_' + groupSelected,
+                // 장비를 눌러도 그 장비가 든 그룹이 골라진다 — 오른쪽 표가 그룹 단위라서
+                selectable: function (node) { return node.type === 'group' ? node.id : node.parent; },
+                contextMenu: customMenu,
+                onSelect: function (node) {
+                    if (node.type !== 'group') return;
+                    $('#group-title').text('Devices of ' + node.text);
 
                     if (devicesTable) {
                         devicesTable.destroy();
@@ -244,7 +112,7 @@
                     }
 
                     $.ajax({
-                        url: '/api/device/devices/' + data.node.id.split("_")[1],
+                        url: '/api/device/devices/' + node.id.split("_")[1],
                         type: 'GET',
                         success: function (data) {
                             currentDevices = data;
@@ -253,28 +121,29 @@
                                 data: data,
                                 layout: 'fitData',
                                 height: '100%',
+                                renderVertical: 'basic',
                                 pagination: true,
                                 paginationSize: 10,
                                 selectableRows: true,
                                 placeholder: 'No devices in this group',
                                 rowContextMenu: buildDeviceRowMenu(),
-                                columns: withHeaderMinWidth([
+                                columns: CtsTable.columns([
                                     CtsTable.selectionColumn(),
-                                    {title: 'Name', field: 'name'},
+                                    {title: 'Name', field: 'name', kind: 'text'},
                                     {
                                         title: 'Address',
                                         field: 'address',
+                                        kind: 'text',
                                         formatter: function (cell) {
                                             let d = cell.getRow().getData();
                                             return escapeHtml(d.transport) + ' ' + escapeHtml(d.host) + ':' + escapeHtml(d.port);
                                         }
                                     },
-                                    {title: 'Protocol', field: 'protocol'},
+                                    {title: 'Protocol', field: 'protocol', kind: 'text'},
                                     {
                                         title: 'Enabled',
                                         field: 'enabled',
-                                        hozAlign: 'center',
-                                        width: 120,
+                                        kind: 'action',
                                         formatter: function (cell) {
                                             let enabled = cell.getValue() === 1;
                                             return '<button class="cts-toggle' + (enabled ? ' on' : '') + '" aria-label="' + (enabled ? 'Enabled' : 'Disabled') + '"></button>';
@@ -286,42 +155,14 @@
                                     }
                                 ])
                             });
-                            CtsTable.enhanceResize(devicesTable);
+                            CtsTable.attach(devicesTable, { rowH: DEVICES_BASE_ROW_H });
                             devicesTable.on('tableBuilt', function () {
                                 applyDevicesSearch();
                                 injectDevicesFooterButtons();
-                                requestAnimationFrame(function () {
-                                    requestAnimationFrame(fitDevicesPageSize);
-                                });
-                            });
-                            // 페이지 이동 시 Tabulator가 컨테이너 크기를 리셋하는 문제 → 재적용
-                            devicesTable.on('pageLoaded', function () {
-                                requestAnimationFrame(fitDevicesPageSize);
                             });
                         }
                     });
-
                 }
-            }).on("loaded.jstree", function (e, data) {
-                let tree_container = $('#tree-container');
-                if(groupSelected === '1'){
-                    let root = $('#g_1');
-                    tree_container.jstree('open_node', root);
-                    tree_container.jstree('select_node', root);
-                } else {
-                    tree_container.jstree('open_all');
-                }
-            }).on("open_node.jstree", function (e, data) {
-                if(groupSelected !== '1') {
-                    let node = $("#g_" + groupSelected);
-                    $('#tree-container').jstree("select_node", node);
-                }
-            });
-
-            let resizeTimer;
-            window.addEventListener('resize', function () {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(fitDevicesPageSize, 100);
             });
 
             bindDevicesToolbarActions();
@@ -331,7 +172,7 @@
             $('#excel').change(function (e) {
                 let file = e.target.files[0];
                 if (!file) return;
-                let groupId = $.jstree.reference('#tree-container').get_selected()[0].split('_')[1];
+                let groupId = tree.selected().split('_')[1];
                 let reader = new FileReader();
                 reader.onload = function () {
                     let wb = XLSX.read(reader.result, { type: 'binary' });
@@ -426,7 +267,7 @@
             ret.communicationSettings = JSON.parse(obj.communicationSettings);
             ret.name = obj.name;
             let group = {};
-            group.id = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            group.id = tree.selected().split("_")[1];
             ret.group = group;
             ret.enabled = obj.enabled;
             ret.log = 0;
@@ -458,15 +299,17 @@
             };
         }
 
+        /** 우클릭 메뉴. 그룹에서만 뜨고, 장비에서는 아무것도 주지 않는다 */
         function customMenu(node) {
-            let items = {
-                'addGroup': {
-                    'label': 'Add group',
-                    'action': function () {
+            if (node.type !== 'group') return [];
+            return [
+                {
+                    label: 'Add group',
+                    action: function () {
                         let group = {};
                         group.name = prompt('Enter name of new group.');
                         if(group.name == null || group.name === '') return;
-                        group.parentId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                        group.parentId = tree.selected().split("_")[1];
 
                         $.ajax({
                             url: '/api/group/addGroup',
@@ -474,7 +317,7 @@
                             contentType: 'application/json',
                             data: JSON.stringify(group),
                             success: function () {
-                                let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                let group = tree.selected().split("_")[1];
                                 location.href = '/devices?group=' + group;
                             },
                             error: function (request) {
@@ -487,22 +330,22 @@
 
                     }
                 },
-                'deleteGroup': {
-                    'label': 'Delete group',
-                    'action': function () {
-                        let id = $.jstree.reference('#tree-container').get_selected()[0];
+                {
+                    label: 'Delete group',
+                    action: function () {
+                        let id = tree.selected();
                         if (id === 'g_1') {
                             alert('ROOT cannot be deleted.');
                             return;
                         }
-                        let groupName = $.jstree.reference('#tree-container').get_text(id);
+                        let groupName = tree.textOf(id);
                         if (confirm("Confirm to delete group '" + groupName + "'?")) {
                             $.ajax({
                                 url: '/api/group/deleteGroup/' + id.split("_")[1],
                                 type: 'DELETE',
                                 contentType: 'application/json',
                                 success: function () {
-                                    let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                    let group = tree.selected().split("_")[1];
                                     location.href = '/devices?group=' + group;
                                 },
                                 error: function (request) {
@@ -512,15 +355,15 @@
                         }
                     }
                 },
-                'renameGroup': {
-                    'label': 'Rename group',
-                    'action': function () {
-                        let id = $.jstree.reference('#tree-container').get_selected()[0];
+                {
+                    label: 'Rename group',
+                    action: function () {
+                        let id = tree.selected();
                         if (id === 'g_1') {
                             alert('ROOT cannot be renamed.');
                             return;
                         }
-                        let oldName = $.jstree.reference('#tree-container').get_text(id);
+                        let oldName = tree.textOf(id);
                         let newName = prompt("Enter new name of group '" + oldName + "'");
 
                         let group = {};
@@ -532,7 +375,7 @@
                             data: JSON.stringify(group),
                             contentType: 'application/json',
                             success: function (data) {
-                                let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                                let group = tree.selected().split("_")[1];
                                 location.href = '/devices?group=' + group;
                             },
                             error: function (request, status, error) {
@@ -545,14 +388,7 @@
 
                     }
                 }
-            }
-
-            if (node.type === 'device') {
-                delete items.deleteGroup;
-                delete items.addGroup;
-                delete items.renameGroup;
-            }
-            return items;
+            ];
         }
 
         function bindDevicesToolbarActions() {
@@ -564,7 +400,7 @@
                 if (!btn) return;
                 let action = btn.getAttribute('data-action');
                 if (action === 'add') {
-                    location.href = '/addDevice';
+                    location.href = addDeviceUrl();
                 } else if (action === 'batchAdd') {
                     $('#excel').click();
                 } else if (!devicesTable) {
@@ -600,7 +436,7 @@
             if (rows.length === 0) { alert('No devices selected.'); return; }
             if (!confirm('Toggle ' + rows.length + ' device(s)?')) return;
             let items = rows.map(function (r) { return {id: r.getData().id, enabled: r.getData().enabled}; });
-            let groupId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            let groupId = tree.selected().split("_")[1];
             let failures = [];
             let i = 0;
             let next = function () {
@@ -621,17 +457,30 @@
             next();
         }
 
+        // 디바이스를 지우면 딸린 것도 함께 사라진다. 목록까지 보여 주면 길어지므로 무엇이
+        // 지워지는지만 알린다.
+        const CASCADE_WARNING =
+            'Their value simulations, error simulations, and test plan actions will be deleted too.';
+
+        /** Action 이 하나도 안 남아 통째로 사라진 Test Plan 을 알린다. 없으면 아무 말도 하지 않는다. */
+        function notifyDroppedPlans(names) {
+            if (!names || names.length === 0) return;
+            alert('These test plans were deleted because they had no actions left:\n\n'
+                + names.map(function (n) { return '  · ' + n; }).join('\n'));
+        }
+
         function deleteSelectedDevices() {
             let rows = devicesTable.getSelectedRows();
             if (rows.length === 0) {
                 alert('No devices selected.');
                 return;
             }
-            if (!confirm('Delete ' + rows.length + ' device(s)?')) return;
+            if (!confirm('Delete ' + rows.length + ' device(s)?\n\n' + CASCADE_WARNING)) return;
 
             let ids = rows.map(function (r) { return r.getData().id; });
-            let groupId = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            let groupId = tree.selected().split("_")[1];
             let failures = [];
+            let droppedPlans = [];
             let i = 0;
 
             let next = function () {
@@ -639,6 +488,7 @@
                     if (failures.length > 0) {
                         alert('Failed to delete: ' + failures.join(', '));
                     }
+                    notifyDroppedPlans(droppedPlans);
                     location.href = '/devices?group=' + groupId;
                     return;
                 }
@@ -647,6 +497,9 @@
                     url: '/api/device/deleteDevice/' + id,
                     type: 'DELETE',
                     contentType: 'application/json',
+                    success: function (res) {
+                        droppedPlans = droppedPlans.concat((res && res.deletedPlans) || []);
+                    },
                     error: function (request) {
                         failures.push(id + ' (' + request.status + ')');
                     },
@@ -666,7 +519,7 @@
             input.addEventListener('input', function () {
                 clearTimeout(timer);
                 timer = setTimeout(function () {
-                    $('#tree-container').jstree(true).search(input.value.trim());
+                    if (tree) tree.search(input.value);
                 }, 150);
             });
         }
@@ -698,68 +551,14 @@
             }
         }
 
-        // 기준 row 높이: 이걸로 pageSize 산정. CSS의 기본 셀 padding에 부합한 자연 높이.
+        // 기준 행 높이. 실제 높이는 CtsTable 이 표 높이를 나눠떨어지게 조금 늘린다
         const DEVICES_BASE_ROW_H = 48;
-
-        function fitDevicesPageSize() {
-            if (!devicesTable) return;
-            let root = devicesTable.element;
-            if (!root) return;
-            let panel = root.closest('.devices-panel');
-            if (!panel) return;
-
-            // 이전 shrink 방식 잔재 제거 (root 높이 리셋)
-            root.style.height = '';
-
-            let toolbar = panel.querySelector('#devicesToolbar');
-            let header = root.querySelector('.tabulator-header');
-            let footer = root.querySelector('.tabulator-footer');
-            let holder = root.querySelector('.tabulator-tableholder');
-            let toolbarH = toolbar ? toolbar.offsetHeight : 0;
-            let headerH = header ? header.offsetHeight : 0;
-            let footerH = footer ? footer.offsetHeight : 0;
-
-            let availableForHolder = panel.clientHeight - toolbarH - headerH - footerH;
-            if (availableForHolder <= 0) return;
-
-            let pageSize = Math.max(1, Math.floor(availableForHolder / DEVICES_BASE_ROW_H));
-            let actualRowH = availableForHolder / pageSize;   // 정확한 정수배(소수점 포함)
-            // 텍스트 라인 높이 ~22px + border 1px 감안한 셀 vertical padding
-            let cellVertPad = Math.max(2, (actualRowH - 22 - 1) / 2);
-
-            let styleEl = document.getElementById('devices-row-h-style');
-            if (!styleEl) {
-                styleEl = document.createElement('style');
-                styleEl.id = 'devices-row-h-style';
-                document.head.appendChild(styleEl);
-            }
-            styleEl.textContent =
-                '#devicesTable .tabulator-row { ' +
-                    'height: ' + actualRowH + 'px !important; ' +
-                    'min-height: ' + actualRowH + 'px !important; ' +
-                '} ' +
-                '#devicesTable .tabulator-cell { ' +
-                    'padding-top: ' + cellVertPad + 'px !important; ' +
-                    'padding-bottom: ' + cellVertPad + 'px !important; ' +
-                '}';
-
-            if (pageSize !== devicesTable.getPageSize()) {
-                devicesTable.setPageSize(pageSize);
-            }
-
-            // 부분 페이지에서도 tableholder를 항상 availableForHolder로 고정 → footer(pagination)가 카드 끝에 붙음
-            if (holder) {
-                holder.style.setProperty('height', availableForHolder + 'px', 'important');
-                holder.style.setProperty('max-height', availableForHolder + 'px', 'important');
-                holder.style.setProperty('min-height', availableForHolder + 'px', 'important');
-            }
-        }
 
         function buildDeviceRowMenu() {
             return [
                 {
                     label: "<i class='fas fa-plus'></i> Add device",
-                    action: function () { location.href = '/addDevice'; }
+                    action: function () { location.href = addDeviceUrl(); }
                 },
                 {
                     label: "<i class='fas fa-file-excel'></i> Add device(batch)",
@@ -774,14 +573,15 @@
                 {
                     label: "<i class='fas fa-trash'></i> Delete device",
                     action: function (e, row) {
-                        let id = row.getData().id;
-                        if (!confirm("Confirm to delete device '" + id + "'")) return;
+                        let d = row.getData();
+                        if (!confirm("Delete device '" + d.name + "'?\n\n" + CASCADE_WARNING)) return;
                         $.ajax({
-                            url: '/api/device/deleteDevice/' + id,
+                            url: '/api/device/deleteDevice/' + d.id,
                             type: 'DELETE',
                             contentType: 'application/json',
-                            success: function () {
-                                let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                            success: function (res) {
+                                notifyDroppedPlans(res && res.deletedPlans);
+                                let group = tree.selected().split("_")[1];
                                 location.href = '/devices?group=' + group;
                             },
                             error: function (request) {
@@ -813,7 +613,7 @@
                     type: 'POST',
                     contentType: 'application/json',
                     success: function () {
-                        let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+                        let group = tree.selected().split("_")[1];
                         location.href = '/devices?group=' + group;
                     },
                     error: function (request) {
@@ -831,7 +631,7 @@
                 alert('Nothing to register.');
                 return;
             }
-            let group = $.jstree.reference('#tree-container').get_selected()[0].split("_")[1];
+            let group = tree.selected().split("_")[1];
 
             // deviceName → id 매핑 (기존 group 내 device + 새로 생성될 device)
             let nameToId = {};
@@ -857,7 +657,7 @@
 
             let finishUpload = function () {
                 if (failures.length > 0) {
-                    $('#uploadProgressModal').modal('hide');
+                    CtsModal.hide('#uploadProgressModal');
                     alert('Completed with ' + failures.length + ' failure(s):\n\n' + failures.join('\n'));
                 }
                 location.href = '/devices?group=' + group;
@@ -937,10 +737,12 @@
             };
 
             // excel 모달을 닫고, 닫힘 완료 후 진행률 모달(입력 차단)을 띄운 뒤 업로드 시작
-            $('#excelTableModal').one('hidden.bs.modal', function () {
-                $('#uploadProgressModal').modal('show');
+            // BS5 의 hidden.bs.modal 은 네이티브 이벤트다. jQuery .one() 으로는 안 걸린다
+            CtsModal.onHidden('#excelTableModal', function () {
+                CtsModal.show('#uploadProgressModal');
                 uploadNextDevice();
-            }).modal('hide');
+            });
+            CtsModal.hide('#excelTableModal');
         }
 
         function generateTemplate() {
@@ -971,8 +773,11 @@
                                 policy: p.policy,
                                 data_type: p.data_type,
                                 range: p.range ? p.range.join(',') : null,
-                                value: p.value === null || p.value === undefined ? 'null' : p.value,
-                                stopOnControl: p.stopOnControl,
+                                // SEQUENCE 의 value 는 숫자 배열 — 그대로 넣으면 SheetJS 가 칸을 비워 둔다
+                                value: Array.isArray(p.value) ? p.value.join(',')
+                                    : p.value === null || p.value === undefined ? 'null' : p.value,
+                                // stopOnControl 은 Simulation 의 최상위 필드다. policies[0] 에서 읽으면 늘 비어 있다
+                                stopOnControl: s.stopOnControl,
                                 interval: s.interval,
                                 enabled: s.enabled
                             });
@@ -991,159 +796,35 @@
         /*]]>*/
     </script>
 </head>
-<body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
+<body onload="onload()">
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('devices')}"></th:block>
 
-    <!-- Preloader -->
-    <div class="preloader flex-column justify-content-center align-items-center">
-        <img class="animation__shake" src="../../img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
+    <th:block th:replace="~{fragments/tabler :: navbar('Devices', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list">
+            <button type="button" class="btn btn-sm" onclick="generateTemplate()" title="Export the device list to Excel">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
     </div>
 
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <!-- Left navbar links -->
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
-        </ul>
-
-        <!-- Right navbar links -->
-        <ul class="navbar-nav ml-auto">
-            <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip" data-placement="bottom" title="Export to template">
-                    <i class="fas fa-download"></i>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <!-- /.navbar -->
-
-    <!-- Main Sidebar Container -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <!-- Brand Logo -->
-        <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <!-- Sidebar Menu -->
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <!-- Add icons to the links using the .nav-icon class
-                         with font-awesome or any other icon font library -->
-
-                    <li class="nav-item">
-                        <a href="/" class="nav-link active">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>
-                                Devices
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>
-                                Value Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>
-                                Error Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/testplans" class="nav-link">
-                            <i class="nav-icon fas fa-tasks"></i>
-                            <p>
-                                Test Plans
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Settings
-                            </p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <!-- /.sidebar-menu -->
-        </div>
-        <!-- /.sidebar -->
-    </aside>
-
-    <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper d-flex flex-column">
-        <!-- Content Header (Page header) -->
-        <div class="content-header flex-shrink-0">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0">Devices</h1>
-                    </div><!-- /.col -->
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active">Devices</li>
-                        </ol>
-                    </div><!-- /.col -->
-                </div><!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </div>
-        <!-- /.content-header -->
-
-        <!-- Main content -->
-        <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
+    <div class="page-wrapper">
+        <div class="page-body">
             <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
-            <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: 1rem; min-height:0; padding: 0 1rem 1rem 1rem;">
+            <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: var(--cts-page-gap); min-height:0;">
                 <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
-                    <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
-                        <div class="card-header flex-shrink-0" style="gap:0.25rem;">
-                            <h3 class="card-title">Groups and devices</h3>
-                            <input id="treeSearchInput" type="search"
-                                   class="form-control form-control-sm ml-auto"
-                                   placeholder="Search by name..." style="width:180px; min-width:0;">
-                        </div>
-                        <!-- ./card-header -->
-                        <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
-                            <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
-                        </div>
-                        <!-- /.card-body -->
-                    </div>
-                    <!-- /.card -->
+                    <th:block th:replace="~{fragments/tabler :: tree-card}"></th:block>
                 </div>
                 <div class="d-flex flex-column cts-split-main" style="flex: 7 1 0; min-width: 0; min-height: 0;">
-                    <div class="card card-primary cts-main-card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                    <div class="card cts-main-card mb-0 d-flex flex-column flex-grow-1" id="devicesCard" style="min-height: 0;">
                         <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                             <h3 class="card-title mb-0" id="group-title"></h3>
-                            <div id="devicesToolbar" class="ml-auto flex-shrink-0"
-                                 style="display:flex; gap:0.25rem; align-items:center; flex-wrap:nowrap;">
+                            <div id="devicesToolbar" class="card-actions table-toolbar">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
-                                <select id="devicesSearchField" class="form-control form-control-sm" style="width:auto;">
+                                <select id="devicesSearchField" class="form-select form-select-sm" style="width:auto;">
                                     <option value="name">Name</option>
                                     <option value="address">Address</option>
                                     <option value="protocol">Protocol</option>
@@ -1154,16 +835,17 @@
                         <!-- /.card-header -->
                         <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
                             <div class="devices-panel flex-grow-1 d-flex flex-column" style="min-height:0;">
-                                <div id="devicesTable" class="flex-grow-1" style="min-height:0;"></div>
+                                <div id="devicesTable" class="cts-tabulator cts-fill"></div>
                             </div>
                         </div>
                         <!-- /.card-body -->
                     </div>
                 </div>
             </div><!-- /.container-fluid -->
-        </section>
-        <!-- /.content -->
+        </div>
+        <!-- /.page-body -->
     </div>
+    <!-- /.page-wrapper -->
 
     <!-- excel table modal -->
     <div class="modal fade" id="excelTableModal" tabindex="-1" role="dialog" aria-labelledby="excelTableModalLabel"
@@ -1211,11 +893,11 @@
                     </table>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" onclick="$('#excelTableModal').modal('hide')">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">
                         Cancel
                     </button>
-                    <button class="btn btn-primary" type="button" onclick="$('#excel').click();">Upload</button>
-                    <button class="btn btn-success" type="button" onclick="performUpload()" id="registerByExcel" disabled>
+                    <button class="btn btn-outline-secondary" type="button" onclick="$('#excel').click();"><i class="fas fa-file-excel"></i> Upload</button>
+                    <button class="btn btn-primary" type="button" onclick="performUpload()" id="registerByExcel" disabled>
                         Register
                     </button>
                 </div>
@@ -1246,34 +928,13 @@
     </div>
     <!-- progress modal end -->
 
-    <!-- /.content-wrapper -->
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 1.0.1
-        </div>
-    </footer>
 </div>
-<!-- ./wrapper -->
+<!-- /.page -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../js/adminlte.js"></script>
-<script src="../../js/jstree.min.js"></script>
-<!-- Tabulator -->
-<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
-<script src="../../js/cts-table.js"></script>
-<script src="../../js/xlsx.full.min.js"></script>
-
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<th:block th:replace="~{fragments/tabler :: tree-scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script src="/js/xlsx.full.min.js"></script>
 </body>
 </html>

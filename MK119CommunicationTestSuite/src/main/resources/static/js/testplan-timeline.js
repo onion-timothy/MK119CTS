@@ -203,7 +203,7 @@
             var now = Date.now();
             if (lastDown && now - lastDown.t < 400 && Math.abs(ev.clientX - lastDown.x) < 6 && Math.abs(ev.clientY - lastDown.y) < 6) {
                 lastDown = null;
-                var y = ev.clientY - self.svg.getBoundingClientRect().top - AXIS_H;
+                var y = CtsZoom.point(ev, self.svg).y - AXIS_H;   // 그림 좌표(CSS px) — js/cts-zoom.js
                 var ln = self.layout.lanes.find(function (l) { return y >= l.y && y < l.y + LANE_H; });
                 if (ln) { ev.stopPropagation(); ev.preventDefault(); self.opts.onAdd(ln, self.secAt(ev.clientX)); }
                 return;
@@ -237,8 +237,9 @@
     Timeline.prototype.x = function (sec) { return 8 + sec * this.scale; };
 
     Timeline.prototype.secAt = function (clientX) {
-        var r = this.svg.getBoundingClientRect();
-        return Math.max(0, Math.round((clientX - r.left - 8) / this.scale));
+        // 그림 좌표(CSS px)로 바꿔서 — 큰 화면 배율에서 clientX 는 눈에 보이는 px 다 (js/cts-zoom.js)
+        var r = this.svg.getBoundingClientRect(), z = CtsZoom.of(this.svg);
+        return Math.max(0, Math.round(((clientX - r.left) / z - 8) / this.scale));
     };
 
     Timeline.prototype.render = function () {
@@ -390,10 +391,11 @@
         target.addEventListener('mousedown', function (ev) {
             if (ev.button !== 0) return;
             ev.preventDefault(); ev.stopPropagation();
-            var x0 = ev.clientX, last = null, moved = false;
+            // 끈 거리는 그림의 CSS px 로 넘긴다 (js/cts-zoom.js). 움직였는지는 화면에서 본 거리로 본다
+            var x0 = ev.clientX, z = CtsZoom.of(target), last = null, moved = false;
             function mm(e) {
                 if (Math.abs(e.clientX - x0) > 2) moved = true;
-                if (moved) last = move(e.clientX - x0);
+                if (moved) last = move((e.clientX - x0) / z);
             }
             function mu() {
                 document.removeEventListener('mousemove', mm);

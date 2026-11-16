@@ -1,0 +1,89 @@
+/*
+ * 내용이 없을 때 보여 주는 한 줄. 표든 카드든 같은 모양이어야 한다 —
+ * 가로·세로 가운데, 굵게.
+ *
+ *     <div class="cts-empty">No devices in this group.</div>
+ *     <div class="cts-empty is-bad">Could not load the tree.</div>
+ *
+ * Tabler 화면과 AdminLTE 화면이 같이 쓴다. 색은 Tabler 변수를 먼저 보고,
+ * 그 변수가 없는 AdminLTE 화면에서는 뒤의 값으로 떨어진다.
+ */
+.cts-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .25rem;
+    /*
+     * 부모 높이가 정해져 있으면 그 안에서 세로 가운데로 간다. 정해져 있지 않으면
+     * height:100% 가 auto 로 풀리므로, 최소 높이를 줘서 그 안에서라도 가운데로 가게 한다.
+     * 부모가 세로 flex 면 flex 쪽이 높이를 잡아 준다 (카드 본문이 대개 그렇다).
+     */
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 6rem;
+    padding: 1rem;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--tblr-secondary, #868e96);
+}
+
+/*
+ * 빈 메시지 하나만 들어 있는 통은 부모 높이를 다 쓰게 한다.
+ *
+ * 메시지를 꽂는 자리가 늘 높이를 갖고 있지는 않다. 예를 들어 batch 화면의 Device Detail 은
+ * 높이가 정해진 칸(.batch-pane-body) 안의 <form> 인데, form 자체는 내용만큼만 높다.
+ * 그러면 .cts-empty 의 height:100% 가 풀려서 글이 칸 위쪽에 붙는다.
+ * 통을 늘려 주면 그 안에서 세로 가운데가 제대로 잡힌다.
+ *
+ * :where() 로 감싸 앞부분의 급을 0 으로 두었다 — 다른 높이 규칙을 함부로 이기지 않게.
+ */
+:where(form, div, section):has(> .cts-empty:only-child) { height: 100%; }
+
+/* 비어 있는 게 아니라 잘못된 경우 */
+.cts-empty.is-bad { color: var(--tblr-danger, #d63939); }
+
+/* 비어 있는 게 짚고 넘어갈 일인 경우 (엑셀에 그 장비의 시뮬레이션이 하나도 없다든지) */
+.cts-empty.is-warn { color: var(--tblr-orange, #fd7e14); }
+
+/* 한 줄 더 붙일 때 — 굵기와 크기를 낮춰 본문과 구분한다 */
+.cts-empty .cts-empty-sub {
+    font-size: .8125rem;
+    font-weight: 400;
+    color: var(--tblr-gray-500, #adb5bd);
+}
+
+/*
+ * 표의 '내용 없음' 은 표 본문의 가로·세로 가운데에 둔다.
+ * 테마는 placeholder 를 flex 로 가운데 맞추지만 높이(min-height:100%)는 가상 렌더일 때만 준다
+ * ([tabulator-render-mode=virtual]). 쪽을 나누는 표는 basic 렌더라(css/js/cts-table.js) 그 높이가
+ * 빠져 글이 본문 위쪽에 붙는다. 렌더 방식과 상관없이 본문 높이를 다 쓰게 한다.
+ * 가로는 Tabulator 가 맞춘다 — 글 상자 폭을 '보이는 폭' 으로, 왼쪽 여백을 스크롤 위치로 준다
+ * (_positionPlaceholder). 그런데 테마가 그 상자를 다시 flex 로 '열 전체 폭' 의 가운데에 놓아,
+ * 가로 스크롤이 있으면 글이 오른쪽으로 밀린다. 상자는 왼쪽에 두고, 글은 상자 안에서 가운데로 간다.
+ * `div` 는 아래 규칙과 같은 까닭으로 급을 (0,3,1) 로 올리려는 것이다 — 이 파일이 테마보다 먼저 실린다.
+ */
+.tabulator .tabulator-tableholder div.tabulator-placeholder { min-height: 100%; justify-content: flex-start; }
+
+/*
+ * Tabulator 는 제 테마가 20px/#ccc 로 그린다. 글자만 위와 같게 맞춘다 — 표와 카드가 따로 놀지 않도록.
+ *
+ * 선택자 끝의 `div` 는 급을 한 칸 올리려는 것이다. 테마 쪽이
+ *     .tabulator .tabulator-tableholder .tabulator-placeholder .tabulator-placeholder-contents
+ * 으로 클래스 넷(0,4,0)인데, 이 파일은 모든 화면에서 tabulator 테마보다 **먼저** 실린다.
+ * 급이 같으면 나중 것이 이기므로, 태그 이름을 하나 더해 (0,4,1) 로 만들어야 넘어선다.
+ * 링크 순서에 기대지 않는 편이 화면이 늘어나도 안 깨진다.
+ */
+.tabulator .tabulator-tableholder .tabulator-placeholder div.tabulator-placeholder-contents {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--tblr-secondary, #868e96);
+}
+/*
+ * 테마는 placeholder 안의 <span> 을 검게 칠한다 (.tabulator-placeholder span, 0,4,0).
+ * 우리는 한 줄을 묶는 데 span 을 쓰므로 그 색을 물려받게 되돌린다.
+ */
+.tabulator .tabulator-tableholder .tabulator-placeholder div.tabulator-placeholder-contents span {
+    color: inherit;
+}

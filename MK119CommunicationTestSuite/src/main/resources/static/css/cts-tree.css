@@ -1,0 +1,184 @@
+/*
+ * "Groups and devices" 트리 (js/cts-tree.js).
+ *
+ * 색·모서리·간격을 전부 Tabler 변수로 잡는다. 옆 카드와 같은 재료를 쓰면 트리만
+ * 따로 노는 일이 없다 — jsTree 를 걷어낸 이유가 그것이다.
+ */
+
+/*
+ * 크기는 전부 여기서 정한다. js 는 줄마다 깊이(--d)만 넘기고, 여백도 안내선 자리도
+ * 이 값들로 계산한다 — 한 줄만 고치면 트리 전체가 같이 커지고 작아진다.
+ */
+.cts-tree {
+    --ct-indent: 20px;        /* 한 단 들여쓰기 */
+    --ct-pad: 12px;           /* 줄 왼쪽 여백 (깊이 0 기준) */
+    --ct-row-y: 9px;          /* 줄 위아래 여백 */
+    --ct-gap: .55rem;         /* 화살표·아이콘·이름 사이 */
+    --ct-font: .9375rem;      /* 이름 */
+    --ct-caret: 16px;
+    --ct-icon: 18px;
+    --ct-meta: .78rem;        /* 그룹의 식구 수 */
+    --ct-badge: .7rem;        /* 장비의 프로토콜 */
+}
+
+.cts-tree {
+    padding: 6px 4px;
+    overflow: auto;
+    min-height: 0;
+    /*
+     * 여기서 쌓임 맥락을 연다. 들여쓰기 안내선을 z-index:-1 로 줄 아래에 깔건데,
+     * 맥락이 없으면 그 -1 이 카드 배경 뒤까지 내려가 아예 안 보인다.
+     */
+    position: relative;
+    z-index: 0;
+}
+
+/* 줄 전체가 버튼이다. 어디를 눌러도 골라진다 */
+.cts-tree .ct-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ct-gap);
+    width: 100%;
+    /* 깊이만큼 밀어 넣는다. js 가 줄마다 --d 를 준다 */
+    padding: var(--ct-row-y) var(--ct-pad) var(--ct-row-y)
+             calc(var(--ct-pad) + var(--d, 0) * var(--ct-indent));
+    border: 0;
+    background: none;
+    text-align: left;
+    border-radius: var(--tblr-border-radius);
+    cursor: pointer;
+    color: var(--tblr-body-color);
+    font-size: var(--ct-font);
+    line-height: 1.2;
+}
+.cts-tree .ct-row:hover { background: var(--tblr-gray-100); }
+.cts-tree .ct-row:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--tblr-primary);
+}
+/*
+ * --tblr-primary-lt 와 같은 색이되 바탕이 다르다. Tabler 쪽은 primary 10% 를 **투명 위에**
+ * 섞은 색이라, 그대로 깔면 띠가 반투명해서 들여쓰기 안내선이 그 안으로 비쳐 지나간다.
+ * 투명 대신 카드 바탕색에 섞어 불투명한 한 색으로 만든다.
+ */
+.cts-tree .ct-row.is-sel {
+    background: color-mix(in oklab, var(--tblr-primary) 10%, var(--tblr-bg-surface, #fff));
+    color: var(--tblr-primary);
+    font-weight: 600;
+}
+
+/*
+ * 화살표와 아이콘은 Tabler Icons 를 인라인 SVG 로 그린다 (js/cts-tree.js 의 ICONS).
+ * 글꼴 아이콘이 아니라 상자 그대로라, 가운데 맞춤은 flex 가 한다.
+ */
+.cts-tree .ct-caret {
+    width: var(--ct-caret);
+    flex: 0 0 var(--ct-caret);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tblr-gray-500);
+    transition: transform .12s ease;
+}
+.cts-tree .ct-caret .ct-svg { width: var(--ct-caret); height: var(--ct-caret); }
+.cts-tree .ct-caret.is-open { transform: rotate(90deg); }
+.cts-tree .ct-row:hover .ct-caret.is-toggle { color: var(--tblr-gray-700); }
+
+.cts-tree .ct-ico {
+    width: var(--ct-icon);
+    flex: 0 0 var(--ct-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tblr-gray-600);
+}
+.cts-tree .ct-ico .ct-svg { width: var(--ct-icon); height: var(--ct-icon); }
+.cts-tree .ct-row.is-sel .ct-ico { color: var(--tblr-primary); }
+
+.cts-tree .ct-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 그룹에 달린 식구 수. 이름과 다투지 않게 숫자만 흐리게 */
+.cts-tree .ct-count {
+    flex: 0 0 auto;
+    font-size: var(--ct-meta);
+    color: var(--tblr-gray-500);
+    font-variant-numeric: tabular-nums;
+}
+.cts-tree .ct-row.is-sel .ct-count { color: var(--tblr-primary); opacity: .75; }
+
+/* 장비의 프로토콜 */
+.cts-tree .ct-badge {
+    flex: 0 0 auto;
+    font-size: var(--ct-badge);
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: var(--tblr-gray-200);
+    color: var(--tblr-gray-700);
+    white-space: nowrap;
+}
+.cts-tree .ct-row.is-sel .ct-badge {
+    background: var(--tblr-primary);
+    color: #fff;
+}
+
+/*
+ * 들여쓰기 안내선. 부모의 접기 화살표 한가운데에서 내려오도록
+ * 줄 왼쪽 여백 + 부모 깊이(--d) + 화살표 반폭 자리에 세운다 — 줄의 padding-left 와 같은 셈이다.
+ *
+ * z-index:-1 은 고른 줄 때문이다. 안내선은 자리를 잡은 상자라 그냥 두면 줄 배경 위에
+ * 그려져 파란 띠를 세로로 가로지른다. 줄 아래로 내려 보내면 띠가 안내선을 덮는다.
+ */
+.cts-tree .ct-kids { position: relative; }
+.cts-tree .ct-kids::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset-block: 2px;
+    left: calc(var(--ct-pad) + var(--d, 0) * var(--ct-indent) + var(--ct-caret) / 2);
+    border-left: 1px solid var(--tblr-border-color);
+}
+
+/* 비었거나, 못 불러왔거나, 검색 결과가 없을 때는 .cts-empty (css/cts-empty.css) 를 쓴다 */
+
+.cts-tree .ct-spin {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid var(--tblr-gray-400);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: cts-tree-spin .6s linear infinite;
+}
+@keyframes cts-tree-spin { to { transform: rotate(360deg); } }
+
+/* ── 우클릭 메뉴 (devices 화면의 그룹 추가·삭제·이름 변경) ──────── */
+.cts-tree-menu {
+    position: fixed;
+    z-index: 1080;
+    min-width: 160px;
+    padding: .25rem;
+    background: var(--tblr-bg-surface, #fff);
+    border: 1px solid var(--tblr-border-color);
+    border-radius: var(--tblr-border-radius);
+    box-shadow: var(--tblr-box-shadow-dropdown, 0 .5rem 1rem rgba(0, 0, 0, .15));
+}
+.cts-tree-menu .ctm-item {
+    display: block;
+    width: 100%;
+    padding: .4rem .6rem;
+    border: 0;
+    background: none;
+    text-align: left;
+    font-size: .8125rem;
+    color: var(--tblr-body-color);
+    border-radius: calc(var(--tblr-border-radius) - 1px);
+    cursor: pointer;
+}
+.cts-tree-menu .ctm-item:hover { background: var(--tblr-gray-100); }

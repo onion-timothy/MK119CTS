@@ -1,37 +1,51 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MK119 CTS</title>
+    <title>MK119 CTS — Simulation</title>
 
-    <!-- Google Font: Source Sans Pro -->
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <!-- Theme style -->
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <!-- JSON Editor -->
-    <link href="../../plugins/jsoneditor/css/jsoneditor.min.css" rel="stylesheet">
-    <!-- BS Stepper -->
-    <link rel="stylesheet" href="../../plugins/bs-stepper/css/bs-stepper.min.css">
-    <link rel="stylesheet" href="../../css/bootstrap-select.min.css">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/css/dist-editor.css">
+    <link rel="stylesheet" href="/css/cts-target-aid.css">
+    <link rel="stylesheet" href="/css/cts-reg-map.css">
 
     <style>
-        #target-wrapper {
-            position: relative;
-            width: 100%;
+        /* 세로로 길면 위아래로 쌓고, 가로로 넓으면 좌(등록정보·정책) / 우(등록 현황) 로 나눈다 */
+        .ed-body { flex: 1 1 auto; min-height: 0; display: grid; gap: var(--cts-page-gap);
+                   grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+        @media (min-width: 1100px) {
+            .ed-body { grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); grid-template-rows: minmax(0, 1fr); }
         }
+        .ed-left { display: flex; flex-direction: column; gap: var(--cts-page-gap); min-height: 0; min-width: 0; }
+        /* 시뮬레이션 자체는 칸이 몇 개뿐이라 내용만큼만 쓰는 띠로 둔다 */
+        .ed-head { flex: 0 0 auto; }
+        /* 정책 칸은 등록정보 아래 남는 높이를 다 쓴다. 넘치면 그 안에서 세로로 스크롤한다 */
+        .ed-policies { flex: 1 1 auto; min-height: 0; }
 
+        /* target 입력 보조의 조각 이름표는 폼 label 굵기를 따르지 않는다 */
+        label.ta-part { font-weight: normal; margin-bottom: 0; color: inherit; }
+        .ta-part select, .ta-part input { font-size: .875rem; }
+
+        /* 정책 카드는 칸 폭을 다 쓰고 위아래로 쌓인다. 많아지면 세로로 넘긴다 */
+        #policies { display:flex; flex-direction:column; gap:.6rem; }
+        .ed-policy { border:1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius); overflow:hidden; flex:0 0 auto; }
+        .ed-policy-head { background: var(--tblr-bg-surface-secondary, #f8f9fa); border-bottom:1px solid var(--tblr-border-color);
+                          padding:.35rem .75rem; font-weight:600; font-size:.85rem; }
+        .ed-policy-body { padding: .75rem; }
+        .ed-policy-body > :last-child { margin-bottom: 0 !important; }
+
+        #target-wrapper { position: relative; width: 100%; }
         #target, #target-placeholder {
-            font-size: 1rem;
+            font-size: .9rem;
             font-family: inherit;
             line-height: 1.5;
             white-space: pre-wrap;
             word-break: break-word;
             box-sizing: border-box;
-            padding: 12px; /* 텍스트 시작 위치를 동일하게 */
+            padding: 8px 10px; /* 텍스트 시작 위치를 동일하게 */
         }
-
         #target {
             position: relative;
             z-index: 1;
@@ -40,9 +54,9 @@
             background-color: white;
             width: 100%;
             overflow: hidden;
-            min-height: 48px; /* 기본 높이 - JS에서 조정 */
+            min-height: 38px; /* 기본 높이 - JS에서 조정 */
+            height: auto;
         }
-
         #target-placeholder {
             position: absolute;
             top: 0;
@@ -53,13 +67,6 @@
             pointer-events: none;
             width: 100%;
         }
-
-        .form-group.rounded-outline {
-            border: 1px solid #ccc;        /* 더 얇은 테두리 */
-            border-radius: 0.5rem;         /* 더 둥글게 */
-            box-shadow: none;              /* 기본 포커스 그림자 제거 */
-            padding: 0.375rem 0.75rem;
-        }
     </style>
 
     <script th:inline="javascript">
@@ -67,125 +74,310 @@
         let device;
         let simulation;
 
-        let simulationsNames = [];
+        // target 입력 보조 (static/js/cts-target-aid.js)
+        let targetAid;
+        // 등록 현황 지도 (static/js/cts-reg-map.js)
+        let regMap;
 
-        // 정책별 분포도 차트 인스턴스
-        let distCharts = {};
-        // 정책별 segment 상대 폭 비율 (X 핸들 drag로 조정)
-        let segmentSizes = {};
-        // 정책별 segment weight (정규화되지 않은 상대 가중치, 합 자유). 확률 = w / Σw.
-        let segmentWeights = {};
-        // 정책별 선택된 segment 인덱스 집합 (다중 선택 → 균등 분배용)
-        let selectedSegments = {};
-        // 정책별 정규분포 모드 on/off 및 파라미터 {mean, std}
-        let normalMode = {};
-        let normalParams = {};
-        // 드래그 중 잠긴 Y 축 최대치 (weight 스케일, mousedown 점프 방지)
-        let lockedYMax = {};
-        // 드래그 진행 중 플래그 (호버 툴팁 차단용)
-        let dragActive = false;
-        // weight(Y) 드래그 진행 중 플래그 (Y axis auto-zoom 잠금용)
-        let weightDragActive = false;
-
-        function ensureSegmentSizes(pnum, count) {
-            if (!segmentSizes[pnum] || segmentSizes[pnum].length !== count) {
-                segmentSizes[pnum] = new Array(count).fill(1);
-            }
-            return segmentSizes[pnum];
+        /** 지도에 지금 편집 중인 target 을 알린다. 레지스터 폭이 타입에 걸려 있어 타입이 바뀔 때도 부른다. */
+        function syncRegMap() {
+            if (regMap) regMap.setCurrent($('#target').text());
         }
 
-        // segmentWeights[pnum] 이 없거나 길이가 맞지 않으면 균등 가중치(1)로 초기화
-        function ensureSegmentWeights(pnum, count) {
-            if (!segmentWeights[pnum] || segmentWeights[pnum].length !== count) {
-                segmentWeights[pnum] = new Array(count).fill(1);
-            }
-            return segmentWeights[pnum];
+        function mountRegMap() {
+            regMap = CtsRegMap.mount(document.getElementById('reg-map'), {
+                device: device,
+                selfId: simulation ? simulation.id : undefined,
+                currentType: function () { return $('#policies-0-datatype').val(); },
+            });
+            syncRegMap();
         }
 
-        // 가장 높은 weight 의 2배를 Y 축 최대치로 (bar 가 최대 절반 높이를 차지). weight 스케일은 상대값.
-        function computeWeightYMax(weights) {
-            let maxW = 0;
-            for (let i = 0; i < weights.length; i++) {
-                if (weights[i] > maxW) maxW = weights[i];
-            }
-            if (maxW <= 0) return 1;
-            return maxW * 2;
+        function mountTargetAid() {
+            targetAid = CtsTargetAid.mount(document.getElementById('target-aid'), {
+                device: device,
+                selfId: simulation ? simulation.id : undefined,
+                statusEl: document.getElementById('target-status'),
+                onChange: function (text) {
+                    $('#target').text(text);
+                    updatePlaceholderVisibility();
+                    adjustHeight();
+                    applyAllDataTypeOptions();
+                    syncRegMap();
+                },
+                insertText: insertIntoTarget,
+                policyIds: function () {
+                    const ids = [];
+                    const count = parseInt($('#policies-count').val()) || 0;
+                    for (let i = 0; i < count; i++) ids.push($.trim($('#policies-' + i + '-id').val()));
+                    return ids;
+                },
+            });
+            targetAid.setValue($('#target').text());
+            // 같은 장비의 다른 Simulation — 이미 쓰는 target 과 'Next free', 등록 현황 지도에 쓴다
+            $.getJSON('/api/simulation/simulations/' + device.id).done(function (list) {
+                targetAid.setSiblings(list);
+                if (regMap) regMap.setSiblings(list);
+            });
         }
 
-        // sizes(상대 비율)로 [min, max]를 N+1개 경계로 분할.
-        function computeBoundaries(rangeMin, rangeMax, sizes) {
-            let total = 0;
-            for (let i = 0; i < sizes.length; i++) total += (sizes[i] > 0 ? sizes[i] : 0);
-            if (total <= 0) return null;
-            let boundaries = [rangeMin];
-            let cum = 0;
-            for (let i = 0; i < sizes.length - 1; i++) {
-                cum += (sizes[i] > 0 ? sizes[i] : 0);
-                boundaries.push(rangeMin + (rangeMax - rangeMin) * (cum / total));
-            }
-            boundaries.push(rangeMax);
-            return boundaries;
+        // target 칸의 마지막 커서 위치(글자 수). 칩을 누르면 포커스가 버튼으로 가므로 미리 기억해 둔다
+        let targetCaret = null;
+        document.addEventListener('selectionchange', function () {
+            const el = document.getElementById('target');
+            const sel = window.getSelection();
+            if (!el || !sel.rangeCount || !el.contains(sel.focusNode)) return;
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            r.setEnd(sel.focusNode, sel.focusOffset);
+            targetCaret = r.toString().length;
+        });
+
+        /** 마지막 커서 자리에 넣는다. target 칸을 건드린 적이 없으면 끝에 붙인다. */
+        function insertIntoTarget(text) {
+            const $t = $('#target');
+            const cur = $t.text();
+            const at = targetCaret == null || targetCaret > cur.length ? cur.length : targetCaret;
+            $t.text(cur.slice(0, at) + text + cur.slice(at));
+            $t.trigger('input');
+            // focus 처리기가 커서를 맨 앞으로 보내므로 그 다음 차례에 넣은 글 뒤로 옮긴다
+            const el = $t[0];
+            el.focus();
+            setTimeout(function () {
+                const range = document.createRange();
+                range.setStart(el.firstChild || el, el.firstChild ? at + text.length : 0);
+                range.collapse(true);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }, 0);
+        }
+
+        // 정책별 분포 편집기 (static/js/dist-editor.js)
+        let distEditors = {};
+
+        function distEditor(pnum) {
+            const el = document.getElementById('policy-' + pnum + '-dist-editor');
+            if (!el) return null;
+            if (!distEditors[pnum]) distEditors[pnum] = DistEditor.mount(el);
+            return distEditors[pnum];
         }
 
         /**
-         * 장비 프로토콜이 쓸 수 있는 data type 만 보이게 한다.
-         * EtherNet/IP 는 data type 이 CIP 타입으로 바뀌어 나가므로 담을 수 있는 것만,
-         * 그 밖의 프로토콜은 EtherNet/IP 전용인 BOOL·BITS 를 뺀다. 판정은 서버가 다시 한다.
+         * 장비 프로토콜과 target 이 받는 data type 으로 목록을 다시 채운다(CtsDataTypes).
+         * 고른 값이 새 목록에 있으면 그대로 두고, 없으면 첫 타입으로 바꾼다.
          */
         function applyDataTypeOptions(i) {
-            const eip = device && device.protocol === 'ETHERNET_IP';
-            const $sel = $('#policies-' + i + '-datatype');
-            $sel.find('option').each(function () {
-                const v = this.value;
-                const allowed = eip
-                    ? /^(SI8|UI8|SI16|UI16|SI32|FP32)/.test(v) || v === 'BOOL' || v === 'BITS'
-                    : v !== 'BOOL' && v !== 'BITS';
-                $(this).prop('hidden', !allowed).prop('disabled', !allowed);
+            const sel = '#policies-' + i + '-datatype';
+            const $sel = $(sel);
+            if ($sel.length === 0) return;
+            const types = CtsDataTypes.typesFor(device && device.protocol, $('#target').text());
+            const current = $sel.val();
+            $sel.empty();
+            types.forEach(function (t) { $sel.append($('<option>').val(t).text(t)); });
+
+            // 화면은 조합 선택칸이 맡는다. 값은 숨은 select 에 넣고 change 를 울려
+            // 기존 핸들러(onDataTypeChanged)가 그대로 돌게 한다
+            const picker = dataTypePicker(i);
+            picker.setTypes(types, current);
+            const picked = picker.value();
+            $sel.val(picked);
+            lastDataType[i] = picked;
+            applyBinaryConstraints(i);
+        }
+
+        function applyAllDataTypeOptions() {
+            const count = parseInt($('#policies-count').val()) || 0;
+            for (let i = 0; i < count; i++) applyDataTypeOptions(i);
+        }
+
+        // ── BINARY 제약 ─────────────────────────────────────────────
+        // BINARY 는 0 과 1 만 담는다. STATIC 값, RANDOM 범위 양 끝, SEQUENCE 의 각 값이 0 또는 1 이어야 하고
+        // ACCUMULATE 는 쓸 수 없다(서버 SimulationTargetValidator 와 같은 규칙).
+
+        /**
+         * 지금 고른 정책. jQuery .val() 은 disabled 된 선택지를 건너뛰고 undefined 를 준다 —
+         * BINARY 라서 ACCUMULATE 를 막아 둔 상태가 바로 그 경우다. 네이티브 value 로 읽어야
+         * '고를 수 없는 정책이 그대로 남아 있다' 는 사실이 저장 직전 검사까지 전달된다.
+         */
+        function policyOf(pnum) {
+            const el = document.getElementById('policies-' + pnum + '-policy');
+            return el ? el.value : '';
+        }
+
+        function isBinary(pnum) {
+            return $('#policies-' + pnum + '-datatype').val() === 'BINARY';
+        }
+
+        /** 0 또는 1 인 입력값. 빈 칸은 아직 넣지 않은 것으로 보고 통과시킨다. */
+        function isBitOrBlank(text) {
+            const s = String(text == null ? '' : text).trim();
+            return s === '' || Number(s) === 0 || Number(s) === 1;
+        }
+
+        /** 지금 정책의 값이 BINARY 에 맞지 않는 이유. 맞으면 null. */
+        function binaryProblem(pnum) {
+            const policy = policyOf(pnum);
+            if (policy === 'ACCUMULATE') return 'ACCUMULATE cannot be used with BINARY.';
+            if (policy === 'STATIC') {
+                const v = $('#policies-' + pnum + '-value').val();
+                if (!isBitOrBlank(v)) return 'Value ' + v + ' is not 0 or 1.';
+            } else if (policy === 'SEQUENCE') {
+                const bad = getSequence(pnum).filter(v => v !== 0 && v !== 1);
+                if (bad.length) return 'Sequence has values other than 0 and 1 (' + bad.join(', ') + ').';
+            } else if (policy === 'RANDOM') {
+                const lo = $('#policy-' + pnum + '-range-min').val(), hi = $('#policy-' + pnum + '-range-max').val();
+                if (!isBitOrBlank(lo) || !isBitOrBlank(hi)) return 'Range ' + lo + ' ~ ' + hi + ' is not within 0 and 1.';
+            }
+            return null;
+        }
+
+        /** 타입에 맞게 고를 수 있는 정책과 입력 안내를 맞춘다. */
+        /**
+         * BINARY 면 값 입력칸을 0·1 중에서 고르는 select 로 바꾼다. 아니면 다시 글자 칸으로 돌린다.
+         * 같은 id 를 그대로 쓰므로 값을 읽고 쓰는 다른 코드는 손댈 것이 없다.
+         *
+         * @param placeholder 글자 칸일 때 쓸 안내 문구
+         * @param blank       select 에 "고르지 않음"을 둘지. 시퀀스 추가 칸은 비워 둘 일이 없다
+         */
+        function setBitControl(id, binary, placeholder, blank) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isSelect = el.tagName === 'SELECT';
+            if (binary === isSelect) {
+                if (!binary) el.placeholder = placeholder;
+                return;
+            }
+            const keep = isBitOrBlank(el.value) ? el.value : '';
+            const next = document.createElement(binary ? 'select' : 'input');
+            next.id = id;
+            next.className = binary ? 'form-select' : 'form-control';
+            if (binary) {
+                next.innerHTML = (blank ? '<option value=""></option>' : '')
+                    + '<option value="0">0</option><option value="1">1</option>';
+                next.value = keep;
+            } else {
+                next.type = 'text';
+                next.placeholder = placeholder;
+                next.value = keep;
+                // 숫자만 받는 필터는 인라인 핸들러로 걸려 있었다. 다시 만들 때도 같이 건다
+                next.setAttribute('onbeforeinput', 'numeric_filter(this, event)');
+            }
+            // 원래 칸에 걸려 있던 동작을 옮긴다 (시퀀스 추가의 Enter 등)
+            ['onkeydown', 'oninput'].forEach(function (k) {
+                const v = el.getAttribute(k);
+                if (v) next.setAttribute(k, v);
             });
-            $sel.selectpicker('refresh');
+            el.parentNode.replaceChild(next, el);
+        }
+
+        function applyBinaryConstraints(pnum) {
+            const binary = isBinary(pnum);
+            const policy = policyOf(pnum);
+            $('#policies-' + pnum + '-policy option[value="ACCUMULATE"]').prop('disabled', binary);
+            setBitControl('policies-' + pnum + '-value', binary, 'Simulation designated value', true);
+            setBitControl('policy-' + pnum + '-seq-input', binary, 'Number to append', false);
+            const $lo = $('#policy-' + pnum + '-range-min'), $hi = $('#policy-' + pnum + '-range-max');
+            if (policy === 'RANDOM') {
+                $lo.attr('placeholder', binary ? '0 or 1' : 'Minimum for simulation value');
+                $hi.attr('placeholder', binary ? '0 or 1' : 'Maximum for simulation value');
+            }
+            // BINARY 의 RANDOM 은 0 과 1 두 구간에서 고른다. 범위는 0~1 로 고정한다.
+            // 0·1 이 아닌 값이 남아 있으면(target 때문에 저절로 BINARY 가 된 경우) 고치지 않고 저장 때 막는다
+            const fixed = binary && policy === 'RANDOM' && isBitOrBlank($lo.val()) && isBitOrBlank($hi.val());
+            if (fixed) { $lo.val('0'); $hi.val('1'); }
+            $lo.prop('readonly', fixed);
+            $hi.prop('readonly', fixed);
+            renderDistributionChart(pnum);
+        }
+
+        /**
+         * BINARY 에서 정책을 바꾸면 새로 보이는 칸에 남아 있던 값을 0·1 에 맞춘다.
+         * 숨어 있던 칸이라 타입을 바꿀 때 검사하지 않은 값이다.
+         */
+        function fitHiddenValuesToBinary(pnum, policy) {
+            if (policy === 'STATIC') {
+                const $v = $('#policies-' + pnum + '-value');
+                if (!isBitOrBlank($v.val())) $v.val('');
+            } else if (policy === 'RANDOM') {
+                $('#policy-' + pnum + '-range-min').val('0');
+                $('#policy-' + pnum + '-range-max').val('1');
+            } else if (policy === 'SEQUENCE') {
+                sequenceValues[pnum] = getSequence(pnum).filter(v => v === 0 || v === 1);
+                renderSequenceList(pnum);
+            }
+        }
+
+        /**
+         * Datatype 을 사용자가 바꿨을 때. BINARY 로 바꾸려는데 지금 값이 0·1 이 아니면 알리고 되돌린다.
+         * target 이 BINARY 하나만 받아 저절로 바뀐 경우(clickedIndex 가 null)는 되돌릴 곳이 없으므로
+         * 저장할 때 막는다(doSubmit).
+         */
+        // 되돌릴 값. 사용자가 고르기 직전의 datatype 을 정책 번호별로 들고 있는다
+        const lastDataType = {};
+
+        // 정책 번호별 datatype 조합 선택칸
+        const dataTypePickers = {};
+
+        function dataTypePicker(i) {
+            if (dataTypePickers[i]) return dataTypePickers[i];
+            const host = document.getElementById('policies-' + i + '-dtp');
+            dataTypePickers[i] = CtsDataTypePicker.mount(host, {
+                onChange: function (code) {
+                    const el = document.getElementById('policies-' + i + '-datatype');
+                    if (!el || el.value === code) return;
+                    el.value = code;
+                    // 숨은 select 라 사용자가 직접 바꿀 수 없다. 고른 것으로 쳐서 알린다
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                },
+            });
+            return dataTypePickers[i];
+        }
+
+        function onDataTypeChanged(pnum, clickedIndex, previous) {
+            if (clickedIndex !== null && clickedIndex !== undefined && isBinary(pnum)) {
+                const problem = binaryProblem(pnum);
+                if (problem) {
+                    alert('Cannot change to BINARY. ' + problem + ' BINARY takes 0 or 1 only.');
+                    $('#policies-' + pnum + '-datatype').val(previous);
+                    lastDataType[pnum] = previous;
+                    dataTypePicker(pnum).setTypes(
+                        CtsDataTypes.typesFor(device && device.protocol, $('#target').text()), previous);
+                }
+            }
+            applyBinaryConstraints(pnum);
+            // MODBUS 레지스터는 타입 폭만큼 자리를 먹는다 — 지도의 칸 수가 달라진다
+            if (String(pnum) === '0') syncRegMap();
         }
 
         const targetExample = {
-            'GENERIC': 'TXField.field_id in PGD<br><i>e.g. <b>register1</b></i>',
+            'GENERIC': 'A target of the protocol definition<br><i>e.g. <b>전압1</b></i>',
             'MODBUS': '{function_code}_{register|coil}<br><i>e.g. <b>3_100</b></i>',
             'XGT_PLC': '{block_code}{length}{register}<br><i>e.g. <b>%MW1000</b></i>',
-            'DAEYUN_RCU': '@RCUDI_{channel},@RCUAI_{channel},TXField.field_id in PGD<br><i>e.g. <b>@RCUDI_2</b></i>',
+            'DAEYUN_RCU': '@RCUDI_{channel}, @RCUAI_{channel} or a target of the protocol definition<br><i>e.g. <b>@RCUDI_2</b></i>',
             'SNMP': '{oid}<br><i>e.g. <b>.1.3.6.1.4.1.27732.1.1.0.1.1</b></i>',
             'BACNET': '{type} {instance_number}<br><i>e.g. <b>analog_input 10</b></i>',
             'OPC_AGENT': '{taglist_index}<br><i>e.g. <b>30</b></i>',
-            'DB': '{query with id in policy}<br><i>e.g. <b>UPDATE ubms_voltage_curr SET voltage1={v1},voltage2={v2} WHERE uid={id}</b></i>',
+            'DB': 'SQL with ${policy ID} placeholders<br><i>e.g. <b>UPDATE ubms_voltage_curr SET voltage1=${v1},voltage2=${v2} WHERE uid=1</b></i>',
             'ETHERNET_IP': '{tag}[{element}] — the CIP type follows the data type<br><i>e.g. <b>sys_runtime_acc[0]</b></i>',
         };
 
         document.addEventListener('DOMContentLoaded', function () {
-            let stepperEl = document.getElementById('stepper');
-            window.stepper = new Stepper(stepperEl)
-
-            stepperEl.addEventListener('shown.bs-stepper', function (event) {
-                if (event.detail.indexStep === 1) {
-                    adjustHeight();
-                } else if (event.detail.indexStep === 2) {
-                    // policies 패널이 표시되면 차트가 올바른 크기로 다시 그려지고 핸들도 재배치되어야 한다
-                    for (let key in distCharts) {
-                        if (distCharts[key]) {
-                            distCharts[key].resize();
-                            renderDistributionHandles(parseInt(key));
-                        }
-                    }
-                }
-            })
-
             device = [[${device}]];
             simulation = [[${simulation}]] == null ? undefined : [[${simulation}]];
 
             let $target = $('#target');
             let $placeholder = $('#target-placeholder');
-            applyDataTypeOptions(0);
+            // 타입 목록이 target 을 보므로 target 을 먼저 채운다
+            if (simulation) $target.html(simulation.target);
+
+            // 정책 칸은 모두 addPolicy 가 만든다 (0번도 예외가 아니다)
+            const policyCount = simulation ? simulation.policies.length : 1;
+            for (let i = 0; i < policyCount; i++) addPolicy();
 
             if (simulation) {
                 $('#name').val(simulation.name);
                 $('#enabled').val(simulation.enabled);
-                $target.html(simulation.target)
                 $('#interval').val(simulation.interval)
                 $('#stopOnControl').val(simulation.stopOnControl != null ? simulation.stopOnControl : 0);
                 for (let i = 0; i < simulation.policies.length; i++) {
@@ -195,7 +387,10 @@
                     $policy.val(simulation.policies[i].policy);
                     $policy.change()
 
-                    $('#policies-'+i+'-datatype').selectpicker('val', simulation.policies[i].data_type);
+                    $('#policies-'+i+'-datatype').val(simulation.policies[i].data_type);
+                    dataTypePicker(i).setTypes(
+                            CtsDataTypes.typesFor(device && device.protocol, $('#target').text()),
+                            simulation.policies[i].data_type);
                     if(simulation.policies[i].policy === 'STATIC') {
                         $('#policies-'+i+'-value').val(simulation.policies[i].value)
                     } else if (simulation.policies[i].policy === 'SEQUENCE') {
@@ -212,41 +407,49 @@
                                 && dist.type === 'BINS' && dist.binCount && dist.weights) {
                             $('#policy-'+i+'-dist-enabled').prop('checked', true);
                             $('#policies-'+i+'-distribution-body').show();
-                            $('#policy-'+i+'-bin-count').val(dist.binCount);
-                            // 저장된 weight 를 상대 가중치로 그대로 복원 (스케일 무관)
-                            segmentWeights[i] = dist.weights.slice();
-                            selectedSegments[i] = [];
-                            // 저장된 segment 폭 비율 복원 (없으면 균등)
-                            if (Array.isArray(dist.sizes) && dist.sizes.length === dist.binCount) {
-                                segmentSizes[i] = dist.sizes.slice();
-                            } else {
-                                segmentSizes[i] = new Array(dist.binCount).fill(1);
-                            }
-                            // 정규분포 파라미터가 저장돼 있으면 normal 모드로 복원
-                            if (typeof dist.mean === 'number' && typeof dist.std === 'number') {
-                                normalMode[i] = true;
-                                normalParams[i] = { mean: dist.mean, std: dist.std };
-                                $('#policy-'+i+'-normal-enabled').prop('checked', true);
-                            }
-                            applyDistMode(i);
+                            distEditor(i).setState(dist);
                             renderDistributionChart(i);
                         }
-                    }
-
-                    if(i < simulation.policies.length - 1) {
-                        addPolicy()
                     }
                 }
             }
 
+            $('#policy-tools').toggle(allowsManyPolicies());
             $placeholder.html(targetExample[device.protocol])
             updatePlaceholderVisibility();
             adjustHeight();
+            // target 입력칸이 먼저다. 등록 현황은 곁다리라 거기서 탈이 나도 입력은 살아 있어야 한다
+            mountTargetAid();
+            mountRegMap();
+            // 정책 종류를 바꾸거나 분포 편집기를 펴면 카드 높이가 변한다. 한 군데서 다 받는다
+            fitPolicies();
+            if (window.ResizeObserver) new ResizeObserver(fitPolicies).observe($('#policies').get(0));
+            $(window).on('resize', fitPolicies);
             // input 감지
             $target.on('input', function () {
                 updatePlaceholderVisibility();
                 adjustHeight();
+                applyAllDataTypeOptions();
+                targetAid.setValue($target.text());
+                syncRegMap();
             });
+
+            // 정책은 나중에 추가되므로 위임으로 건다.
+            // 기본 select 라 네이티브 change 를 듣는다. 코드가 .val() 로 넣는 값은 change 를
+            // 울리지 않으므로, 여기 오는 건 사용자가 고른 것뿐이다
+            $(document).on('change', 'select[id^="policies-"][id$="-datatype"]', function () {
+                const pnum = this.id.split('-')[1];
+                const previous = lastDataType[pnum];
+                lastDataType[pnum] = this.value;
+                onDataTypeChanged(pnum, 1, previous);
+            });
+
+            // DB 는 target 의 ${자리}가 정책 ID 를 가리킨다. 한 화면이라 고치는 즉시 보조 표시를 맞춘다
+            if (device.protocol === 'DB') {
+                $(document).on('input', 'input[id^="policies-"][id$="-id"]', function () {
+                    if (targetAid) targetAid.refresh();
+                });
+            }
 
             // 클릭하면 커서를 맨 앞에
             $target.on('focus', function () {
@@ -265,7 +468,8 @@
                 updatePlaceholderVisibility();
             });
 
-            $('#menuText').text(simulation ? 'Edit simulation' : 'Add simulation')
+            $('#pageTitle').text(simulation ? 'Edit simulation' : 'Add simulation');
+            $('#pageSubtitle').text(device.name + ' · ' + device.protocol);
         });
 
         function updatePlaceholderVisibility() {
@@ -303,31 +507,64 @@
             $target[0].style.height = $target[0].scrollHeight + 'px';
         }
 
+        function cancelEdit() {
+            location.href = '/simulations?device=' + device.id;
+        }
+
+        /** 알리고 그 칸으로 데려간다. 단계가 없으니 첫 문제에서 멈춘다. */
+        function complain(message, selector) {
+            alert(message);
+            const el = $(selector).get(0);
+            if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
+            return false;
+        }
+
+        /** 예전 1·2단계의 Next 가 막던 검사. 저장할 때 한 번에 한다. */
+        function validateHeader() {
+            if ($('#name').val() === '') return complain('Name cannot be empty.', '#name');
+            const interval = $('#interval').val();
+            if (interval === '' || isNaN(interval) || interval === '0') {
+                return complain('Simulation interval must be a natural number.', '#interval');
+            }
+            if ($('#target').html().trim() === '') return complain('Target cannot be empty.', '#target');
+            return true;
+        }
+
         function doSubmit() {
+            if (!validateHeader()) return;
+
             let policies_count = $('#policies-count').val();
             let policies = [];
             for (let i = 0; i < policies_count; i++) {
                 let p = {};
                 p.id = $('#policies-' + i + '-id').val();
                 if(p.id === '') {
-                    alert('ID of policy ' + i + ' is empty.')
-                    return;
+                    return complain('ID of policy ' + i + ' is empty.', '#policies-' + i + '-id');
                 }
-                p.policy = $('#policies-' + i + '-policy').val();
+                p.policy = policyOf(i);
                 p.data_type = $('#policies-' + i + '-datatype').val();
+                // target 이 BINARY 만 받아 타입이 저절로 바뀐 경우, 그 전에 넣은 값이 남아 있을 수 있다
+                if (p.data_type === 'BINARY') {
+                    const problem = binaryProblem(i);
+                    if (problem) {
+                        return complain('Policy ' + i + ' is BINARY. ' + problem + ' BINARY takes 0 or 1 only.',
+                                '#policies-' + i + '-id');
+                    }
+                }
                 if (p.policy === 'STATIC') {
                     p.value = $('#policies-'+i+'-value').val();
                     if(p.value === '') {
-                        alert('Value of policy ' + i + ' is empty.')
-                        return;
+                        return complain('Value of policy ' + i + ' is empty.', '#policies-' + i + '-value');
                     }
+                    // 숫자로 보낸다. 문자열이면 서버가 숫자 값으로 읽지 못한다(SimulationPolicy.numericValue)
+                    p.value = Number(p.value);
                     p.range = null;
                 } else if (p.policy === 'SEQUENCE') {
                     // value 에 숫자 배열을 그대로 담는다 (서버가 JSON number array 로 저장)
                     let seq = getSequence(i);
                     if (seq.length === 0) {
-                        alert('Sequence of policy ' + i + ' is empty. Add at least one value.');
-                        return;
+                        return complain('Sequence of policy ' + i + ' is empty. Add at least one value.',
+                                '#policy-' + i + '-seq-input');
                     }
                     p.value = seq.slice();
                     p.range = null;
@@ -336,28 +573,18 @@
                     p.range.push($('#policy-'+i+'-range-min').val());
                     p.range.push($('#policy-'+i+'-range-max').val());
                     if(p.range[0] === '' || p.range[1] === ''){
-                        alert('Range of policy ' + i + ' is empty.')
-                        return
+                        return complain('Range of policy ' + i + ' is empty.', '#policy-' + i + '-range-min');
                     }
+                    p.range = p.range.map(Number);
                     if (p.policy === 'RANDOM' && $('#policy-'+i+'-dist-enabled').is(':checked')) {
-                        let segmentCount = parseInt($('#policy-'+i+'-bin-count').val());
-                        if (isNaN(segmentCount) || segmentCount < SEGMENT_MIN || segmentCount > SEGMENT_MAX) {
-                            alert('Segment count of policy ' + i + ' must be between ' + SEGMENT_MIN + ' and ' + SEGMENT_MAX + '.');
+                        renderDistributionChart(i);
+                        const ed = distEditor(i);
+                        const distError = ed.validate();
+                        if (distError) {
+                            alert('Distribution of policy ' + i + ': ' + distError);
                             return;
                         }
-                        let weights = ensureSegmentWeights(i, segmentCount).slice();
-                        let weightSum = weights.reduce(function(a, b) { return a + (b > 0 ? b : 0); }, 0);
-                        if (weightSum <= 0) {
-                            alert('At least one segment weight of policy ' + i + ' must be positive.');
-                            return;
-                        }
-                        let sizes = ensureSegmentSizes(i, segmentCount).slice();
-                        p.distribution = { type: 'BINS', binCount: segmentCount, weights: weights, sizes: sizes };
-                        // 정규분포 모드면 μ/σ 도 저장해 재편집 가능하게 함
-                        if (normalMode[i] && normalParams[i]) {
-                            p.distribution.mean = normalParams[i].mean;
-                            p.distribution.std = normalParams[i].std;
-                        }
+                        p.distribution = ed.getDistribution();
                     } else {
                         p.distribution = null;
                     }
@@ -378,6 +605,31 @@
                 sim.id = simulation.id;
             }
 
+            // DB 는 정책 값이 ${정책 ID} 자리에 들어간다. 서버는 보지 않으므로 어긋나면 여기서 묻는다
+            if (device.protocol === 'DB') {
+                const problems = targetAid.problems();
+                if (problems.length && !confirm(problems.map(p => p.text).join('\n') + '\n\nSave anyway?')) return;
+            }
+
+            // 저장은 페이지를 떠나므로, 서버가 거절하면 입력이 사라진다. 같은 검증을 먼저 받아 여기서 알린다
+            $.ajax({
+                url: '/api/simulation/validate',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(sim)
+            }).done(function (resp) {
+                if (resp && resp.error) {
+                    alert(resp.error);
+                    return;
+                }
+                submitSimulation(sim);
+            }).fail(function () {
+                // 저장 경로가 같은 검증을 다시 한다
+                submitSimulation(sim);
+            });
+        }
+
+        function submitSimulation(sim) {
             let form = $('<form>', {
                 'action': '/saveSimulation',
                 'method': 'post'
@@ -392,34 +644,17 @@
             form.submit();
         }
 
-        function validatePanel1() {
-            let name = $('#name').val();
-            if (name === '') {
-                alert('Name cannot be empty.');
-                return;
-            }
-            if (!simulation && simulationsNames.indexOf(name) > -1 || (simulation && simulation.name !== name && simulationsNames.indexOf(name) > -1)) {
-                alert('Entered name is duplicated in selected device.')
-            } else {
-                stepper.next();
-            }
-        }
-
-        function validatePanel2() {
-            let interval = $('#interval').val();
-            if (interval === '' || isNaN(interval) || interval === '0') {
-                alert('Simulation interval must be a natural number.');
-                return;
-            }
-            let target = $('#target').html().trim();
-            if (target === '') {
-                alert('Target cannot be empty.');
-            } else {
-                stepper.next();
-            }
-        }
-
         function numeric_filter(input, e) {
+            // BINARY 정책의 칸(값, 범위, 시퀀스 추가)은 0 또는 1 하나만 받는다. 붙여넣기도 막는다
+            const owner = /^polic(?:y|ies)-(\d+)-/.exec(input.id);
+            if (owner && isBinary(owner[1])) {
+                if (!e.inputType || e.inputType.indexOf('insert') !== 0) return;
+                const data = e.data != null ? e.data
+                    : (e.dataTransfer ? e.dataTransfer.getData('text') : '');
+                const next = input.value.slice(0, input.selectionStart) + data + input.value.slice(input.selectionEnd);
+                if (!/^[01]?$/.test(next)) e.preventDefault();
+                return;
+            }
             // 입력 타입이 텍스트가 아니면 무시
             if (e.inputType !== "insertText") return;
 
@@ -489,6 +724,8 @@
                     distribution.hide();
                 }
             }
+            if (isBinary(pnum)) fitHiddenValuesToBinary(pnum, val);
+            applyBinaryConstraints(pnum);
         }
 
         function getSequence(pnum) {
@@ -502,6 +739,10 @@
             let raw = $input.val();
             if (raw === null || String(raw).trim() === '' || !Number.isFinite(Number(raw))) {
                 alert('Enter a number to add.');
+                return;
+            }
+            if (isBinary(pnum) && Number(raw) !== 0 && Number(raw) !== 1) {
+                alert('BINARY takes 0 or 1 only.');
                 return;
             }
             getSequence(pnum).push(Number(raw));
@@ -541,18 +782,18 @@
                 return '<span class="badge badge-light border mr-1 mb-1" style="font-size:.85rem; padding:6px 8px;">'
                     + '<span class="text-muted mr-1">' + (i + 1) + '.</span>'
                     + '<b>' + v + '</b>'
-                    + '<button type="button" class="btn btn-link btn-sm p-0 ml-2" title="Move left"'
+                    + '<button type="button" class="btn btn-link btn-sm p-0 ms-2" title="Move left"'
                     + ' onclick="moveSequenceValue(' + pnum + ',' + i + ',-1)">&#8592;</button>'
-                    + '<button type="button" class="btn btn-link btn-sm p-0 ml-1" title="Move right"'
+                    + '<button type="button" class="btn btn-link btn-sm p-0 ms-1" title="Move right"'
                     + ' onclick="moveSequenceValue(' + pnum + ',' + i + ',1)">&#8594;</button>'
-                    + '<button type="button" class="btn btn-link btn-sm p-0 ml-1 text-danger" title="Remove"'
+                    + '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger" title="Remove"'
                     + ' onclick="removeSequenceValue(' + pnum + ',' + i + ')">&times;</button>'
                     + '</span>';
             }).join('');
             $list.html(rows
                 + '<div class="mt-1">'
                 + '<span class="text-muted" style="font-size:.8rem;">' + arr.length + ' value(s)</span>'
-                + '<button type="button" class="btn btn-outline-danger btn-sm ml-2 py-0"'
+                + '<button type="button" class="btn btn-outline-danger btn-sm ms-2 py-0"'
                 + ' onclick="clearSequenceValues(' + pnum + ')">Clear all</button>'
                 + '</div>');
         }
@@ -560,959 +801,143 @@
         function toggleDistribution(pnum) {
             let enabled = $('#policy-'+pnum+'-dist-enabled').is(':checked');
             $('#policies-'+pnum+'-distribution-body').toggle(enabled);
-            if (enabled) {
-                if (!$('#policy-'+pnum+'-bin-count').val()) {
-                    $('#policy-'+pnum+'-bin-count').val(4);
-                    syncWeights(pnum);
-                } else {
-                    renderDistributionChart(pnum);
-                }
-            } else {
-                destroyDistChart(pnum);
-            }
+            if (enabled) renderDistributionChart(pnum);
         }
 
-        // segment 개수가 바뀌면 weights/sizes 를 균등으로 리셋.
-        // segment 개수가 바뀌면 weights/sizes 를 균등으로 리셋하고 선택 해제
-        const SEGMENT_MIN = 2;
-        const SEGMENT_MAX = 30;
-
-        function syncWeights(pnum) {
-            let count = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (isNaN(count)) return;
-            if (count < SEGMENT_MIN) count = SEGMENT_MIN;
-            if (count > SEGMENT_MAX) count = SEGMENT_MAX;
-            $('#policy-'+pnum+'-bin-count').val(count); // 클램프 결과를 입력칸에 반영
-            segmentWeights[pnum] = new Array(count).fill(1);
-            segmentSizes[pnum] = new Array(count).fill(1);
-            selectedSegments[pnum] = [];
-            // 정규분포 모드면 새 개수로 파라미터 유지하며 종 모양 재계산은 render 에서 처리
-            renderDistributionChart(pnum);
-        }
-
-        // 명시적으로 weights 만 균등 리셋
-        function resetSegmentWeights(pnum) {
-            let count = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (!isNaN(count) && count >= 1) {
-                segmentWeights[pnum] = new Array(count).fill(1);
-            }
-            renderDistributionChart(pnum);
-        }
-
-        // 선택된 segment 들의 weight 합을 균등 분배 (확률 그룹 비중은 유지, 그룹 내부는 동일)
-        function equalizeSelected(pnum) {
-            let count = parseInt($('#policy-'+pnum+'-bin-count').val());
-            let sel = selectedSegments[pnum] || [];
-            if (sel.length < 2) { return; }
-            let weights = ensureSegmentWeights(pnum, count);
-            let sum = 0;
-            for (let i = 0; i < sel.length; i++) {
-                let w = weights[sel[i]];
-                sum += (w > 0 ? w : 0);
-            }
-            let each = sum / sel.length;
-            for (let i = 0; i < sel.length; i++) {
-                weights[sel[i]] = each;
-            }
-            renderDistributionChart(pnum);
-        }
-
-        function toggleSegmentSelection(pnum, idx) {
-            if (normalMode[pnum]) return; // 정규분포 모드에서는 선택 무의미
-            if (!selectedSegments[pnum]) selectedSegments[pnum] = [];
-            let arr = selectedSegments[pnum];
-            let pos = arr.indexOf(idx);
-            if (pos >= 0) arr.splice(pos, 1);
-            else arr.push(idx);
-            renderDistributionChart(pnum);
-        }
-
-        // ── 정규분포(Normal) 프리셋 ──
-        function erf(x) {
-            let sign = x < 0 ? -1 : 1;
-            x = Math.abs(x);
-            let t = 1 / (1 + 0.3275911 * x);
-            let y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
-            return sign * y;
-        }
-        function normalCdf(x, mu, sigma) {
-            return 0.5 * (1 + erf((x - mu) / (sigma * Math.SQRT2)));
-        }
-
-        function normalRange(pnum, segmentCount) {
-            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
-            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
-            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
-            return { xMin: useRealRange ? rangeMin : 0, xMax: useRealRange ? rangeMax : segmentCount };
-        }
-
-        // μ, σ 와 segment 경계로 각 segment 의 정규분포 질량을 계산해 weight 로 설정 (truncated normal).
-        function computeNormalWeights(pnum, segmentCount) {
-            let p = normalParams[pnum];
-            if (!p) return;
-            let r = normalRange(pnum, segmentCount);
-            let sizes = ensureSegmentSizes(pnum, segmentCount);
-            let boundaries = computeBoundaries(r.xMin, r.xMax, sizes);
-            if (!boundaries) return;
-            let mu = p.mean;
-            let sigma = (p.std > 0) ? p.std : (r.xMax - r.xMin) / 100;
-            let w = [];
-            let sum = 0;
-            for (let i = 0; i < segmentCount; i++) {
-                let m = normalCdf(boundaries[i + 1], mu, sigma) - normalCdf(boundaries[i], mu, sigma);
-                if (!(m > 0)) m = 0;
-                w.push(m);
-                sum += m;
-            }
-            if (sum <= 0) w = new Array(segmentCount).fill(1);
-            segmentWeights[pnum] = w;
-        }
-
-        function toggleNormal(pnum) {
-            let on = $('#policy-'+pnum+'-normal-enabled').is(':checked');
-            normalMode[pnum] = on;
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (!isNaN(segmentCount) && segmentCount >= 1 && on) {
-                // 정규분포 모드는 균등 segment 위에서 종 모양을 그린다
-                segmentSizes[pnum] = new Array(segmentCount).fill(1);
-                selectedSegments[pnum] = [];
-                let r = normalRange(pnum, segmentCount);
-                normalParams[pnum] = { mean: (r.xMin + r.xMax) / 2, std: (r.xMax - r.xMin) / 6 };
-            }
-            applyDistMode(pnum);
-            renderDistributionChart(pnum);
-        }
-
-        // 모드에 따라 manual 전용 버튼(Equalize/Reset)과 설명 문구를 전환
-        function applyDistMode(pnum) {
-            let on = !!normalMode[pnum];
-            $('#policy-'+pnum+'-dist-controls').toggle(!on);
-            let desc = on
-                ? 'Normal distribution: drag the purple μ handle to move the center, the orange σ handle to change the spread. Weights are computed automatically; the % under each segment is its probability.'
-                : 'Bar height = relative weight; the % under each segment is its probability. Drag green handles to set a segment weight (only that bar moves), red handles to resize. Click segments to select, then Equalize selected.';
-            $('#policy-'+pnum+'-dist-desc').text(desc);
-        }
-
+        /** Range 와 BINARY 여부를 분포 편집기에 알린다. Range 입력칸의 oninput 이 부른다. */
         function renderDistributionChart(pnum) {
-            let $canvas = $('#policy-'+pnum+'-dist-chart');
-            if ($canvas.length === 0) return;
-
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (isNaN(segmentCount) || segmentCount < 1) return;
-
-            // 정규분포 모드면 μ,σ 로 weight 를 매번 재계산 (range/segment 변화 자동 반영)
-            if (normalMode[pnum]) {
-                computeNormalWeights(pnum, segmentCount);
-            }
-
-            // 정책 내부 상태에서 raw weight 와 확률 계산
-            let info = currentProbabilities(pnum, segmentCount);
-            let weights = info.weights;   // bar 높이 = raw weight
-            let probabilities = info.probs;
-
-            // Y 축 최대치: 드래그 중에는 drag 시작 시점 값으로 잠가 스케일 점프/anchor stale 방지.
-            let yMax;
-            if (weightDragActive && lockedYMax[pnum] !== undefined) {
-                yMax = lockedYMax[pnum];
-            } else {
-                yMax = computeWeightYMax(weights);
-            }
-
-            // range/segment sizes 로 boundary 계산. range가 무효하면 [0, segmentCount]를 가상 X축으로 사용.
-            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
-            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
-            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
-            let xMin = useRealRange ? rangeMin : 0;
-            let xMax = useRealRange ? rangeMax : segmentCount;
-
-            let sizes = ensureSegmentSizes(pnum, segmentCount);
-            let boundaries = computeBoundaries(xMin, xMax, sizes);
-            if (!boundaries) {
-                // sizes 합이 0인 비정상 상황 → 균등 리셋
-                segmentSizes[pnum] = new Array(segmentCount).fill(1);
-                sizes = segmentSizes[pnum];
-                boundaries = computeBoundaries(xMin, xMax, sizes);
-            }
-
-            // line+fill 로 가변폭 히스토그램. bar 높이 = raw weight. 각 segment에 대해 (lo, w), (hi, w) 두 점.
-            let dataPoints = [];
-            for (let i = 0; i < segmentCount; i++) {
-                dataPoints.push({ x: boundaries[i], y: weights[i] });
-                dataPoints.push({ x: boundaries[i + 1], y: weights[i] });
-            }
-
-            let chart = distCharts[pnum];
-            if (chart) {
-                chart.data.datasets[0].data = dataPoints;
-                chart.options.scales.xAxes[0].ticks.min = xMin;
-                chart.options.scales.xAxes[0].ticks.max = xMax;
-                chart.options.scales.yAxes[0].ticks.max = yMax;
-                chart.update({ duration: 0 });
-                renderDistributionHandles(pnum);
-            } else {
-                distCharts[pnum] = new Chart($canvas[0].getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: 'Weight',
-                            data: dataPoints,
-                            backgroundColor: 'rgba(60, 141, 188, 0.5)',
-                            borderColor: 'rgba(60, 141, 188, 1)',
-                            borderWidth: 1,
-                            fill: 'origin',
-                            pointRadius: 0,
-                            pointHitRadius: 0,
-                            lineTension: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: { duration: 0 },
-                        scales: {
-                            yAxes: [{
-                                // weight 스케일은 상대값이라 숫자는 의미가 없어 숨긴다. 확률은 하단 라벨로 표시.
-                                ticks: { min: 0, max: yMax, display: false },
-                                scaleLabel: { display: true, labelString: 'Weight (relative)' }
-                            }],
-                            xAxes: [{
-                                type: 'linear',
-                                position: 'bottom',
-                                ticks: { min: xMin, max: xMax },
-                                scaleLabel: { display: true, labelString: useRealRange ? 'Value' : 'Segment index' }
-                            }]
-                        },
-                        tooltips: { enabled: false },
-                        legend: { display: false },
-                        onResize: function() { renderDistributionHandles(pnum); }
-                    }
-                });
-                // 차트 레이아웃 계산 후 핸들을 그린다
-                setTimeout(function() { renderDistributionHandles(pnum); }, 0);
-            }
+            if (!$('#policy-'+pnum+'-dist-enabled').is(':checked')) return;
+            const ed = distEditor(pnum);
+            if (!ed) return;
+            ed.setRange(parseFloat($('#policy-'+pnum+'-range-min').val()), parseFloat($('#policy-'+pnum+'-range-max').val()));
+            ed.setBinary(isBinary(pnum));
         }
 
-        // 핸들 DOM 을 한 번 생성하고 이벤트 바인딩까지 끝낸다 (재사용을 위해)
-        function createWeightHandle(pnum, idx) {
-            let $h = $('<div class="weight-handle"></div>').attr('data-idx', idx).css({
-                position: 'absolute',
-                height: '11px',
-                cursor: 'ns-resize',
-                background: 'rgba(40, 167, 69, 0.18)',
-                borderTop: '2px solid rgba(40, 167, 69, 0.85)',
-                borderBottom: '2px solid rgba(40, 167, 69, 0.85)',
-                pointerEvents: 'auto',
-                zIndex: 9
-            });
-            $h.on('mousedown', function(e) { startWeightDrag(e, pnum, parseInt($(this).attr('data-idx'))); });
-            $h.on('touchstart', function(e) {
-                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
-                    let t = e.originalEvent.touches[0];
-                    startWeightDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, parseInt($(this).attr('data-idx')), true);
-                }
-            });
-            $h.on('mouseenter mousemove', function(e) {
-                if (dragActive) return;
-                showWeightHoverTooltip(pnum, parseInt($(this).attr('data-idx')), e.pageX, e.pageY);
-            });
-            $h.on('mouseleave', function() {
-                if (dragActive) return;
-                hideDragTooltip();
-            });
-            return $h;
-        }
+        // 세로로 쌓이는 화면에서는 정책 칸이 카드 수만큼 한없이 길어져 페이지가 스크롤된다.
+        // 카드 두 장까지만 늘어나게 잡고 그 뒤로는 칸 안에서 스크롤한다.
+        const POLICY_FIT = 2;
 
-        function createBoundaryHandle(pnum, idx) {
-            let $h = $('<div class="seg-handle"></div>').attr('data-idx', idx).css({
-                position: 'absolute',
-                width: '9px',
-                cursor: 'ew-resize',
-                background: 'rgba(220, 53, 69, 0.15)',
-                borderLeft: '2px solid rgba(220, 53, 69, 0.85)',
-                borderRight: '2px solid rgba(220, 53, 69, 0.85)',
-                pointerEvents: 'auto',
-                zIndex: 10
-            });
-            $h.on('mousedown', function(e) { startBoundaryDrag(e, pnum, parseInt($(this).attr('data-idx'))); });
-            $h.on('touchstart', function(e) {
-                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
-                    let t = e.originalEvent.touches[0];
-                    startBoundaryDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, parseInt($(this).attr('data-idx')), true);
-                }
-            });
-            $h.on('mouseenter mousemove', function(e) {
-                if (dragActive) return;
-                showBoundaryHoverTooltip(pnum, parseInt($(this).attr('data-idx')), e.pageX, e.pageY);
-            });
-            $h.on('mouseleave', function() {
-                if (dragActive) return;
-                hideDragTooltip();
-            });
-            return $h;
-        }
+        function fitPolicies() {
+            const body = document.querySelector('.ed-policies > .card-body');
+            const list = document.getElementById('policies');
+            if (!body || !list) return;
 
-        // segment 본문 선택 오버레이 (클릭 → 선택 토글). bar 영역 클릭으로 다중 선택.
-        function createSelectOverlay(pnum, idx) {
-            let $o = $('<div class="seg-select"></div>').attr('data-idx', idx).css({
-                position: 'absolute',
-                pointerEvents: 'auto',
-                cursor: 'pointer',
-                zIndex: 5
-            });
-            $o.on('click', function() { toggleSegmentSelection(pnum, parseInt($(this).attr('data-idx'))); });
-            return $o;
-        }
-
-        // 하단 확률 라벨 (표시 전용 + 클릭 시 선택 토글)
-        function createSegmentLabel(pnum, idx) {
-            let $l = $('<div class="seg-label"></div>').attr('data-idx', idx).css({
-                position: 'absolute',
-                transform: 'translateX(-50%)',
-                fontSize: '0.72rem',
-                lineHeight: '1',
-                padding: '1px 4px',
-                borderRadius: '3px',
-                background: 'rgba(255,255,255,0.85)',
-                color: '#333',
-                pointerEvents: 'auto',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                zIndex: 11
-            });
-            $l.on('click', function() { toggleSegmentSelection(pnum, parseInt($(this).attr('data-idx'))); });
-            return $l;
-        }
-
-        // μ(평균) 핸들 — 세로선, 좌우 드래그로 중심 이동
-        function createMeanHandle(pnum) {
-            let $h = $('<div class="mean-handle"></div>').css({
-                position: 'absolute',
-                width: '3px',
-                marginLeft: '-1px',
-                cursor: 'ew-resize',
-                background: 'rgba(111, 66, 193, 0.9)',
-                pointerEvents: 'auto',
-                zIndex: 12
-            });
-            let $tag = $('<div>μ</div>').css({
-                position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(111, 66, 193, 0.9)', color: '#fff', fontSize: '0.7rem',
-                padding: '0 4px', borderRadius: '3px'
-            });
-            $h.append($tag);
-            $h.on('mousedown', function(e) { startMeanDrag(e, pnum); });
-            $h.on('touchstart', function(e) {
-                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
-                    let t = e.originalEvent.touches[0];
-                    startMeanDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, true);
-                }
-            });
-            return $h;
-        }
-
-        // σ(표준편차) 핸들 — μ+σ 위치 세로선, 좌우 드래그로 폭 조절
-        function createStdHandle(pnum) {
-            let $h = $('<div class="std-handle"></div>').css({
-                position: 'absolute',
-                width: '3px',
-                marginLeft: '-1px',
-                cursor: 'ew-resize',
-                background: 'rgba(253, 126, 20, 0.9)',
-                pointerEvents: 'auto',
-                zIndex: 12
-            });
-            let $tag = $('<div>σ</div>').css({
-                position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(253, 126, 20, 0.9)', color: '#fff', fontSize: '0.7rem',
-                padding: '0 4px', borderRadius: '3px'
-            });
-            $h.append($tag);
-            $h.on('mousedown', function(e) { startStdDrag(e, pnum); });
-            $h.on('touchstart', function(e) {
-                if (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches.length > 0) {
-                    let t = e.originalEvent.touches[0];
-                    startStdDrag({ pageX: t.pageX, pageY: t.pageY, preventDefault: function() { e.preventDefault(); } }, pnum, true);
-                }
-            });
-            return $h;
-        }
-
-        function renderDistributionHandles(pnum) {
-            let $handlesContainer = $('#policy-'+pnum+'-dist-handles');
-            if ($handlesContainer.length === 0) return;
-
-            let chart = distCharts[pnum];
-            if (!chart) return;
-
-            let xScale = chart.scales['x-axis-0'];
-            let yScale = chart.scales['y-axis-0'];
-            if (!xScale || !yScale) return;
-            let area = chart.chartArea;
-            if (!area) return;
-
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (isNaN(segmentCount) || segmentCount < 1) return;
-
-            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
-            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
-            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
-            let xMin = useRealRange ? rangeMin : 0;
-            let xMax = useRealRange ? rangeMax : segmentCount;
-
-            let sizes = ensureSegmentSizes(pnum, segmentCount);
-            let boundaries = computeBoundaries(xMin, xMax, sizes);
-            if (!boundaries) return;
-
-            let info = currentProbabilities(pnum, segmentCount);
-            let weights = info.weights;
-            let probs = info.probs;
-            let selected = selectedSegments[pnum] || [];
-            let isNormal = !!normalMode[pnum];
-
-            // 모드(manual/normal) + segment 개수가 바뀌면 핸들 DOM 을 재구성한다.
-            let sig = (isNormal ? 'N' : 'M') + ':' + segmentCount;
-            if ($handlesContainer.data('sig') !== sig) {
-                $handlesContainer.empty();
-                if (isNormal) {
-                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createSegmentLabel(pnum, i));
-                    $handlesContainer.append(createMeanHandle(pnum));
-                    $handlesContainer.append(createStdHandle(pnum));
-                } else {
-                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createSelectOverlay(pnum, i));
-                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createWeightHandle(pnum, i));
-                    for (let i = 1; i < segmentCount; i++) $handlesContainer.append(createBoundaryHandle(pnum, i));
-                    for (let i = 0; i < segmentCount; i++) $handlesContainer.append(createSegmentLabel(pnum, i));
-                }
-                $handlesContainer.data('sig', sig);
-            }
-
-            let $labels = $handlesContainer.children('.seg-label');
-
-            // 하단 확률 라벨은 모드 공통
-            for (let i = 0; i < segmentCount; i++) {
-                let xLo = xScale.getPixelForValue(boundaries[i]);
-                let xHi = xScale.getPixelForValue(boundaries[i + 1]);
-                let segW = Math.max(1, xHi - xLo);
-                let isSel = !isNormal && selected.indexOf(i) >= 0;
-                $labels.eq(i)
-                    .text(Math.round(probs[i]) + '%')
-                    .css({
-                        left: (xLo + segW / 2) + 'px',
-                        top: (area.bottom - 18) + 'px',
-                        fontWeight: isSel ? '700' : '400'
-                    });
-            }
-
-            if (isNormal) {
-                let p = normalParams[pnum];
-                if (p) {
-                    let clampPix = function(v) {
-                        let px = xScale.getPixelForValue(v);
-                        return Math.max(area.left, Math.min(area.right, px));
-                    };
-                    $handlesContainer.children('.mean-handle').css({
-                        left: clampPix(p.mean) + 'px',
-                        top: area.top + 'px',
-                        height: (area.bottom - area.top) + 'px'
-                    });
-                    $handlesContainer.children('.std-handle').css({
-                        left: clampPix(p.mean + p.std) + 'px',
-                        top: area.top + 'px',
-                        height: (area.bottom - area.top) + 'px'
-                    });
-                }
+            // 좌우로 나뉜 화면에서는 칸이 이미 남는 높이를 다 쓴다. 건드릴 일이 없다
+            const cards = list.children;
+            if (window.matchMedia('(min-width: 1100px)').matches || cards.length <= POLICY_FIT) {
+                body.style.maxHeight = '';
                 return;
             }
 
-            // ── manual 모드: 오버레이/weight/boundary 핸들 위치 갱신 ──
-            let $weightHandles = $handlesContainer.children('.weight-handle');
-            let $boundaryHandles = $handlesContainer.children('.seg-handle');
-            let $overlays = $handlesContainer.children('.seg-select');
-            for (let i = 0; i < segmentCount; i++) {
-                let xLo = xScale.getPixelForValue(boundaries[i]);
-                let xHi = xScale.getPixelForValue(boundaries[i + 1]);
-                let segW = Math.max(1, xHi - xLo);
-                let isSel = selected.indexOf(i) >= 0;
+            const cs = getComputedStyle(body);
+            const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
+            let h = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+            for (let i = 0; i < POLICY_FIT; i++) h += cards[i].offsetHeight;
+            // 간격을 하나 더 둬서 다음 카드의 윗단이 살짝 걸쳐 보이게 한다 — 더 있다는 표시다
+            h += gap * POLICY_FIT;
 
-                $overlays.eq(i).css({
-                    left: xLo + 'px',
-                    top: area.top + 'px',
-                    width: segW + 'px',
-                    height: (area.bottom - area.top) + 'px',
-                    background: isSel ? 'rgba(255, 193, 7, 0.25)' : 'transparent',
-                    boxShadow: isSel ? 'inset 0 0 0 2px rgba(255, 193, 7, 0.9)' : 'none'
-                });
-
-                let yW = yScale.getPixelForValue(weights[i]);
-                let handleTop = Math.max(area.top, Math.min(area.bottom - 11, yW - 5));
-                $weightHandles.eq(i).css({
-                    left: xLo + 'px',
-                    top: handleTop + 'px',
-                    width: segW + 'px'
-                });
-            }
-            for (let i = 1; i < segmentCount; i++) {
-                let pixel = xScale.getPixelForValue(boundaries[i]);
-                $boundaryHandles.eq(i - 1).css({
-                    left: (pixel - 4) + 'px',
-                    top: area.top + 'px',
-                    height: (area.bottom - area.top) + 'px'
-                });
+            const want = Math.round(h);
+            if (!(Math.abs(parseFloat(body.style.maxHeight) - want) <= 2)) {
+                body.style.maxHeight = want + 'px';
             }
         }
 
-        // ── Drag tooltip (boundary/weight 공용) ──
-        function ensureDragTooltip() {
-            let $tip = $('#drag-tooltip');
-            if ($tip.length === 0) {
-                $tip = $('<div id="drag-tooltip"></div>').css({
-                    position: 'fixed',
-                    pointerEvents: 'none',
-                    background: 'rgba(0, 0, 0, 0.85)',
-                    color: 'white',
-                    padding: '6px 10px',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    lineHeight: '1.3',
-                    zIndex: 9999,
-                    whiteSpace: 'nowrap',
-                    display: 'none'
-                }).appendTo('body');
-            }
-            return $tip;
-        }
-        function showDragTooltip(html, pageX, pageY) {
-            let $tip = ensureDragTooltip();
-            $tip.html(html).css({
-                left: (pageX + 14) + 'px',
-                top: (pageY + 14) + 'px',
-                display: 'block'
-            });
-        }
-        function hideDragTooltip() {
-            $('#drag-tooltip').hide();
+        /**
+         * 정책을 여럿 둘 수 있는 건 DB 장비뿐이다. DB 의 target 은 ${정책 ID} 자리를 가진 SQL 이라
+         * 정책 하나가 자리 하나를 채운다. 다른 프로토콜은 target 하나에 값 하나를 쓰므로
+         * 정책을 더 달아 봐야 같은 자리를 번갈아 덮어쓸 뿐이다
+         * (서버도 같은 규칙을 본다 — SimulationTargetValidator).
+         */
+        function allowsManyPolicies() {
+            return device && device.protocol === 'DB';
         }
 
-        // 현재 입력/sizes 상태를 기반으로 segment idx 의 정보 툴팁을 그린다.
-        function showWeightHoverTooltip(pnum, idx, pageX, pageY) {
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (isNaN(segmentCount) || segmentCount < 1) return;
-            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
-            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
-            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
-            let xMin = useRealRange ? rangeMin : 0;
-            let xMax = useRealRange ? rangeMax : segmentCount;
-            let sizes = ensureSegmentSizes(pnum, segmentCount);
-            let bnds = computeBoundaries(xMin, xMax, sizes);
-            if (!bnds) return;
-            let info = currentProbabilities(pnum, segmentCount);
-            let lo = bnds[idx], hi = bnds[idx + 1];
-            let prob = info.probs[idx];
-            showDragTooltip(
-                '<b>Seg ' + idx + '</b><br>Range: [' + formatBound(lo) + ', ' + formatBound(hi) + ')<br>Probability: ' + prob.toFixed(2) + '%',
-                pageX, pageY
-            );
-        }
-
-        // 현재 입력/sizes 상태를 기반으로 internal boundary idx 의 정보 툴팁을 그린다.
-        function showBoundaryHoverTooltip(pnum, idx, pageX, pageY) {
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (isNaN(segmentCount) || segmentCount < 2) return;
-            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
-            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
-            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
-            let xMin = useRealRange ? rangeMin : 0;
-            let xMax = useRealRange ? rangeMax : segmentCount;
-            let sizes = ensureSegmentSizes(pnum, segmentCount);
-            let bnds = computeBoundaries(xMin, xMax, sizes);
-            if (!bnds) return;
-            let info = currentProbabilities(pnum, segmentCount);
-            let val = bnds[idx];
-            let leftBound = bnds[idx - 1];
-            let rightBound = bnds[idx + 1];
-            let pLeft = info.probs[idx - 1];
-            let pRight = info.probs[idx];
-            showDragTooltip(
-                '<b>Boundary</b>: ' + formatBound(val) + '<br>' +
-                'Seg ' + (idx - 1) + ' [' + formatBound(leftBound) + ', ' + formatBound(val) + ') &rarr; ' + pLeft.toFixed(2) + '%<br>' +
-                'Seg ' + idx + ' [' + formatBound(val) + ', ' + formatBound(rightBound) + ') &rarr; ' + pRight.toFixed(2) + '%',
-                pageX, pageY
-            );
-        }
-
-        function currentProbabilities(pnum, segmentCount) {
-            let raw = ensureSegmentWeights(pnum, segmentCount);
-            let weights = [];
-            let sum = 0;
-            for (let k = 0; k < segmentCount; k++) {
-                let w = raw[k];
-                if (typeof w !== 'number' || isNaN(w) || w < 0) w = 0;
-                weights.push(w);
-                sum += w;
-            }
-            let probs = weights.map(function(w) { return sum > 0 ? (w / sum * 100) : 0; });
-            return { weights: weights, sum: sum, probs: probs };
-        }
-
-        function showNormalTooltip(pnum, pageX, pageY) {
-            let p = normalParams[pnum];
-            if (!p) return;
-            showDragTooltip(
-                '<b>Normal</b><br>μ (mean): ' + formatBound(p.mean) + '<br>σ (std): ' + formatBound(p.std),
-                pageX, pageY
-            );
-        }
-
-        function startMeanDrag(e, pnum, isTouch) {
-            if (e.preventDefault) e.preventDefault();
-            let chart = distCharts[pnum];
-            if (!chart) return;
-            let xScale = chart.scales['x-axis-0'];
-            if (!xScale) return;
-            dragActive = true;
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            let r = normalRange(pnum, segmentCount);
-            let p = normalParams[pnum];
-            let startPixel = xScale.getPixelForValue(p.mean);
-            let startPageX = e.pageX;
-
-            let onMove = function(ev) {
-                let pageX = ev.pageX, pageY = ev.pageY;
-                if (isTouch && ev.touches && ev.touches.length > 0) { pageX = ev.touches[0].pageX; pageY = ev.touches[0].pageY; }
-                let v = xScale.getValueForPixel(startPixel + (pageX - startPageX));
-                if (v < r.xMin) { v = r.xMin; startPixel = xScale.getPixelForValue(r.xMin); startPageX = pageX; }
-                if (v > r.xMax) { v = r.xMax; startPixel = xScale.getPixelForValue(r.xMax); startPageX = pageX; }
-                p.mean = v;
-                renderDistributionChart(pnum);
-                showNormalTooltip(pnum, pageX, pageY);
-            };
-            let onUp = function() {
-                dragActive = false;
-                hideDragTooltip();
-                renderDistributionChart(pnum);
-                $(document).off('mousemove.mean'+pnum).off('mouseup.mean'+pnum)
-                    .off('touchmove.mean'+pnum).off('touchend.mean'+pnum);
-            };
-            $(document).on('mousemove.mean'+pnum, onMove).on('mouseup.mean'+pnum, onUp)
-                .on('touchmove.mean'+pnum, onMove).on('touchend.mean'+pnum, onUp);
-        }
-
-        function startStdDrag(e, pnum, isTouch) {
-            if (e.preventDefault) e.preventDefault();
-            let chart = distCharts[pnum];
-            if (!chart) return;
-            let xScale = chart.scales['x-axis-0'];
-            if (!xScale) return;
-            dragActive = true;
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            let r = normalRange(pnum, segmentCount);
-            let span = r.xMax - r.xMin;
-            let minStd = span / 200, maxStd = span * 2;
-            let p = normalParams[pnum];
-            let startPixel = xScale.getPixelForValue(p.mean + p.std);
-            let startPageX = e.pageX;
-
-            let onMove = function(ev) {
-                let pageX = ev.pageX, pageY = ev.pageY;
-                if (isTouch && ev.touches && ev.touches.length > 0) { pageX = ev.touches[0].pageX; pageY = ev.touches[0].pageY; }
-                let v = xScale.getValueForPixel(startPixel + (pageX - startPageX));
-                let newStd = Math.abs(v - p.mean);
-                if (newStd < minStd) { newStd = minStd; startPixel = xScale.getPixelForValue(p.mean + newStd); startPageX = pageX; }
-                if (newStd > maxStd) { newStd = maxStd; startPixel = xScale.getPixelForValue(p.mean + newStd); startPageX = pageX; }
-                p.std = newStd;
-                renderDistributionChart(pnum);
-                showNormalTooltip(pnum, pageX, pageY);
-            };
-            let onUp = function() {
-                dragActive = false;
-                hideDragTooltip();
-                renderDistributionChart(pnum);
-                $(document).off('mousemove.std'+pnum).off('mouseup.std'+pnum)
-                    .off('touchmove.std'+pnum).off('touchend.std'+pnum);
-            };
-            $(document).on('mousemove.std'+pnum, onMove).on('mouseup.std'+pnum, onUp)
-                .on('touchmove.std'+pnum, onMove).on('touchend.std'+pnum, onUp);
-        }
-
-        function startWeightDrag(e, pnum, idx, isTouch) {
-            if (e.preventDefault) e.preventDefault();
-            let chart = distCharts[pnum];
-            if (!chart) return;
-            let yScale = chart.scales['y-axis-0'];
-            if (!yScale) return;
-            dragActive = true;
-            weightDragActive = true;
-
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            let weights = ensureSegmentWeights(pnum, segmentCount);
-
-            // 현재 표시 중인 yMax 를 잠근다 — 이미 화면에 그려진 스케일과 동일하므로 점프 없음.
-            // 드래그 가능한 weight 상한 = 잠긴 yMax (≈ 2 × 시작 시점 max weight, 즉 2배 여유).
-            let yMaxLocked = computeWeightYMax(weights);
-            lockedYMax[pnum] = yMaxLocked;
-
-            let startWeight = weights[idx];
-            let startPixelY = yScale.getPixelForValue(startWeight);
-            let startPageY = e.pageY;
-
-            let onMove = function(ev) {
-                let pageY = ev.pageY, pageX = ev.pageX;
-                if (isTouch && ev.touches && ev.touches.length > 0) {
-                    pageY = ev.touches[0].pageY;
-                    pageX = ev.touches[0].pageX;
-                }
-                let newPixelY = startPixelY + (pageY - startPageY);
-                let newWeight = yScale.getValueForPixel(newPixelY);
-
-                // 클램핑 시 anchor 리셋 (데드존 방지)
-                if (newWeight < 0) {
-                    newWeight = 0;
-                    startPixelY = yScale.getPixelForValue(0);
-                    startPageY = pageY;
-                }
-                if (newWeight > yMaxLocked) {
-                    newWeight = yMaxLocked;
-                    startPixelY = yScale.getPixelForValue(yMaxLocked);
-                    startPageY = pageY;
-                }
-
-                // 끄는 segment 의 raw weight 만 설정. 다른 segment 는 그대로 — 확률만 정규화로 변함.
-                segmentWeights[pnum][idx] = newWeight;
-
-                renderDistributionChart(pnum);
-                showWeightHoverTooltip(pnum, idx, pageX, pageY);
-            };
-            let onUp = function() {
-                dragActive = false;
-                weightDragActive = false;
-                delete lockedYMax[pnum];
-                hideDragTooltip();
-                renderDistributionChart(pnum); // Y 축이 새 max(weight)*2 로 다시 줌
-                $(document).off('mousemove.weight'+pnum).off('mouseup.weight'+pnum)
-                    .off('touchmove.weight'+pnum).off('touchend.weight'+pnum);
-            };
-            $(document).on('mousemove.weight'+pnum, onMove).on('mouseup.weight'+pnum, onUp)
-                .on('touchmove.weight'+pnum, onMove).on('touchend.weight'+pnum, onUp);
-        }
-
-        function startBoundaryDrag(e, pnum, idx, isTouch) {
-            if (e.preventDefault) e.preventDefault();
-            let chart = distCharts[pnum];
-            if (!chart) return;
-            let xScale = chart.scales['x-axis-0'];
-            dragActive = true;
-
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            let rangeMin = parseFloat($('#policy-'+pnum+'-range-min').val());
-            let rangeMax = parseFloat($('#policy-'+pnum+'-range-max').val());
-            let useRealRange = !isNaN(rangeMin) && !isNaN(rangeMax) && rangeMax > rangeMin;
-            let xMin = useRealRange ? rangeMin : 0;
-            let xMax = useRealRange ? rangeMax : segmentCount;
-            let span = xMax - xMin;
-
-            let sizes = ensureSegmentSizes(pnum, segmentCount);
-            let totalRatio = 0;
-            for (let k = 0; k < sizes.length; k++) totalRatio += (sizes[k] > 0 ? sizes[k] : 0);
-            if (totalRatio <= 0) return;
-
-            let startBoundary = computeBoundaries(xMin, xMax, sizes)[idx];
-            let leftBound = computeBoundaries(xMin, xMax, sizes)[idx - 1];
-            let rightBound = computeBoundaries(xMin, xMax, sizes)[idx + 1];
-            let startPageX = e.pageX;
-            let startPixel = xScale.getPixelForValue(startBoundary);
-
-            let onMove = function(ev) {
-                let pageX = ev.pageX, pageY = ev.pageY;
-                if (isTouch && ev.touches && ev.touches.length > 0) {
-                    pageX = ev.touches[0].pageX;
-                    pageY = ev.touches[0].pageY;
-                }
-                let newPixel = startPixel + (pageX - startPageX);
-                let newVal = xScale.getValueForPixel(newPixel);
-                let epsilon = span * 1e-4;
-                // 극단으로 드래그한 후 돌아올 때의 "데드존"을 없애기 위해 클램핑 시 anchor 를 리셋
-                if (newVal <= leftBound + epsilon) {
-                    newVal = leftBound + epsilon;
-                    startPixel = xScale.getPixelForValue(newVal);
-                    startPageX = pageX;
-                }
-                if (newVal >= rightBound - epsilon) {
-                    newVal = rightBound - epsilon;
-                    startPixel = xScale.getPixelForValue(newVal);
-                    startPageX = pageX;
-                }
-
-                // 좌/우 segment 폭을 새 boundary 기준으로 재계산. 둘의 합은 보존되어 다른 segment에 영향 없음.
-                let leftRatio = (newVal - leftBound) / span * totalRatio;
-                let rightRatio = (rightBound - newVal) / span * totalRatio;
-                sizes[idx - 1] = leftRatio;
-                sizes[idx] = rightRatio;
-
-                renderDistributionChart(pnum);
-                showBoundaryHoverTooltip(pnum, idx, pageX, pageY);
-            };
-            let onUp = function() {
-                dragActive = false;
-                hideDragTooltip();
-                // 빠른 드래그 후 마지막 mousemove 렌더가 늦게 반영되는 경우 대비
-                renderDistributionChart(pnum);
-                $(document).off('mousemove.seg'+pnum).off('mouseup.seg'+pnum)
-                    .off('touchmove.seg'+pnum).off('touchend.seg'+pnum);
-            };
-            $(document).on('mousemove.seg'+pnum, onMove).on('mouseup.seg'+pnum, onUp)
-                .on('touchmove.seg'+pnum, onMove).on('touchend.seg'+pnum, onUp);
-        }
-
-        function formatBound(v) {
-            if (Number.isInteger(v)) return v.toString();
-            return parseFloat(v.toFixed(4)).toString();
-        }
-
-        function destroyDistChart(pnum) {
-            if (distCharts[pnum]) {
-                distCharts[pnum].destroy();
-                delete distCharts[pnum];
-            }
-            let $h = $('#policy-'+pnum+'-dist-handles');
-            if ($h.length) $h.empty();
-        }
-
-        function resetSegmentSizes(pnum) {
-            let segmentCount = parseInt($('#policy-'+pnum+'-bin-count').val());
-            if (!isNaN(segmentCount) && segmentCount >= 1) {
-                segmentSizes[pnum] = new Array(segmentCount).fill(1);
-            }
-            renderDistributionChart(pnum);
-        }
-
-        function addPolicy() {
+        // scrollTo 는 버튼으로 눌렀을 때만 true 다. 저장된 것을 불러오는 루프에서는 막지 않는다 —
+        // 예전에 들어간 자료가 있어도 열리기는 해야 하고, 저장할 때 서버가 막는다
+        function addPolicy(scrollTo) {
             let pnum_input = $('#policies-count');
             let pnum = parseInt(pnum_input.val());
+            if (scrollTo && pnum > 0 && !allowsManyPolicies()) {
+                alert('Only a DB device can have more than one policy.');
+                return;
+            }
 
-            let policy_label_html = '<label id="policies-'+pnum+'-label" for="policies-' + pnum + '">Policy-' + pnum + '</label>';
-            let policy_editor_html =
-                '<div id="policies-'+pnum+'" class="form-group rounded-outline">\n' +
-                '    <div class="form-group">\n' +
-                '        <label for="policies-'+pnum+'-id">ID</label>\n' +
-                '        <input type="text" class="form-control form-control-border"\n' +
-                '               id="policies-'+pnum+'-id" placeholder="ID of simulation policy '+pnum+'">\n' +
-                '    </div>\n' +
-                '    <div class="form-group">\n' +
-                '        <label for="policies-'+pnum+'-policy">Policy</label>\n' +
-                '        <select class="custom-select form-control-border"\n' +
-                '                id="policies-'+pnum+'-policy" onchange="changePolicy(this)">\n' +
-                '            <option value="STATIC" selected>STATIC</option>\n' +
-                '            <option value="RANDOM">RANDOM</option>\n' +
-                '            <option value="ACCUMULATE">ACCUMULATE</option>\n' +
-                '            <option value="SEQUENCE">SEQUENCE</option>\n' +
-                '        </select>\n' +
-                '    </div>\n' +
-                '    <div class="form-group">\n' +
-                '        <label for="policies-'+pnum+'-datatype">Datatype</label>\n' +
-                '        <select class="selectpicker form-control" data-live-search="true"\n' +
-                '                id="policies-'+pnum+'-datatype">\n' +
-                '            <option value="UI8">UI8</option>\n' +
-                '            <option value="SI8">SI8</option>\n' +
-                '            <option value="UI16AB" selected>UI16AB</option>\n' +
-                '            <option value="UI16BA">UI16BA</option>\n' +
-                '            <option value="SI16AB">SI16AB</option>\n' +
-                '            <option value="SI16BA">SI16BA</option>\n' +
-                '            <option value="UI32AD">UI32AD</option>\n' +
-                '            <option value="UI32CB">UI32CB</option>\n' +
-                '            <option value="UI32BC">UI32BC</option>\n' +
-                '            <option value="UI32DA">UI32DA</option>\n' +
-                '            <option value="SI32AD">SI32AD</option>\n' +
-                '            <option value="SI32CB">SI32CB</option>\n' +
-                '            <option value="SI32BC">SI32BC</option>\n' +
-                '            <option value="SI32DA">SI32DA</option>\n' +
-                '            <option value="SI64AH">SI64AH</option>\n' +
-                '            <option value="SI64GB">SI64GB</option>\n' +
-                '            <option value="SI64BG">SI64BG</option>\n' +
-                '            <option value="SI64HA">SI64HA</option>\n' +
-                '            <option value="FP32AD">FP32AD</option>\n' +
-                '            <option value="FP32CB">FP32CB</option>\n' +
-                '            <option value="FP32BC">FP32BC</option>\n' +
-                '            <option value="FP32DA">FP32DA</option>\n' +
-                '            <option value="FP64AH">FP64AH</option>\n' +
-                '            <option value="FP64GB">FP64GB</option>\n' +
-                '            <option value="FP64BG">FP64BG</option>\n' +
-                '            <option value="FP64HA">FP64HA</option>\n' +
-                '            <option value="BOOL">BOOL</option>\n' +
-                '            <option value="BITS">BITS</option>\n' +
-                '        </select>\n' +
-                '    </div>\n' +
-                '    <div class="form-group" id="policies-'+pnum+'-value-wrapper">\n' +
-                '        <label for="policies-'+pnum+'-value">Value</label>\n' +
-                '        <input type="text" class="form-control form-control-border"\n' +
-                '               id="policies-'+pnum+'-value" placeholder="Simulation designated value" onbeforeinput="numeric_filter(this, event)">\n' +
-                '    </div>\n' +
-                '    <div id="policies-'+pnum+'-range-wrapper" style="display: none">\n' +
-                '        <label for="policies-'+pnum+'-range">Range</label>\n' +
-                '        <div class="form-row" id="policies-'+pnum+'-range">\n' +
-                '            <div class="form-group col-md-6">\n' +
-                '                <input type="text" class="form-control" id="policy-'+pnum+'-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart('+pnum+')">\n' +
+            // 이름표와 입력칸을 한 장의 카드로 묶는다. 그래야 카드 단위로 지울 수 있다
+            let policy_card_html =
+                '<div class="ed-policy" id="policies-'+pnum+'-card">\n' +
+                '    <div class="ed-policy-head" id="policies-'+pnum+'-label">Policy-'+pnum+'</div>\n' +
+                '    <div class="ed-policy-body" id="policies-'+pnum+'">\n' +
+                '        <div class="row g-2 mb-3">\n' +
+                '            <div class="col-6">\n' +
+                '                <label class="form-label" for="policies-'+pnum+'-id">ID</label>\n' +
+                '                <input type="text" class="form-control"\n' +
+                '                       id="policies-'+pnum+'-id" placeholder="Policy ID">\n' +
                 '            </div>\n' +
-                '            <div class="form-group col-md-6">\n' +
-                '                <input type="text" class="form-control" id="policy-'+pnum+'-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart('+pnum+')">\n' +
+                '            <div class="col-6">\n' +
+                '                <label class="form-label" for="policies-'+pnum+'-policy">Policy</label>\n' +
+                '                <select class="form-select"\n' +
+                '                        id="policies-'+pnum+'-policy" onchange="changePolicy(this)">\n' +
+                '                    <option value="STATIC" selected>STATIC</option>\n' +
+                '                    <option value="RANDOM">RANDOM</option>\n' +
+                '                    <option value="ACCUMULATE">ACCUMULATE</option>\n' +
+                '                    <option value="SEQUENCE">SEQUENCE</option>\n' +
+                '                </select>\n' +
+                '            </div>\n' +
+                '            <div class="col-12">\n' +
+                '                <label class="form-label">Datatype</label>\n' +
+                '                <div id="policies-'+pnum+'-dtp"></div>\n' +
+                // 값은 여기 담긴다. 나머지 코드는 예전처럼 이 select 만 보면 된다
+                '                <select id="policies-'+pnum+'-datatype" class="d-none"></select>\n' +
                 '            </div>\n' +
                 '        </div>\n' +
-                '    </div>\n' +
-                '    <div id="policies-'+pnum+'-sequence-wrapper" style="display: none">\n' +
-                '        <label for="policy-'+pnum+'-seq-input">Sequence values</label>\n' +
-                '        <div class="input-group">\n' +
-                '            <input type="text" class="form-control" id="policy-'+pnum+'-seq-input" placeholder="Number to append" onbeforeinput="numeric_filter(this, event)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addSequenceValue('+pnum+');}">\n' +
-                '            <div class="input-group-append">\n' +
-                '                <button class="btn btn-success" type="button" onclick="addSequenceValue('+pnum+')"><i class="fas fa-plus"></i> Add</button>\n' +
+                '        <div class="mb-3" id="policies-'+pnum+'-value-wrapper">\n' +
+                '            <label class="form-label" for="policies-'+pnum+'-value">Value</label>\n' +
+                '            <input type="text" class="form-control"\n' +
+                '                   id="policies-'+pnum+'-value" placeholder="Simulation designated value" onbeforeinput="numeric_filter(this, event)">\n' +
+                '        </div>\n' +
+                '        <div class="mb-3" id="policies-'+pnum+'-range-wrapper" style="display: none">\n' +
+                '            <label class="form-label" for="policies-'+pnum+'-range">Range</label>\n' +
+                '            <div class="row g-2" id="policies-'+pnum+'-range">\n' +
+                '                <div class="col-md-6">\n' +
+                '                    <input type="text" class="form-control" id="policy-'+pnum+'-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart('+pnum+')">\n' +
+                '                </div>\n' +
+                '                <div class="col-md-6">\n' +
+                '                    <input type="text" class="form-control" id="policy-'+pnum+'-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart('+pnum+')">\n' +
+                '                </div>\n' +
                 '            </div>\n' +
                 '        </div>\n' +
-                '        <small class="form-text text-muted">Applied in order, one value per interval, then wraps to the first.</small>\n' +
-                '        <div id="policy-'+pnum+'-seq-list" class="mt-2"></div>\n' +
-                '    </div>\n' +
-                '    <div id="policies-'+pnum+'-distribution-wrapper" style="display: none">\n' +
-                '        <div class="form-group">\n' +
-                '            <div class="custom-control custom-switch">\n' +
-                '                <input type="checkbox" class="custom-control-input" id="policy-'+pnum+'-dist-enabled" onchange="toggleDistribution('+pnum+')">\n' +
-                '                <label class="custom-control-label" for="policy-'+pnum+'-dist-enabled">Use weighted distribution</label>\n' +
+                '        <div class="mb-3" id="policies-'+pnum+'-sequence-wrapper" style="display: none">\n' +
+                '            <label class="form-label" for="policy-'+pnum+'-seq-input">Sequence values</label>\n' +
+                '            <div class="input-group">\n' +
+                '                <input type="text" class="form-control" id="policy-'+pnum+'-seq-input" placeholder="Number to append" onbeforeinput="numeric_filter(this, event)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addSequenceValue('+pnum+');}">\n' +
+                '                <button class="btn btn-outline-secondary" type="button" onclick="addSequenceValue('+pnum+')"><i class="fas fa-plus"></i> Add</button>\n' +
                 '            </div>\n' +
+                '            <small class="form-hint">Applied in order, one value per interval, then wraps to the first.</small>\n' +
+                '            <div id="policy-'+pnum+'-seq-list" class="mt-2"></div>\n' +
                 '        </div>\n' +
-                '        <div id="policies-'+pnum+'-distribution-body" style="display: none">\n' +
-                '            <div class="form-group">\n' +
-                '                <label for="policy-'+pnum+'-bin-count">Segments</label>\n' +
-                '                <input type="number" min="2" max="30" step="1" class="form-control form-control-border" id="policy-'+pnum+'-bin-count" placeholder="Number of segments (2-30, recommended 4-12)" onchange="syncWeights('+pnum+')">\n' +
-                '            </div>\n' +
-                '            <div class="form-group">\n' +
-                '                <div class="custom-control custom-switch">\n' +
-                '                    <input type="checkbox" class="custom-control-input" id="policy-'+pnum+'-normal-enabled" onchange="toggleNormal('+pnum+')">\n' +
-                '                    <label class="custom-control-label" for="policy-'+pnum+'-normal-enabled">Normal distribution (drag &mu; / &sigma;)</label>\n' +
-                '                </div>\n' +
-                '            </div>\n' +
-                '            <div class="form-group">\n' +
-                '                <div class="d-flex justify-content-between align-items-center">\n' +
-                '                    <label class="mb-0">Distribution</label>\n' +
-                '                    <div id="policy-'+pnum+'-dist-controls">\n' +
-                '                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="equalizeSelected('+pnum+')">Equalize selected</button>\n' +
-                '                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentSizes('+pnum+')">Reset widths</button>\n' +
-                '                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentWeights('+pnum+')">Reset weights</button>\n' +
-                '                    </div>\n' +
-                '                </div>\n' +
-                '                <small class="form-text text-muted" id="policy-'+pnum+'-dist-desc">Bar height = relative weight; the % under each segment is its probability. Drag green handles to set a segment weight (only that bar moves), red handles to resize. Click segments to select, then Equalize selected.</small>\n' +
-                '                <div id="policy-'+pnum+'-dist-wrapper" style="position: relative; height: 220px;">\n' +
-                '                    <canvas id="policy-'+pnum+'-dist-chart"></canvas>\n' +
-                '                    <div id="policy-'+pnum+'-dist-handles" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;"></div>\n' +
-                '                </div>\n' +
+                '        <div class="mb-3" id="policies-'+pnum+'-distribution-wrapper" style="display: none">\n' +
+                '            <label class="form-check form-switch mb-2">\n' +
+                '                <input type="checkbox" class="form-check-input" id="policy-'+pnum+'-dist-enabled" onchange="toggleDistribution('+pnum+')">\n' +
+                '                <span class="form-check-label">Use weighted distribution</span>\n' +
+                '            </label>\n' +
+                '            <div id="policies-'+pnum+'-distribution-body" style="display: none">\n' +
+                '                <div id="policy-'+pnum+'-dist-editor"></div>\n' +
                 '            </div>\n' +
                 '        </div>\n' +
                 '    </div>\n' +
                 '</div>'
 
-            let target = $('#policies');
-            target.append(policy_label_html)
-            target.append(policy_editor_html)
+            $('#policies').append(policy_card_html);
 
-            $('#policies-'+pnum+'-datatype').selectpicker();
             applyDataTypeOptions(pnum);
 
             pnum_input.val(pnum+1);
+            fitPolicies();
+            // 카드가 쌓여 스크롤이 생기면 새로 넣은 게 화면 밖이다. 불러올 때는 맨 위에 둔다
+            if (scrollTo) {
+                const card = document.getElementById('policies-'+pnum+'-card');
+                if (card) card.scrollIntoView({ block: 'nearest' });
+            }
         }
 
         function removePolicy() {
@@ -1520,12 +945,14 @@
             let pnum = parseInt(pnum_input.val()) - 1;
 
             if(pnum > 0) {
-                destroyDistChart(pnum);
-                delete segmentSizes[pnum];
+                if (distEditors[pnum]) {
+                    distEditors[pnum].destroy();
+                    delete distEditors[pnum];
+                }
                 delete sequenceValues[pnum];
-                $('#policies-' + pnum).remove();
-                $('#policies-' + pnum + '-label').remove()
+                $('#policies-' + pnum + '-card').remove();
                 pnum_input.val(pnum);
+                fitPolicies();
             } else {
                 alert('There must be at least one policy.')
             }
@@ -1533,434 +960,108 @@
         /*]]>*/
     </script>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <!-- Left navbar links -->
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
-        </ul>
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('simulations')}"></th:block>
+    <th:block th:replace="~{fragments/tabler :: navbar('', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list">
+            <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="doSubmit()">Save</button>
+        </div>
+    </div>
 
-        <!-- Right navbar links -->
-        <ul class="navbar-nav ml-auto">
-            <!-- Navbar Search -->
-            <li class="nav-item">
-                <a class="nav-link" data-widget="navbar-search" href="#" role="button">
-                    <i class="fas fa-search"></i>
-                </a>
-                <div class="navbar-search-block">
-                    <form class="form-inline">
-                        <div class="input-group input-group-sm">
-                            <input class="form-control form-control-navbar" type="search" placeholder="Search"
-                                   aria-label="Search">
-                            <div class="input-group-append">
-                                <button class="btn btn-navbar" type="submit">
-                                    <i class="fas fa-search"></i>
+    <div class="page-wrapper">
+        <div class="page-body">
+            <form class="container-fluid ed-body" onsubmit="return false">
+                <div class="ed-left">
+                    <div class="card cts-card ed-head">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label" for="name">Name</label>
+                                    <input type="text" class="form-control" id="name"
+                                           placeholder="Displayed name for simulation">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label" for="enabled">Initial state</label>
+                                    <select class="form-select" id="enabled">
+                                        <option value="1">Enabled</option>
+                                        <option value="0">Disabled</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label" for="interval">Interval</label>
+                                    <input type="text" class="form-control" id="interval" placeholder="Seconds"
+                                           onbeforeinput="numeric_filter(this, event)">
+                                    <small class="form-hint">Seconds between executions (1–3600).</small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="stopOnControl">Stop on control</label>
+                                    <input type="number" class="form-control" id="stopOnControl" value="0">
+                                    <small class="form-hint">
+                                        Seconds to pause after a client write.
+                                        0 never pauses, -1 disables the simulation.
+                                    </small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="target">Target</label>
+                                    <div id="target-aid"></div>
+                                    <div id="target-wrapper">
+                                        <div id="target-placeholder"></div>
+                                        <div id="target" contenteditable="true" class="form-control"></div>
+                                    </div>
+                                    <div id="target-status" class="ta-status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card cts-card ed-policies">
+                        <div class="card-header">
+                            <h3 class="card-title">Policies</h3>
+                            <input type="hidden" id="policies-count" value="0">
+                            <!-- 정책을 여럿 두는 건 DB 뿐이다. 아닌 장비에서는 숨긴다 -->
+                            <div class="card-actions" id="policy-tools" style="display:none">
+                                <button type="button" class="btn btn-icon btn-outline-danger btn-sm"
+                                        onclick="removePolicy()" title="Remove the last policy">
+                                    <i class="fas fa-minus"></i>
                                 </button>
-                                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                                    <i class="fas fa-times"></i>
+                                <button type="button" class="btn btn-icon btn-outline-success btn-sm"
+                                        onclick="addPolicy(true)" title="Add a policy">
+                                    <i class="fas fa-plus"></i>
                                 </button>
                             </div>
                         </div>
-                    </form>
-                </div>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <!-- /.navbar -->
-
-    <!-- Main Sidebar Container -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <!-- Brand Logo -->
-        <a href="#" class="brand-link">
-            <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <!-- Sidebar Menu -->
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <!-- Add icons to the links using the .nav-icon class
-                         with font-awesome or any other icon font library -->
-
-                    <li class="nav-item">
-                        <a href="/" class="nav-link">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>
-                                Devices
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>
-                                Value Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>
-                                Error Simulations
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/testplans" class="nav-link">
-                            <i class="nav-icon fas fa-tasks"></i>
-                            <p>
-                                Test Plans
-                            </p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Settings
-                            </p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <!-- /.sidebar-menu -->
-        </div>
-        <!-- /.sidebar -->
-    </aside>
-
-    <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper">
-        <!-- Content Header (Page header) -->
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0" id="title"></h1>
-                    </div><!-- /.col -->
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active" id="menuText"></li>
-                        </ol>
-                    </div><!-- /.col -->
-                </div><!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </div>
-        <!-- /.content-header -->
-
-        <!-- Main content -->
-        <section class="content">
-            <div class="container-fluid">
-                <!-- Small boxes (Stat box) -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card card-default">
-                            <div class="card-header">
-                                <h3 class="card-title">Information of simulation</h3>
-                            </div>
-                            <div class="card-body p-2">
-                                <div id="stepper" class="bs-stepper linear">
-                                    <div class="bs-stepper-header" role="tablist">
-                                        <div class="step active" data-target="#test-l-1">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger1"
-                                                    aria-controls="test-l-1" aria-selected="true">
-                                                <span class="bs-stepper-circle">1</span>
-                                                <span class="bs-stepper-label">Management information</span>
-                                            </button>
-                                        </div>
-                                        <div class="bs-stepper-line"></div>
-                                        <div class="step" data-target="#test-l-2">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger2"
-                                                    aria-controls="test-l-2" aria-selected="false" disabled="disabled">
-                                                <span class="bs-stepper-circle">2</span>
-                                                <span class="bs-stepper-label">Simulation settings</span>
-                                            </button>
-                                        </div>
-                                        <div class="bs-stepper-line"></div>
-                                        <div class="step" data-target="#test-l-3">
-                                            <button type="button" class="step-trigger" role="tab" id="stepper1trigger3"
-                                                    aria-controls="test-l-3" aria-selected="false" disabled="disabled">
-                                                <span class="bs-stepper-circle">3</span>
-                                                <span class="bs-stepper-label">Simulation policies</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="bs-stepper-content">
-                                        <form onsubmit="return false">
-                                            <div id="test-l-1" role="tabpanel"
-                                                 class="bs-stepper-pane active dstepper-block"
-                                                 aria-labelledby="stepper1trigger1">
-                                                <div class="form-group">
-                                                    <label for="name">Name</label>
-                                                    <input type="text" class="form-control form-control-border"
-                                                           id="name" placeholder="Displayed name for simulation">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="enabled">Initial state</label>
-                                                    <select class="custom-select form-control-border" id="enabled">
-                                                        <option value="1">Enabled</option>
-                                                        <option value="0">Disabled</option>
-                                                    </select>
-                                                </div>
-                                                <button class="btn btn-primary" onclick="validatePanel1()">Next</button>
-                                            </div>
-                                            <div id="test-l-2" role="tabpanel" class="bs-stepper-pane"
-                                                 aria-labelledby="stepper1trigger2">
-                                                <div class="form-group">
-                                                    <label for="target">Target</label>
-                                                    <div id="target-wrapper">
-                                                        <div id="target-placeholder"></div>
-                                                        <div id="target" contenteditable="true"
-                                                             class="form-control"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="interval">Interval</label>
-                                                    <input type="text" class="form-control form-control-border"
-                                                           id="interval" placeholder="Interval of execute simulation"
-                                                           onbeforeinput="numeric_filter(this, event)">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="stopOnControl">Stop on control (seconds — 0: off, N&gt;0: pause N sec, N&lt;0: permanent)</label>
-                                                    <input type="number" class="form-control form-control-border"
-                                                           id="stopOnControl" value="0">
-                                                </div>
-                                                <button class="btn btn-primary" onclick="stepper.previous()">Previous
-                                                </button>
-                                                <button class="btn btn-primary" onclick="validatePanel2()">Next</button>
-                                            </div>
-                                            <div id="test-l-3" role="tabpanel" class="bs-stepper-pane"
-                                                 aria-labelledby="stepper1trigger3">
-                                                <input type="hidden" id="policies-count" value="1">
-                                                <div class="form-group">
-                                                    <button class="btn btn-danger" id="decreaseBtn" onclick="removePolicy()">
-                                                        <i class="fas fa-minus"></i>
-                                                    </button>
-                                                    <button class="btn btn-success" id="increaseBtn" onclick="addPolicy()">
-                                                        <i class="fas fa-plus"></i>
-                                                    </button>
-                                                </div>
-                                                <div id="policies">
-                                                    <label for="policies-0">Policy-0</label>
-                                                    <div id="policies-0" class="form-group rounded-outline">
-                                                        <div class="form-group">
-                                                            <label for="policies-0-id">ID</label>
-                                                            <input type="text" class="form-control form-control-border"
-                                                                   id="policies-0-id" placeholder="ID of simulation policy 0">
-                                                        </div>
-                                                        <div class="form-group">
-                                                            <label for="policies-0-policy">Policy</label>
-                                                            <select class="custom-select form-control-border"
-                                                                    id="policies-0-policy" onchange="changePolicy(this)">
-                                                                <option value="STATIC" selected>STATIC</option>
-                                                                <option value="RANDOM">RANDOM</option>
-                                                                <option value="ACCUMULATE">ACCUMULATE</option>
-                                                                <option value="SEQUENCE">SEQUENCE</option>
-                                                            </select>
-                                                        </div>
-                                                        <div class="form-group">
-                                                            <label for="policies-0-datatype">Datatype</label>
-                                                            <select class="selectpicker form-control" data-live-search="true"
-                                                                    id="policies-0-datatype">
-                                                                <option value="UI8">UI8</option>
-                                                                <option value="SI8">SI8</option>
-                                                                <option value="UI16AB" selected>UI16AB</option>
-                                                                <option value="UI16BA">UI16BA</option>
-                                                                <option value="SI16AB">SI16AB</option>
-                                                                <option value="SI16BA">SI16BA</option>
-                                                                <option value="UI32AD">UI32AD</option>
-                                                                <option value="UI32CB">UI32CB</option>
-                                                                <option value="UI32BC">UI32BC</option>
-                                                                <option value="UI32DA">UI32DA</option>
-                                                                <option value="SI32AD">SI32AD</option>
-                                                                <option value="SI32CB">SI32CB</option>
-                                                                <option value="SI32BC">SI32BC</option>
-                                                                <option value="SI32DA">SI32DA</option>
-                                                                <option value="SI64AH">SI64AH</option>
-                                                                <option value="SI64GB">SI64GB</option>
-                                                                <option value="SI64BG">SI64BG</option>
-                                                                <option value="SI64HA">SI64HA</option>
-                                                                <option value="FP32AD">FP32AD</option>
-                                                                <option value="FP32CB">FP32CB</option>
-                                                                <option value="FP32BC">FP32BC</option>
-                                                                <option value="FP32DA">FP32DA</option>
-                                                                <option value="FP64AH">FP64AH</option>
-                                                                <option value="FP64GB">FP64GB</option>
-                                                                <option value="FP64BG">FP64BG</option>
-                                                                <option value="FP64HA">FP64HA</option>
-                                                                <option value="BOOL">BOOL</option>
-                                                                <option value="BITS">BITS</option>
-                                                            </select>
-                                                        </div>
-                                                        <div class="form-group" id="policies-0-value-wrapper">
-                                                            <label for="policies-0-value">Value</label>
-                                                            <input type="text" class="form-control form-control-border"
-                                                                   id="policies-0-value" placeholder="Simulation designated value" onbeforeinput="numeric_filter(this, event)">
-                                                        </div>
-                                                        <div id="policies-0-range-wrapper" style="display: none">
-                                                            <label for="policies-0-range">Range</label>
-                                                            <div class="form-row" id="policies-0-range">
-                                                                <div class="form-group col-md-6">
-                                                                    <input type="text" class="form-control" id="policy-0-range-min" placeholder="Minimum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart(0)">
-                                                                </div>
-                                                                <div class="form-group col-md-6">
-                                                                    <input type="text" class="form-control" id="policy-0-range-max" placeholder="Maximum for simulation value" onbeforeinput="numeric_filter(this, event)" oninput="renderDistributionChart(0)">
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div id="policies-0-sequence-wrapper" style="display: none">
-                                                            <label for="policy-0-seq-input">Sequence values</label>
-                                                            <div class="input-group">
-                                                                <input type="text" class="form-control" id="policy-0-seq-input"
-                                                                       placeholder="Number to append" onbeforeinput="numeric_filter(this, event)"
-                                                                       onkeydown="if(event.key==='Enter'){event.preventDefault();addSequenceValue(0);}">
-                                                                <div class="input-group-append">
-                                                                    <button class="btn btn-success" type="button" onclick="addSequenceValue(0)">
-                                                                        <i class="fas fa-plus"></i> Add
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <small class="form-text text-muted">
-                                                                Applied in order, one value per interval, then wraps to the first.
-                                                            </small>
-                                                            <div id="policy-0-seq-list" class="mt-2"></div>
-                                                        </div>
-                                                        <div id="policies-0-distribution-wrapper" style="display: none">
-                                                            <div class="form-group">
-                                                                <div class="custom-control custom-switch">
-                                                                    <input type="checkbox" class="custom-control-input" id="policy-0-dist-enabled" onchange="toggleDistribution(0)">
-                                                                    <label class="custom-control-label" for="policy-0-dist-enabled">Use weighted distribution</label>
-                                                                </div>
-                                                            </div>
-                                                            <div id="policies-0-distribution-body" style="display: none">
-                                                                <div class="form-group">
-                                                                    <label for="policy-0-bin-count">Segments</label>
-                                                                    <input type="number" min="2" max="30" step="1" class="form-control form-control-border" id="policy-0-bin-count" placeholder="Number of segments (2-30, recommended 4-12)" onchange="syncWeights(0)">
-                                                                </div>
-                                                                <div class="form-group">
-                                                                    <div class="custom-control custom-switch">
-                                                                        <input type="checkbox" class="custom-control-input" id="policy-0-normal-enabled" onchange="toggleNormal(0)">
-                                                                        <label class="custom-control-label" for="policy-0-normal-enabled">Normal distribution (drag &mu; / &sigma;)</label>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="form-group">
-                                                                    <div class="d-flex justify-content-between align-items-center">
-                                                                        <label class="mb-0">Distribution</label>
-                                                                        <div id="policy-0-dist-controls">
-                                                                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="equalizeSelected(0)">Equalize selected</button>
-                                                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentSizes(0)">Reset widths</button>
-                                                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetSegmentWeights(0)">Reset weights</button>
-                                                                        </div>
-                                                                    </div>
-                                                                    <small class="form-text text-muted" id="policy-0-dist-desc">Bar height = relative weight; the % under each segment is its probability. Drag green handles to set a segment's weight (only that bar moves), red handles to resize. Click segments to select, then "Equalize selected" to split their total equally.</small>
-                                                                    <div id="policy-0-dist-wrapper" style="position: relative; height: 220px;">
-                                                                        <canvas id="policy-0-dist-chart"></canvas>
-                                                                        <div id="policy-0-dist-handles" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;"></div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button class="btn btn-primary" onclick="stepper.previous()">Previous
-                                                </button>
-                                                <button class="btn btn-primary" onclick="doSubmit()">Submit
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                                <!--
-                            <div class="form-group">
-                                <label for="name">Name</label>
-                                <input type="text" class="form-control form-control-border" id="name" placeholder="Name of simulation">
-                            </div>
-                            <div class="form-group">
-                                <label for="target">Target</label>
-                                <textarea class="form-control" rows="3" id="target" placeholder="Target for simulation" style="height: 108px;"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="policyEditor">Simulation policy descriptor</label>
-                                <div id="policyEditor"></div>
-                                <button
-                                <div id="simulationPolicies">
-
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="interval">Interval</label>
-                                <input type="number" class="form-control form-control-border" id="interval" placeholder="Interval of execute simulation" oninput="this.value|=0">
-                            </div>
-                            <div class="form-group">
-                                <label for="enabled">Initial state</label>
-                                <select class="custom-select form-control-border" id="enabled">
-                                    <option value="1">Enabled</option>
-                                    <option value="0">Disabled</option>
-                                </select>
-                            </div>
-                            <button class="btn btn-primary" onclick="doSubmit()">
-                                Submit
-                            </button>
-                            -->
-                            </div>
-                            <!-- /.card-body -->
+                        <div class="card-body">
+                            <div id="policies"></div>
                         </div>
-                        <!-- /.card -->
                     </div>
                 </div>
-                <!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </section>
-        <!-- /.content -->
-    </div>
-    <!-- /.content-wrapper -->
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 1.0.1
-        </div>
-    </footer>
-</div>
-<!-- ./wrapper -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../js/adminlte.js"></script>
-<!-- JSON Editor -->
-<script src="../../plugins/jsoneditor/js/jsoneditor.min.js"></script>
-<!-- BS-Stepper -->
-<script src="../../plugins/bs-stepper/js/bs-stepper.min.js"></script>
-<script src="../../js/bootstrap-select.min.js"></script>
-<!-- Chart.js -->
-<script src="../../plugins/chart.js/Chart.min.js"></script>
+                <div class="card cts-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Registered targets</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="reg-map"></div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <!-- /.page-body -->
+    </div>
+    <!-- /.page-wrapper -->
+</div>
+<!-- /.page -->
+
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/js/cts-datatypes.js"></script>
+<script src="/js/cts-datatype-picker.js"></script>
+<script src="/js/dist-editor.js"></script>
+<script src="/js/cts-target-aid.js"></script>
+<script src="/js/cts-reg-map.js"></script>
+<script src="/plugins/chart.js/Chart.min.js"></script>
 </body>
 </html>

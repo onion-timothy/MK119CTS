@@ -1,129 +1,17 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MK119 CTS</title>
 
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <!-- Theme style -->
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <link rel="stylesheet" href="../../css/cts-common.css">
-    <!-- jTree -->
-    <link rel="stylesheet" href="../../css/style.min.css"/>
-    <!-- Tabulator -->
-    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
+    <th:block th:replace="~{fragments/tabler :: tree-assets}"></th:block>
 
     <style>
-        html, body { overflow: hidden; height: 100vh; }
-        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
-        .main-header, .main-footer { flex-shrink: 0; }
-        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
-
-        .table-panel {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            background-color: #fff;
-            overflow: hidden;
-            container-type: inline-size;
-            container-name: tblpanel;
-        }
-        /* card-body 안에선 바깥 카드가 외곽을 제공한다 — .table-panel 자체 테두리/배경을 중화한다 */
-        .card-body > .table-panel {
-            border: 0; border-radius: 0; background: transparent;
-        }
-        .table-toolbar {
-            background-color: #fff;
-            border-bottom: 1px solid #dee2e6;
-            padding: 6px 10px;
-            display: flex;
-            gap: 0.25rem;
-            align-items: center;
-            flex-wrap: nowrap;
-        }
-        /* 툴바가 card-header 로 이동한 경우: 자체 padding/border/background 중화 */
-        .card-header > .table-toolbar {
-            padding: 0; border: none; background: transparent;
-        }
-        /* 메인 카드: 툴바가 card-header 로 이동했으므로 카드를 container 로 삼는다. */
-        .cts-main-card { container-type: inline-size; container-name: tblpanel; }
-        .table-toolbar .btn { white-space: nowrap; }
-        @container tblpanel (max-width: 720px) {
-            .table-toolbar .btn-text { display: none; }
-        }
-        @container tblpanel (max-width: 520px) {
-            .table-toolbar input[type="search"] { width: 100px !important; }
-        }
-
-        .cts-tabulator {
-            border: none !important;
-            border-radius: 0 !important;
-            font-size: 0.9rem;
-        }
-        .cts-tabulator .tabulator-header {
-            background-color: #fff;
-            border-bottom: 2px solid #007bff;
-            font-weight: 600;
-            color: #495057;
-        }
-        .cts-tabulator .tabulator-header .tabulator-col {
-            background-color: transparent;
-            border-right: none;
-        }
-        .cts-tabulator .tabulator-cell {
-            border-right: none;
-        }
-        /* 세로: pageSize 가 행을 높이에 딱 맞추므로 스크롤이 필요 없다.
-           가로: 모든 머리글이 들어갈 수 없을 만큼 좁으면 잘라 숨기지 말고 스크롤한다
-           (CtsTable 이 폭을 정수로 맞추므로 미세 overflow 로 스크롤바가 생기지는 않는다). */
-        .cts-tabulator .tabulator-tableholder {
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-        }
-        .cts-tabulator .tabulator-row {
-            border-bottom: 1px solid #f1f3f5;
-            transition: background-color 0.12s ease;
-        }
-        .cts-tabulator .tabulator-row.tabulator-row-even {
-            background-color: #fbfcfd;
-        }
-        .cts-tabulator .tabulator-row:hover {
-            background-color: #eef5ff !important;
-        }
-        .cts-tabulator .tabulator-row.tabulator-selected {
-            background-color: #d6e8ff !important;
-        }
-        .cts-tabulator .tabulator-footer,
-        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
-            background: #fff !important;
-            background-color: #fff !important;
-            background-image: none !important;
-        }
-        .cts-tabulator .tabulator-footer {
-            border-top: 1px solid #dee2e6 !important;
-            padding: 0;
-        }
-        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
-            padding: 6px 10px;
-        }
-        .cts-tabulator .tabulator-footer .tabulator-page {
-            border-radius: 3px;
-            margin: 0 2px;
-            transition: background-color 0.12s ease;
-        }
-        .cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover {
-            background-color: #eef5ff;
-            border-color: #b8dcff;
-        }
-        .cts-tabulator .tabulator-footer .tabulator-page.active {
-            background-color: #007bff;
-            color: #fff;
-            border-color: #007bff;
-        }
-        .cts-tabulator .tabulator-footer .tabulator-page.disabled {
-            opacity: 0.4;
-        }
     
         /* 뷰포트 방향에 따라 트리/본문 배치를 전환한다.
            가로가 길면 좌우, 세로가 길면 상하. 인라인 flex 비율을 덮어쓰므로 !important 가 필요하다. */
@@ -194,16 +82,6 @@
         };
         const OCC_IDLE_COLOR = '#e9ecef';
 
-        function withHeaderMinWidth(cols) {
-            return cols.map(function (c) {
-                if (!c || !c.title) return c;
-                let needed = Math.max(80, c.title.length * 9 + 40);
-                if (c.width !== undefined && c.width < needed) c.width = needed;
-                if (c.width === undefined && (c.minWidth === undefined || c.minWidth < needed)) c.minWidth = needed;
-                return c;
-            });
-        }
-
         function escapeHtml(s) {
             if (s === null || s === undefined) return '';
             return String(s).replace(/[&<>"']/g, function (c) {
@@ -217,8 +95,6 @@
         }
 
         function onload() {
-            $('[data-toggle="tooltip"]').tooltip();
-
             let firstDeviceId;
             $.ajax({
                 url: '/api/device/devices',
@@ -241,13 +117,11 @@
             setOccupancyMode('actual');
             $('#simulationCopyModal').on('shown.bs.modal', initDeployTargetsTable);
 
+            // 표는 CtsTable 이 제 크기를 지켜보며 맞춘다. 여기서는 차트만 다시 그린다
             let resizeTimer;
             window.addEventListener('resize', function () {
                 clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(function () {
-                    fitTablePageSize(errorsTable, '#errorsToolbar', ERRORS_BASE_ROW_H);
-                    renderOccupancyChart();
-                }, 100);
+                resizeTimer = setTimeout(renderOccupancyChart, 100);
             });
 
             renderOccupancyChart();
@@ -271,52 +145,16 @@
         }
 
         // ── Groups and devices (좌측) 트리 ──────────────────────
-        let treeInitialSelected = false;
+        let tree = null;
         function initTree(fallbackDeviceId) {
             let targetDeviceId = (deviceSelected && deviceSelected !== '0') ? deviceSelected : fallbackDeviceId;
-            $('#tree-container').jstree({
-                'core': {
-                    'themes': { 'responsive': true, 'variant': 'large' },
-                    'check_callback': true,
-                    'data': {
-                        'url': '/api/device/devices/treeData',
-                        'data': function (node) {
-                            return { 'id': node.id === '#' ? 0 : node.id.split('_')[1] };
-                        }
-                    },
-                    'multiple': false,
-                },
-                'types': {
-                    'group': { 'icon': 'fas fa-folder', 'valid_children': ['device', 'group'] },
-                    'device': { 'icon': 'fas fa-server' }
-                },
-                'plugins': ['types', 'wholerow', 'sort', 'search'],
-                'sort': function (a, b) {
-                    let n1 = this.get_node(a);
-                    let n2 = this.get_node(b);
-                    if (n1.type !== n2.type) return n1.type === 'group' ? -1 : 1;
-                    return String(n1.text).localeCompare(String(n2.text), undefined, { numeric: true });
-                },
-                'search': {
-                    'case_insensitive': true,
-                    'show_only_matches': true,
-                    'show_only_matches_children': true
-                }
-            }).on('select_node.jstree', function (e, data) {
-                if (data.node.type === 'device') {
-                    let id = parseInt(data.node.id.split('_')[1]);
-                    viewErrors(id);
-                } else if (data.node.type === 'group') {
-                    $.jstree.reference('#tree-container').open_node(data.node.id);
-                }
-            }).on('loaded.jstree', function () {
-                $('#tree-container').jstree('open_all');
-            }).on('open_node.jstree', function () {
-                if (treeInitialSelected || !targetDeviceId) return;
-                let node = $('#d_' + targetDeviceId);
-                if (node.length) {
-                    $.jstree.reference('#tree-container').select_node(node);
-                    treeInitialSelected = true;
+            tree = CtsTree.create(document.getElementById('tree-container'), {
+                url: '/api/device/devices/treeData',
+                expandAll: true,
+                expandOnSelect: true,
+                initialSelect: targetDeviceId ? 'd_' + targetDeviceId : null,
+                onSelect: function (node) {
+                    if (node.type === 'device') viewErrors(parseInt(node.id.split('_')[1]));
                 }
             });
         }
@@ -328,6 +166,7 @@
                 data: data,
                 layout: 'fitData',
                 height: '100%',
+                renderVertical: 'basic',
                 index: 'id',
                 pagination: true,
                 paginationSize: 10,
@@ -335,21 +174,21 @@
                 placeholder: 'No error simulations for this device',
                 // ID 오름차순 = 로드 순서 = 선권 순위. 디바이스 재기동 시 ID 작은 에러가 매 사이클 선권.
                 initialSort: [{ column: 'id', dir: 'asc' }],
-                columns: withHeaderMinWidth([
+                columns: CtsTable.columns([
                     CtsTable.selectionColumn(),
-                    {title: 'ID', field: 'id', hozAlign: 'right', width: 80},
-                    {title: 'Mode', field: 'mode'},
-                    {title: 'Frequency(%)', field: 'frequency', hozAlign: 'center'},
-                    {title: 'Interval', field: 'interval', hozAlign: 'center'},
+                    {title: 'ID', field: 'id', kind: 'number'},
+                    {title: 'Mode', field: 'mode', kind: 'text'},
+                    {title: 'Frequency(%)', field: 'frequency', kind: 'number'},
+                    {title: 'Interval', field: 'interval', kind: 'number'},
                     {
-                        title: 'Duration', field: 'errorDuration', hozAlign: 'center',
+                        title: 'Duration', field: 'errorDuration', kind: 'number',
                         formatter: function (cell) {
                             // SIMULATION 모드는 지속 상태가 아니라 tick 기반이라 duration 개념 없음
                             return cell.getRow().getData().mode === 'SIMULATION' ? '' : cell.getValue();
                         }
                     },
                     {
-                        title: 'Enabled', field: 'enabled', hozAlign: 'center', width: 120,
+                        title: 'Enabled', field: 'enabled', kind: 'action',
                         formatter: function (cell) {
                             let enabled = cell.getValue() === 1;
                             return '<button class="cts-toggle' + (enabled ? ' on' : '') + '" aria-label="' + (enabled ? 'Enabled' : 'Disabled') + '"></button>';
@@ -389,71 +228,11 @@
                     }
                 ]
             });
-            CtsTable.enhanceResize(errorsTable);
+            CtsTable.attach(errorsTable, { rowH: ERRORS_BASE_ROW_H });
             errorsTable.on('tableBuilt', function () {
                 applyErrorsSearch();
                 injectErrorsFooterButtons();
-                requestAnimationFrame(function () {
-                    requestAnimationFrame(function () {
-                        fitTablePageSize(errorsTable, '#errorsToolbar', ERRORS_BASE_ROW_H);
-                    });
-                });
             });
-            errorsTable.on('pageLoaded', function () {
-                requestAnimationFrame(function () { fitTablePageSize(errorsTable, '#errorsToolbar', ERRORS_BASE_ROW_H); });
-            });
-        }
-
-        // ── 공용: pageSize + row height 동적 조정 ───────────────
-        function fitTablePageSize(table, toolbarSelector, baseRowH) {
-            if (!table) return;
-            let root = table.element;
-            if (!root) return;
-            let panel = root.closest('.table-panel');
-            if (!panel) return;
-
-            root.style.height = '';
-
-            let toolbar = panel.querySelector(toolbarSelector);
-            let header = root.querySelector('.tabulator-header');
-            let footer = root.querySelector('.tabulator-footer');
-            let holder = root.querySelector('.tabulator-tableholder');
-            let toolbarH = toolbar ? toolbar.offsetHeight : 0;
-            let headerH = header ? header.offsetHeight : 0;
-            let footerH = footer ? footer.offsetHeight : 0;
-
-            let availableForHolder = panel.clientHeight - toolbarH - headerH - footerH;
-            if (availableForHolder <= 0) return;
-
-            let pageSize = Math.max(1, Math.floor(availableForHolder / baseRowH));
-            let actualRowH = availableForHolder / pageSize;
-            let cellVertPad = Math.max(2, (actualRowH - 22 - 1) / 2);
-
-            let styleId = root.id + '-row-h-style';
-            let styleEl = document.getElementById(styleId);
-            if (!styleEl) {
-                styleEl = document.createElement('style');
-                styleEl.id = styleId;
-                document.head.appendChild(styleEl);
-            }
-            styleEl.textContent =
-                '#' + root.id + ' .tabulator-row { ' +
-                    'height: ' + actualRowH + 'px !important; ' +
-                    'min-height: ' + actualRowH + 'px !important; ' +
-                '} ' +
-                '#' + root.id + ' .tabulator-cell { ' +
-                    'padding-top: ' + cellVertPad + 'px !important; ' +
-                    'padding-bottom: ' + cellVertPad + 'px !important; ' +
-                '}';
-
-            if (pageSize !== table.getPageSize()) {
-                table.setPageSize(pageSize);
-            }
-            if (holder) {
-                holder.style.setProperty('height', availableForHolder + 'px', 'important');
-                holder.style.setProperty('max-height', availableForHolder + 'px', 'important');
-                holder.style.setProperty('min-height', availableForHolder + 'px', 'important');
-            }
         }
 
         // ── 검색 ─────────────────────────────────────────────
@@ -464,7 +243,7 @@
             input.addEventListener('input', function () {
                 clearTimeout(timer);
                 timer = setTimeout(function () {
-                    $('#tree-container').jstree(true).search(input.value.trim());
+                    if (tree) tree.search(input.value);
                 }, 150);
             });
         }
@@ -485,7 +264,7 @@
 
         // ── Errors 툴바 액션 (툴바 + footer 통합 delegation) ─────
         function bindErrorsToolbarActions() {
-            let panel = document.querySelector('.card.card-primary');
+            let panel = document.getElementById('errorsCard');
             if (!panel) return;
             panel.addEventListener('click', function (e) {
                 let btn = e.target.closest('[data-action]');
@@ -584,7 +363,7 @@
                 .map(function (d) {
                     return { id: d.id, name: d.name, group: (d.group && d.group.name) ? d.group.name : '' };
                 });
-            $('#simulationCopyModal').modal('show');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('simulationCopyModal')).show();
         }
 
         function initDeployTargetsTable() {
@@ -597,10 +376,10 @@
                 paginationSize: 10,
                 selectableRows: true,
                 placeholder: 'No devices with the same protocol',
-                columns: withHeaderMinWidth([
+                columns: CtsTable.columns([
                     CtsTable.selectionColumn(),
-                    { title: 'Name', field: 'name' },
-                    { title: 'Group', field: 'group' }
+                    { title: 'Name', field: 'name', kind: 'text' },
+                    { title: 'Group', field: 'group', kind: 'text' }
                 ])
             });
             let updateCount = function () {
@@ -609,7 +388,7 @@
             };
             deployTargetsTable.on('rowSelectionChanged', updateCount);
             deployTargetsTable.on('tableBuilt', updateCount);
-            CtsTable.enhanceResize(deployTargetsTable);
+            CtsTable.attach(deployTargetsTable);
         }
 
         function bindDeployTargetsToolbar() {
@@ -908,7 +687,7 @@
         function renderOccupancyPie(host, slices, opts) {
             opts = opts || {};
             // size: 세로 뷰포트에선 폭 기준, 가로 뷰포트에선 짧은 쪽 기준으로 정사각
-            let rect = host.getBoundingClientRect();
+            let rect = CtsZoom.rect(host);   // SVG 크기는 CSS px (js/cts-zoom.js)
             let isPortrait = window.matchMedia('(orientation: portrait)').matches;
             let bound = isPortrait
                 ? Math.min(rect.width, rect.height * 0.6)
@@ -1070,7 +849,9 @@
                 });
             }
             renderOccupancyPie(host, slices, {
-                footer: 'Since boot: ' + formatSeconds(total / 1000)
+                // 에러를 추가·수정·삭제하거나 켜고 끄면 서버가 누적을 다시 시작한다 (IOServer.resetErrorStateStats)
+                footer: (stats.sinceErrorChange ? 'Since the errors last changed: ' : 'Since boot: ')
+                    + formatSeconds(total / 1000)
             });
         }
 
@@ -1148,124 +929,29 @@
         /*]]>*/
     </script>
 </head>
-<body onload="onload()" class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
+<body onload="onload()">
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('errors')}"></th:block>
 
-    <!-- Preloader -->
-    <div class="preloader flex-column justify-content-center align-items-center">
-        <img class="animation__shake" src="../../img/icon_logo_1.png" alt="Onion Logo" height="60" width="60">
+    <th:block th:replace="~{fragments/tabler :: navbar('Error Simulations', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list">
+            <button type="button" class="btn btn-sm" onclick="generateTemplate()" title="Export the errors of this device to Excel">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
     </div>
 
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="/" class="nav-link">Home</a>
-            </li>
-            <li class="nav-item d-none d-sm-inline-block">
-                <a href="#" class="nav-link">Contact</a>
-            </li>
-        </ul>
-
-        <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-                <a class="nav-link" href="javascript:generateTemplate()" role="button" data-toggle="tooltip"
-                    data-placement="bottom" title="Export to template">
-                    <i class="fas fa-download"></i>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-                    <i class="fas fa-expand-arrows-alt"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <!-- /.navbar -->
-
-    <!-- Main Sidebar Container -->
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="#" class="brand-link">
-            <img src="../../img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <div class="sidebar">
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                    data-accordion="false">
-                    <li class="nav-item">
-                        <a href="/" class="nav-link">
-                            <i class="nav-icon fas fa-table"></i>
-                            <p>Devices</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/simulations" class="nav-link">
-                            <i class="nav-icon fas fa-chart-area"></i>
-                            <p>Value Simulations</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/errors" class="nav-link active">
-                            <i class="nav-icon fas fa-bomb"></i>
-                            <p>Error Simulations</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/testplans" class="nav-link">
-                            <i class="nav-icon fas fa-tasks"></i>
-                            <p>Test Plans</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>Settings</p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    </aside>
-
-    <!-- Content Wrapper. Contains page content -->
-    <div class="content-wrapper d-flex flex-column">
-        <div class="content-header flex-shrink-0">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0">Error Simulations</h1>
-                    </div>
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="#">Home</a></li>
-                            <li class="breadcrumb-item active">Error Simulations</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section class="content flex-grow-1 d-flex flex-column" style="min-height:0;">
+    <div class="page-wrapper">
+        <div class="page-body">
             <input type="file" id="excel" name="excel" style="display:none" accept=".xlsx"/>
-            <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: 1rem; min-height:0; padding: 0 1rem 1rem 1rem;">
+            <div class="container-fluid flex-grow-1 d-flex cts-split" style="gap: var(--cts-page-gap); min-height:0;">
                 <!-- Left: Groups and devices tree + Occupancy chart -->
                 <div class="d-flex flex-column cts-split-side" style="flex: 3 1 0; min-width: 0; min-height: 0;">
                     <div class="side-split">
                         <div class="side-tree">
-                            <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0; width: 100%;">
-                                <div class="card-header flex-shrink-0">
-                                    <h3 class="card-title mb-0">Groups and devices</h3>
-                                </div>
-                                <div class="card-body p-2 flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0;">
-                                    <input id="treeSearchInput" type="search" class="form-control form-control-sm flex-shrink-0 mb-2" placeholder="Search by name...">
-                                    <div id="tree-container" class="flex-grow-1" style="overflow:auto; min-height:0;"></div>
-                                </div>
-                            </div>
+                            <th:block th:replace="~{fragments/tabler :: tree-card}"></th:block>
                         </div>
                         <div class="side-chart">
                             <div class="card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0; width: 100%;">
@@ -1288,13 +974,13 @@
                 </div>
                 <!-- Right: Error simulations of selected device -->
                 <div class="d-flex flex-column cts-split-main" style="flex: 7 1 0; min-width: 0; min-height: 0;">
-                    <div class="card card-primary cts-main-card mb-0 d-flex flex-column flex-grow-1" style="min-height: 0;">
+                    <div class="card cts-main-card mb-0 d-flex flex-column flex-grow-1" id="errorsCard" style="min-height: 0;">
                         <div class="card-header flex-shrink-0" style="gap:0.25rem;">
                             <h3 class="card-title mb-0" id="device-title">Simulations</h3>
-                            <div id="errorsToolbar" class="table-toolbar ml-auto flex-shrink-0">
+                            <div id="errorsToolbar" class="card-actions table-toolbar">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-action="toggle"><i class="fas fa-toggle-off"></i> <span class="btn-text">Toggle</span></button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
-                                <select id="errorsSearchField" class="form-control form-control-sm" style="width:auto;">
+                                <select id="errorsSearchField" class="form-select form-select-sm" style="width:auto;">
                                     <option value="mode">Mode</option>
                                     <option value="frequency">Frequency</option>
                                 </select>
@@ -1303,19 +989,21 @@
                         </div>
                         <div class="card-body flex-grow-1 d-flex flex-column" style="overflow:hidden; min-height:0; padding:0;">
                             <div class="table-panel flex-grow-1 d-flex flex-column" style="min-height:0;">
-                                <div id="errorsTable" class="cts-tabulator flex-grow-1" style="min-height:0;"></div>
+                                <div id="errorsTable" class="cts-tabulator cts-fill"></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+        <!-- /.page-body -->
+    </div>
+    <!-- /.page-wrapper -->
 
-        <!-- Deploy simulations modal -->
-        <div class="modal fade" id="simulationCopyModal" tabindex="-1" role="dialog"
-             aria-labelledby="simulationCopyModalLabel"
-             aria-hidden="true">
-            <div class="modal-dialog modal-lg" role="document">
+    <!-- Deploy simulations modal -->
+    <div class="modal fade" id="simulationCopyModal" tabindex="-1"
+         aria-labelledby="simulationCopyModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="simulationCopyModalLabel">Deploy simulations to devices</h5>
@@ -1323,50 +1011,26 @@
                     <div class="modal-body">
                         <div class="table-panel d-flex flex-column">
                             <div id="deployTargetsToolbar" class="table-toolbar flex-shrink-0">
-                                <span class="ml-auto text-muted small" id="deployTargetsCount">0 selected</span>
+                                <span class="ms-auto text-muted small" id="deployTargetsCount">0 selected</span>
                             </div>
                             <div id="deployTargetsTable" class="cts-tabulator"></div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button"
-                                onclick="$('#simulationCopyModal').modal('hide')">
-                            Cancel
-                        </button>
+                        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
                         <button class="btn btn-primary" type="button" onclick="copySimulations()">Deploy</button>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- Deploy modal end -->
-    </div>
-    <!-- /.content-wrapper -->
-
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong>
-        All rights reserved.
-        <div class="float-right d-none d-sm-inline-block">
-            <b>Version</b> 1.0.1
-        </div>
-    </footer>
+    <!-- Deploy modal end -->
 </div>
-<!-- ./wrapper -->
+<!-- /.page -->
 
-<!-- jQuery -->
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI 1.11.4 -->
-<script src="../../plugins/jquery-ui/jquery-ui.min.js"></script>
-<script>
-    $.widget.bridge('uibutton', $.ui.button)
-</script>
-<!-- Bootstrap 4 -->
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- AdminLTE App -->
-<script src="../../js/adminlte.js"></script>
-<!-- Tabulator -->
-<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
-<script src="../../js/cts-table.js"></script>
-<script src="../../js/jstree.min.js"></script>
-<script src="../../js/xlsx.full.min.js"></script>
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<th:block th:replace="~{fragments/tabler :: tree-scripts}"></th:block>
+<script src="/js/xlsx.full.min.js"></script>
 </body>
 </html>

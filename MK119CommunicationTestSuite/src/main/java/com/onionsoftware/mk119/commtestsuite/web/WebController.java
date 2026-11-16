@@ -53,7 +53,7 @@ public class WebController {
 
     @RequestMapping("/addDevice")
     public String addDevice() {
-        return "device_editor2";
+        return "device_editor";
     }
 
     @RequestMapping("/devices/batch")
@@ -65,7 +65,7 @@ public class WebController {
     @RequestMapping("/editDevice/{id}")
     public String editDevice(Model model, @PathVariable Integer id) {
         model.addAttribute("device", deviceService.selectDevice(id));
-        return "device_editor2";
+        return "device_editor";
     }
 
     @RequestMapping("/simulations")
@@ -121,7 +121,6 @@ public class WebController {
     @RequestMapping("/addError/{device_id}")
     public String addError(Model model, @PathVariable Integer device_id) {
         model.addAttribute("device", deviceService.selectDevice(device_id));
-        model.addAttribute("currentSystemErrors", errorService.selectErrorsByDeviceId(device_id));
         return "error_editor";
     }
 
@@ -136,7 +135,6 @@ public class WebController {
         Error error = errorService.selectErrorById(error_id);
         model.addAttribute("simulation", error);
         model.addAttribute("device", error.getDevice());
-        model.addAttribute("currentSystemErrors", errorService.selectErrorsByDeviceId(error.getDevice().getId()));
         return "error_editor";
     }
 
@@ -166,6 +164,28 @@ public class WebController {
     @RequestMapping("/settings")
     public String settings() {
         return "settings";
+    }
+
+    /** 프로토콜 정의 목록 — docs/PROTOCOL_ENGINE_DESIGN.md */
+    @RequestMapping("/protocols")
+    public String protocols(@RequestParam(value = "definition", required = false) Integer definition, Model model) {
+        model.addAttribute("selectedDefinition", definition);
+        return "protocols";
+    }
+
+    /** 새 정의. example 이 있으면 그 예시에서 시작한다 (/protocol-examples/{example}.json) */
+    @RequestMapping("/protocols/new")
+    public String newProtocol(@RequestParam(value = "example", required = false) String example, Model model) {
+        model.addAttribute("definitionId", null);
+        model.addAttribute("example", example);
+        return "protocol_editor";
+    }
+
+    @RequestMapping("/protocols/edit/{id}")
+    public String editProtocol(@PathVariable Integer id, Model model) {
+        model.addAttribute("definitionId", id);
+        model.addAttribute("example", null);
+        return "protocol_editor";
     }
 
     @RequestMapping("/devices/{device_id}/serverdata")

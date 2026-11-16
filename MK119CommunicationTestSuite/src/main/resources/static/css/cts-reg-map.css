@@ -1,0 +1,107 @@
+/* 등록 현황 (static/js/cts-reg-map.js) — Server Data 화면과 같은 결을 쓴다 */
+
+.rm-legend { display: flex; gap: 12px; margin-bottom: 8px; font-size: .72rem; color: #868e96; }
+.rm-item { display: inline-flex; align-items: center; gap: 4px; }
+.rm-sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid #e9ecef; }
+.rm-sw.taken { background: #4dabf7; border-color: #4dabf7; }
+.rm-sw.self  { background: #f76707; border-color: #f76707; }
+.rm-sw.clash { background: #ffe3e3; border-color: #ffa8a8; }
+.rm-sw.free  { background: #fff; border-color: #dee2e6; }
+
+.rm-empty { padding: 18px 14px; text-align: center; color: #adb5bd; font-size: .85rem; }
+
+/* 지금 쓰는 자리가 비었는지 — 맨 위에서 말로 답하는 줄 */
+.rm-verdict {
+    padding: 7px 10px; margin-bottom: 10px; border-radius: 4px;
+    font-size: .8rem; line-height: 1.4; border: 1px solid transparent;
+}
+.rm-verdict b { font-family: 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; }
+.rm-verdict.is-free { background: #ebfbee; border-color: #d3f9d8; color: #2b8a3e; }
+/* 겹침은 놓치면 안 되는 쪽이라 한 눈금 더 세게 둔다 */
+.rm-verdict.is-clash { background: #fff5f5; border-color: #ffa8a8; color: #c92a2a; font-weight: 600; }
+
+.rm-panel { border: 1px solid #dee2e6; border-radius: 4px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+.rm-panel-head {
+    padding: 6px 10px; border-bottom: 1px solid #dee2e6; background: #fff;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.rm-panel-title { font-weight: 600; font-size: .85rem; color: #212529; }
+.rm-panel-meta { font-size: .72rem; color: #868e96; white-space: nowrap; }
+.rm-clash { color: #c92a2a; }
+.rm-panel-body { padding: 8px 10px; }
+
+/* ── 1층: 영역 전체를 압축한 띠 ── */
+.rm-map {
+    position: relative; display: flex; align-items: flex-end; gap: 1px;
+    height: 30px; padding: 0 1px;
+    background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 3px;
+}
+.rm-bucket { flex: 1 1 0; min-width: 2px; height: 100%; display: flex; align-items: flex-end; }
+.rm-bucket > i { display: block; width: 100%; background: #4dabf7; border-radius: 1px 1px 0 0; }
+.rm-bucket.is-clash > i { background: #fa5252; }
+.rm-cursor {
+    position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
+    background: #f76707; border-radius: 1px; pointer-events: none;
+}
+.rm-scale {
+    display: flex; justify-content: space-between; margin: 2px 0 8px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: .68rem; color: #adb5bd;
+}
+
+/* ── 2층: 이어지는 구간 ── */
+.rm-runs { max-height: 190px; overflow-y: auto; border-top: 1px solid #f1f3f5; }
+.rm-run {
+    display: grid; grid-template-columns: auto 52px minmax(0, 1fr);
+    align-items: center; gap: 8px;
+    padding: 3px 4px; border-bottom: 1px solid #f8f9fa; font-size: .75rem;
+}
+.rm-run:last-child { border-bottom: 0; }
+.rm-run-range { font-family: 'SF Mono', Menlo, Consolas, monospace; color: #495057; }
+.rm-run-n { text-align: right; color: #adb5bd; font-size: .7rem; }
+.rm-run-who { color: #212529; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-run.is-free .rm-run-range { color: #ced4da; }
+.rm-run.is-free .rm-run-who { color: #adb5bd; font-style: italic; }
+.rm-run.is-self { background: #fff4e6; }
+.rm-run.is-self .rm-run-who { color: #d9480f; font-weight: 600; }
+.rm-run.is-clash { background: #fff5f5; }
+.rm-run.is-clash .rm-run-who { color: #c92a2a; font-weight: 600; }
+.rm-more {
+    padding: 4px; text-align: center; color: #adb5bd; font-size: .7rem;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* ── 3층: 지금 입력 중인 주소 둘레 ── */
+.rm-near { margin-top: 8px; border-top: 1px solid #f1f3f5; padding-top: 6px; }
+.rm-near-head { font-size: .7rem; color: #868e96; margin-bottom: 3px; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+.rm-row {
+    display: flex; align-items: center; gap: 6px; margin: 2px 0;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+.rm-row-addr { flex: 0 0 auto; min-width: 52px; color: #868e96; font-size: .7rem; }
+.rm-row-cells {
+    flex: 1 1 auto; min-width: 0;
+    display: grid; grid-template-columns: repeat(var(--cols, 16), minmax(0, 1fr)); gap: 2px;
+}
+.rm-cell {
+    display: block; min-width: 0; height: 16px; line-height: 15px; text-align: center;
+    border: 1px solid #e9ecef; border-radius: 2px; background: #fff;
+    color: #ced4da; font-size: .62rem;
+}
+.rm-cell.is-taken { background: #4dabf7; border-color: #4dabf7; color: #e7f5ff; }
+.rm-cell.is-self  { background: #f76707; border-color: #f76707; color: #fff3bf; }
+.rm-cell.is-clash { background: #fa5252; border-color: #fa5252; color: #fff5f5; }
+
+/* ── 목록 (Server Data 의 Raw 와 같은 모양) ── */
+.rm-table { width: 100%; font-size: .78rem; margin: 0; }
+.rm-table th {
+    text-align: left; font-weight: 600; color: #495057; font-size: .72rem;
+    padding: 5px 10px; border-bottom: 1px solid #dee2e6; background: #f8f9fa;
+}
+.rm-table td { padding: 5px 10px; border-bottom: 1px solid #f1f3f5; }
+.rm-table tbody tr:last-child td { border-bottom: 0; }
+.rm-t { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+.rm-type { color: #868e96; }
+.rm-table tr.is-self td { background: #fff4e6; font-weight: 600; }
+.rm-table tr.is-clash td { background: #fff5f5; color: #c92a2a; }
+
+.rm-note { font-size: .75rem; color: #868e96; margin-top: .4rem; }

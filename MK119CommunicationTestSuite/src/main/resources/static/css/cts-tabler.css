@@ -1,0 +1,212 @@
+/*
+ * Tabler 화면들이 공유하는 것. 조각(templates/fragments/tabler.html)과 짝이다.
+ *   0) 큰 화면 배율
+ *   1) 화면을 꽉 채우고 페이지 자체는 스크롤하지 않는 뼈대  (html 에 cts-fixed 를 건 화면만)
+ *   2) 네이티브 range 슬라이더
+ * 화면 하나에만 쓰는 모양은 그 화면의 <style> 에 둔다.
+ */
+
+/* ── 0) 큰 화면 배율 ────────────────────────────────────────────
+ * 큰 모니터에 창을 크게 띄우면 화면 전체를 키워 그린다 — macOS 의 HiDPI 처럼 2560 이 2048 폭처럼 보인다.
+ * 기준은 창 크기다 (화면이 아니라 창 — 창을 작게 띄우면 걸리지 않는다).
+ *   1.1   창 높이 1600 이상               1080×1920 세로 모니터 (창 높이 약 1800)
+ *   1.25  창 폭 2200 이상 또는 높이 2200 이상  2560×1440 가로·1440×2560 세로 모니터 (뒤 규칙이 이긴다)
+ * 맥북은 어느 해상도 설정이든 창 폭 2056·높이 약 1220 을 넘지 않아 그대로다. 1920×1080 가로 모니터도 그대로다
+ * (1.1 을 주려면 창 폭 1900 이상이 기준이 되는데, 맥북 16" '공간 넓게'(2056 폭)도 함께 걸린다).
+ * 배율은 --cts-zoom 값이 정한다.
+ *
+ * 미디어 쿼리는 배율과 상관없이 실제 창 크기로 판단한다. 1080 폭 세로 창은 배치가 1080 기준
+ * (예: Tabler 의 lg 992 이상 → 사이드바 펼침)으로 잡히고, 쓸 수 있는 폭은 1080 ÷ 배율이다.
+ * 1.25 면 본문이 CSS 608 폭까지 줄어 표 글자가 잘려서 1080 세로는 1.1(본문 726)로 둔다.
+ *
+ * html 이 아니라 .page(사이드바·본문)와 body 에 따로 붙는 것들에 건다. body 는 배율 1 로 둔다 —
+ * 라이브러리(Tabulator)는 마우스 좌표(눈에 보이는 px)로 body 에 팝업을 띄우는데,
+ * body 에 배율이 있으면 그 좌표에 배율이 한 번 더 곱해져 엉뚱한 곳에 뜬다.
+ *   모달·알림, 우리 팝업(트리 메뉴·Target 팝오버)   상자째 키운다. 우리 팝업 위치는 js 가 배율로 나눠 놓는다
+ *   Tabulator 팝업                               상자는 두고 안만 키운다 (위치는 라이브러리 계산 그대로)
+ * zoom 아래에서는 vh·vw 에도 배율이 곱해지므로, 화면 크기에 맞추는 길이는 var(--cts-zoom) 으로 나눈다.
+ * JS 가 재는 값과 CSS 길이의 단위 차이는 js/cts-zoom.js 가 맞춘다.
+ */
+:root { --cts-zoom: 1; }
+@media (min-height: 1600px) { :root { --cts-zoom: 1.1; } }
+@media (min-width: 2200px), (min-height: 2200px) { :root { --cts-zoom: 1.25; } }
+.page, .modal, #toast-container, .cts-tree-menu, .ta-pop { zoom: var(--cts-zoom); }
+.tabulator-popup-container > * { zoom: var(--cts-zoom); }
+/* 글자가 상자에 바로 든 팝업(툴팁)과 높이를 정한 목록은 그 값만 키운다. Tabulator 테마보다 급이 높게 */
+.tabulator-popup-container.tabulator-tooltip {
+    font-size: calc(12px * var(--cts-zoom)); padding: calc(3px * var(--cts-zoom)) calc(5px * var(--cts-zoom));
+    max-width: min(calc(500px * var(--cts-zoom)), 100%);
+}
+.tabulator-popup-container.tabulator-edit-list { max-height: calc(200px * var(--cts-zoom)); }
+
+/* ── 1) 전체 화면 뼈대 ──────────────────────────────────────────
+ * 목록·편집기처럼 한 화면에 다 담는 쪽만 쓴다. 평범하게 스크롤할 화면은 이 클래스를 안 건다.
+ *     <html class="cts-fixed">
+ */
+html.cts-fixed, html.cts-fixed body { height: 100%; overflow: hidden; }
+/*
+ * .page 는 조심해서 건드린다. Tabler 가 여기에 contain:layout 을 걸어 두는데,
+ * 그러면 .page 가 position:fixed 인 사이드바의 기준 상자이자 클리핑 상자가 된다.
+ * 거기에 overflow:hidden 까지 얹으면 사이드바가 잘려 사라진다.
+ * 칸을 나누려면 flex 가 필요하므로 containment 만 풀고, 넘침은 body 가 막게 둔다.
+ */
+/* 100vh 에는 .page 의 배율이 곱해진다. 나눠야 창 높이다 (0절) */
+html.cts-fixed .page { contain: none; height: calc(100vh / var(--cts-zoom)); display: flex; flex-direction: column; }
+/*
+ * 상단 바는 제 높이만. 사이드바도 같다 — 넓은 화면에선 position:fixed 라 상관없지만,
+ * 좁은 화면에선 위로 올라와 이 flex 에 끼므로 줄어들면 펼친 메뉴가 잘린다.
+ */
+html.cts-fixed .page > .navbar { flex: 0 0 auto; }
+html.cts-fixed .page-wrapper {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+}
+html.cts-fixed .page-wrapper .page-header { flex: 0 0 auto; margin: 0; padding: 10px 0 8px; }
+/*
+ * 네 방향 여백을 한 값으로 맞춘다.
+ * Tabler 의 --tblr-page-padding 을 그대로 쓰면 창이 좁아질 때 8px 로 줄어든다.
+ * 이 화면들은 좁아져도 여백이 유지되는 편이 나아서 우리 값으로 고정한다.
+ * 좌우는 .container-fluid 가 Tabler 값으로 주고 있으므로 여기서 같이 덮는다.
+ */
+html.cts-fixed { --cts-page-gap: 1rem; }
+html.cts-fixed .page-body {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+    margin: 0; padding: var(--cts-page-gap);
+}
+/* 여백은 page-body 가 책임진다. container-fluid 가 제 좌우 패딩을 또 주면 두 배가 된다 */
+html.cts-fixed .page-body > .container-fluid { padding-inline: 0; }
+/* page-body 바로 안에 두는 통. 남는 높이를 다 쓰고 그 안에서만 스크롤한다 */
+html.cts-fixed .cts-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* 카드가 칸 높이를 다 쓰고 본문만 스크롤하게 */
+.cts-card { display: flex; flex-direction: column; overflow: hidden; min-height: 0; min-width: 0; }
+.cts-card > .card-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/*
+ * 카드 머리는 Tabler 기본 크기를 그대로 쓴다. 높이를 건드리지 않는다.
+ * 다만 머리에 도구를 얹는 카드가 많아서, 칸이 좁아도 줄바꿈 대신 제목을 말줄임으로 접는다.
+ */
+.cts-card > .card-header,
+.cts-main-card > .card-header { flex-wrap: nowrap; gap: .5rem; }
+.cts-card > .card-header > .card-title,
+.cts-main-card > .card-header > .card-title {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/*
+ * Tabler 의 .card-actions 는 여백만 주고 flex 가 아니라, 버튼이 여럿이면 줄바꿈된다.
+ * 도구 모음은 한 줄로 둔다 — 좁아지면 각 화면의 컨테이너 쿼리가 글자를 숨긴다.
+ */
+.card-header > .card-actions { display: flex; align-items: center; gap: .25rem; flex-wrap: nowrap; }
+.card-header > .card-actions > .btn { white-space: nowrap; }
+
+/* ── 1-1) 버튼 안의 아이콘과 글자 사이 ──────────────────────────
+ * Tabler 는 제 아이콘(.icon)에만 간격을 주고 .btn 은 inline-block 이라,
+ * FontAwesome 아이콘과 글자가 공백 하나로만 떨어져 붙어 보인다.
+ *
+ * 아이콘에 margin 을 주는 방식은 쓰지 않는다. `<i></i> Copy` 처럼 글자가 요소가 아니라
+ * 텍스트 노드면 그 <i> 가 :only-child 라서, 아이콘 전용 버튼과 구분할 방법이 없다.
+ * 버튼을 flex 로 두면 글자가 요소든 텍스트든 한 칸 띄고, 아이콘만 있으면 저절로 간격이 없다.
+ */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
+
+/* ── 1-1b) 버튼은 플랫하게 ──────────────────────────────────────
+ * Tabler 는 색을 채운 버튼(.btn-primary, .btn-success …)에 위→아래 흰빛 그라디언트
+ * (--tblr-btn-gradient)와 위아래 안쪽 하이라이트 그림자를 넣는다. 옛 Bootstrap 버튼처럼
+ * 볼록해 보여서 둘 다 끈다. 같은 단일 클래스 특이도라 이 파일이 뒤에 오면 이긴다.
+ */
+.btn { --tblr-btn-gradient: none; --tblr-btn-box-shadow: none; }
+
+/* ── 1-2) 사이드바 브랜드 ───────────────────────────────────────
+ * <img> 는 기본이 baseline 정렬이라 로고가 글자 기준선 위에 떠 보인다.
+ * 상자가 아니라 보이는 내용끼리 가운데가 맞도록 flex 로 세운다.
+ *
+ * Tabler 는 세로 사이드바의 브랜드에 justify-content:space-between 을 준다 — 로고 한쪽,
+ * 접기 버튼 한쪽을 상정한 것이다. 우리는 로고와 이름이 붙어 있어야 하므로 되돌린다.
+ */
+.navbar-brand { display: inline-flex; align-items: center; gap: .5rem; }
+/* Tabler 쪽이 .navbar-vertical.navbar-expand-lg .navbar-brand 라 선택자 급을 맞춰야 이긴다 */
+.navbar-vertical[class*="navbar-expand"] .navbar-brand { justify-content: flex-start; }
+
+/* ── 2) 슬라이더 ────────────────────────────────────────────────
+ * 네이티브 input[type=range] 를 직접 그린다. Bootstrap 의 form-range 는 지나온 구간을
+ * 칠해 주지 않아 지금 값이 어디쯤인지 한눈에 안 들어온다. AdminLTE 가 들고 있던
+ * bootstrap-slider / ion-rangeslider 는 모양이 낡았고, 플러그인을 쓰면 키보드·터치
+ * 조작을 공짜로 얻던 것까지 흉내 내야 한다.
+ *
+ *     <div class="cts-slider-row">
+ *         <label class="form-label" for="x">Frequency</label>
+ *         <span class="cts-slider-val" id="x-val" style="--c: var(--tblr-green)"></span>
+ *     </div>
+ *     <input type="range" class="cts-range" id="x" min="0" max="100" value="10"
+ *            style="--c: var(--tblr-green)">
+ *
+ * 지나온 구간은 --p(퍼센트), 색은 --c. --p 는 js/cts-range.js 가 맞춘다.
+ */
+.cts-slider-row { display: flex; align-items: baseline; justify-content: space-between; }
+.cts-slider-row .form-label { margin-bottom: 0; }
+.cts-slider-val {
+    font-weight: 700; font-size: .85rem; color: var(--c, var(--tblr-primary));
+    font-variant-numeric: tabular-nums;
+}
+
+.cts-range {
+    -webkit-appearance: none; appearance: none;
+    display: block; width: 100%; height: 18px; margin: 6px 0 0;
+    background: transparent; cursor: pointer;
+}
+.cts-range:focus { outline: none; }
+
+.cts-range::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 3px;
+    background: linear-gradient(to right,
+                var(--c, var(--tblr-primary)) var(--p, 0%), var(--tblr-gray-200) var(--p, 0%));
+}
+.cts-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; margin-top: -5px; box-sizing: border-box;
+    border-radius: 50%; background: #fff; border: 2px solid var(--c, var(--tblr-primary));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+    transition: transform .1s ease, box-shadow .1s ease;
+}
+.cts-range:hover::-webkit-slider-thumb { transform: scale(1.1); }
+.cts-range:active::-webkit-slider-thumb { transform: scale(1.2); }
+.cts-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(73, 80, 87, .2); }
+
+/* Firefox 는 지나온 구간을 따로 그려 줘서 그라디언트가 필요 없다 */
+.cts-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--tblr-gray-200); }
+.cts-range::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--c, var(--tblr-primary)); }
+.cts-range::-moz-range-thumb {
+    width: 12px; height: 12px; box-sizing: content-box;
+    border-radius: 50%; background: #fff; border: 2px solid var(--c, var(--tblr-primary));
+}
+.cts-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px rgba(73, 80, 87, .2); }
+
+/* ── 3) Tabulator 셀의 on/off 토글 ──────────────────────────────
+ * cts-common.css(AdminLTE 쪽)의 .cts-toggle 과 같은 모양이고 색만 Tabler 변수를 쓴다.
+ * 두 테마가 섞여 있는 동안은 양쪽에 같은 것이 있다 — AdminLTE 화면이 다 넘어오면 저쪽을 지운다.
+ */
+.cts-toggle {
+    position: relative; display: inline-block; width: 36px; height: 20px;
+    border-radius: 10px; background-color: var(--tblr-gray-300); border: none;
+    cursor: pointer; padding: 0; vertical-align: middle;
+    transition: background-color .15s ease;
+}
+.cts-toggle::before {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background-color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+    transition: transform .15s ease;
+}
+.cts-toggle.on { background-color: var(--tblr-green); }
+.cts-toggle.on::before { transform: translateX(16px); }
+.cts-toggle:hover { filter: brightness(.95); }
+.cts-toggle:focus { outline: none; box-shadow: 0 0 0 2px rgba(73, 80, 87, .2); }
+
+/* ── 4) data type 조합 선택칸 (js/cts-datatype-picker.js) ──────
+ * 조각 이름표. 바깥 Datatype 레이블 아래에 들어가므로 한 단 작게 둔다
+ * (target 입력 보조의 .ta-label 과 같은 결).
+ */
+.cts-dtp-label {
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--tblr-secondary);
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    margin-bottom: .15rem;
+}

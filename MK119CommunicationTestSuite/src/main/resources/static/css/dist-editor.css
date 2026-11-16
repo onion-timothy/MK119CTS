@@ -1,0 +1,407 @@
+/* RANDOM 정책의 가중 분포 편집기 (static/js/dist-editor.js) */
+
+.de {
+    --de-bar: #5b8fd1;
+    --de-bar-hover: #4579bd;
+    --de-sel: #f0a33c;
+    --de-line: #ced4da;
+    --de-muted: #6c757d;
+    --de-text: #343a40;
+    --de-mu: #6f42c1;
+    --de-sigma: #e8730c;
+    border: 1px solid #e3e6ea;
+    border-radius: .5rem;
+    background: #fff;
+    padding: .75rem .75rem .5rem;
+}
+
+/* ── 도구 막대 ─────────────────────────────────────────── */
+.de-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .75rem;
+}
+
+.de-mode .btn {
+    min-width: 76px;
+}
+
+.de-count {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.de-count .input-group {
+    width: 112px;
+}
+
+.de-count input::-webkit-outer-spin-button,
+.de-count input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.de-caption {
+    font-size: .8rem;
+    color: var(--de-muted);
+    white-space: nowrap;
+}
+
+.de-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-left: auto;
+}
+
+.de-actions .btn:disabled {
+    opacity: .45;
+}
+
+/* ── 안내 / 현재 값 ─────────────────────────────────────── */
+.de-readout {
+    margin: .6rem 0 .1rem;
+    min-height: 1.3rem;
+    font-size: .8rem;
+    color: var(--de-muted);
+}
+
+.de-readout.is-active {
+    color: var(--de-text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 차트 ──────────────────────────────────────────────── */
+.de-chart {
+    width: 100%;
+    user-select: none;
+    touch-action: none;
+}
+
+.de-svg {
+    display: block;
+    overflow: visible;
+}
+
+.de-guide {
+    stroke: #f1f3f5;
+    stroke-width: 1;
+}
+
+.de-base {
+    stroke: var(--de-line);
+    stroke-width: 1;
+}
+
+.de-bar {
+    fill: var(--de-bar);
+    fill-opacity: .85;
+    cursor: pointer;
+    transition: fill .12s;
+}
+
+.de.is-normal .de-bar {
+    fill-opacity: .55;
+    cursor: default;
+}
+
+.de-bar.is-hover {
+    fill: var(--de-bar-hover);
+    fill-opacity: 1;
+}
+
+.de-bar.is-sel {
+    fill: var(--de-sel);
+    fill-opacity: .9;
+}
+
+.de-pct {
+    font-size: 11px;
+    font-weight: 600;
+    fill: var(--de-text);
+    /* 곡선·선 위에서도 읽히게 흰 테두리 */
+    paint-order: stroke;
+    stroke: #fff;
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.de-grip-pill {
+    fill: #fff;
+    stroke: var(--de-bar-hover);
+    stroke-width: 1;
+    pointer-events: none;
+}
+
+.de-hit {
+    fill: transparent;
+}
+
+.de-hit-weight {
+    cursor: ns-resize;
+}
+
+.de-hit-bnd {
+    cursor: ew-resize;
+}
+
+.de-bnd {
+    stroke: #adb5bd;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    pointer-events: none;
+}
+
+.de-bnd.is-hover {
+    stroke: var(--de-text);
+    stroke-dasharray: none;
+}
+
+.de-bnd-knob {
+    fill: #fff;
+    stroke: #868e96;
+    stroke-width: 1;
+    pointer-events: none;
+}
+
+.de-bnd-knob.is-hover {
+    fill: var(--de-text);
+    stroke: var(--de-text);
+}
+
+.de-axis {
+    font-size: 11px;
+    fill: var(--de-muted);
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.de-curve {
+    fill: none;
+    stroke: var(--de-mu);
+    stroke-width: 2;
+    pointer-events: none;
+}
+
+.de-mu {
+    stroke: var(--de-mu);
+    stroke-width: 2;
+    pointer-events: none;
+}
+
+.de-sigma {
+    stroke: var(--de-sigma);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+    pointer-events: none;
+}
+
+.de-mu.is-hover, .de-sigma.is-hover {
+    stroke-width: 3;
+}
+
+.de-sigma-band {
+    fill: var(--de-sigma);
+    fill-opacity: .07;
+    pointer-events: none;
+}
+
+.de-tag {
+    pointer-events: none;
+}
+
+.de-tag-mu {
+    fill: var(--de-mu);
+}
+
+.de-tag-sigma {
+    fill: var(--de-sigma);
+}
+
+.de-tag-text {
+    font-size: 11px;
+    font-weight: 700;
+    fill: #fff;
+    pointer-events: none;
+}
+
+/* ── 정규분포 입력 ─────────────────────────────────────── */
+.de-normal {
+    display: none;
+    gap: 1rem;
+    margin-top: .5rem;
+}
+
+.de.is-normal .de-normal {
+    display: flex;
+}
+
+.de-normal label {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin: 0;
+    font-size: .85rem;
+    font-weight: 500;
+}
+
+.de-normal input {
+    width: 110px;
+}
+
+/* ── 구간 표 ───────────────────────────────────────────── */
+.de-table-wrap {
+    margin-top: .6rem;
+    max-height: 236px;
+    overflow-y: auto;
+    border-top: 1px solid #eef0f2;
+}
+
+.de-table {
+    width: 100%;
+    font-size: .82rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.de-table th {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    font-weight: 600;
+    color: var(--de-muted);
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    padding: .35rem .4rem;
+    border-bottom: 1px solid #eef0f2;
+}
+
+.de-table td {
+    padding: .2rem .4rem;
+    vertical-align: middle;
+}
+
+.de-table tr.is-hover td {
+    background: #f1f6fc;
+}
+
+.de-table tr.is-sel td {
+    background: #fff4e3;
+}
+
+.de-table input {
+    height: calc(1.5em + .4rem);
+    padding: .1rem .35rem;
+    max-width: 110px;
+}
+
+.de-prob {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+}
+
+.de-prob input {
+    width: 76px;
+    text-align: right;
+}
+
+.de.is-normal .de-actions,
+.de.is-normal .de-hit-weight {
+    display: none;
+}
+
+/* ── BINARY ────────────────────────────────────────────── */
+.de-binary {
+    display: none;
+}
+
+.de.is-binary .de-binary {
+    display: block;
+}
+
+.de.is-binary .de-toolbar,
+.de.is-binary .de-readout,
+.de.is-binary .de-chart,
+.de.is-binary .de-normal,
+.de.is-binary .de-table-wrap {
+    display: none;
+}
+
+.de-binary-caption {
+    font-size: .8rem;
+    color: var(--de-muted);
+    margin-bottom: .5rem;
+}
+
+.de-split {
+    display: flex;
+    height: 40px;
+    border-radius: .4rem;
+    overflow: hidden;
+    background: #f1f3f5;
+}
+
+.de-split-part {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 .75rem;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: flex-basis .08s;
+}
+
+.de-split-part.is-empty {
+    padding: 0;
+}
+
+.de-split-0 {
+    background: #8a97a8;
+}
+
+.de-split-1 {
+    background: var(--de-bar);
+}
+
+.de-split-value {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.de-split-pct {
+    font-size: .85rem;
+    font-weight: 600;
+}
+
+.de-split-range {
+    margin-top: .5rem;
+}
+
+.de-binary-inputs {
+    display: flex;
+    gap: 1.25rem;
+    margin-top: .25rem;
+}
+
+.de-binary-inputs label {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin: 0;
+    font-size: .85rem;
+    font-weight: 500;
+}
+
+.de-binary-inputs input {
+    width: 84px;
+    text-align: right;
+}

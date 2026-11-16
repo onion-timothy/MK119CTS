@@ -1,38 +1,32 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
     <title>MK119 CTS - Server Data</title>
 
-    <link rel="stylesheet" href="../../plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../../css/adminlte.min.css">
-    <link rel="stylesheet" href="../../plugins/tabulator/css/tabulator_bootstrap4.min.css">
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <!-- .cts-tabulator — 다른 화면과 같은 표 톤 -->
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
 
     <style>
-        html, body { overflow: hidden; height: 100vh; }
-        .wrapper { display: flex; flex-direction: column; height: 100vh; min-height: 100vh; }
-        .main-header, .main-footer { flex-shrink: 0; }
-        .content-wrapper { flex: 1 1 auto; min-height: 0 !important; overflow: auto; }
+        /*
+         * 화면 자체는 스크롤하지 않는다(html.cts-fixed). 남는 높이는 .sd-main-layout 이
+         * 전부 가져가고, 스크롤은 열려 있는 패널 안과 Watch·Inspection 카드 안에서만 일어난다.
+         */
+        html.cts-fixed .page-body > .container-fluid {
+            flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+        }
 
-        .sd-panel {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            background: #fff;
-            margin-bottom: 12px;
-            overflow: hidden;
+        /* 블록마다 Tabler 카드 하나. 세로로 쌓이므로 아래 여백만 더하고 본문 여백은 뺀다 */
+        .sd-main .card { margin-bottom: 12px; }
+        .sd-main .card > .card-body { padding: 0; }
+        /* 카드 제목. Focus 뷰와 Raw 뷰가 같은 .fc-title 을 쓰므로 한 곳에서 맞춘다 */
+        .fc-title {
+            font-size: var(--tblr-font-size-h3, .875rem); font-weight: 600;
+            color: var(--tblr-body-color);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
         }
-        .sd-panel-header {
-            padding: 8px 12px;
-            border-bottom: 1px solid #dee2e6;
-            background: #f8f9fa;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .sd-panel-header .fc-title { font-size: 0.95rem; }
-        .sd-panel-body { padding: 0; }
 
         .sd-status-bar {
             padding: 8px 12px;
@@ -60,9 +54,43 @@
         .sd-badge.src-PROTOCOL_WRITE   { background: #fff9db; color: #b58900; }
         .sd-badge.src-API_WRITE        { background: #d3f9d8; color: #2b8a3e; }
 
-        .sd-table { font-size: 0.9rem; }
+        /* 표는 .cts-tabulator 테마(흰 머리글 + 파란 액센트, 지브라, 호버)를 쓴다.
+           액센트 라인은 Tabulator bootstrap5 테마의 `.tabulator .tabulator-header`
+           (border-bottom: 2px solid #dee2e6) 와 특이도가 (0,2,0) 으로 같다. 링크 순서로는
+           cts-table.css 가 이기지만, 순서에 기대지 않도록 여기서 한 번 더 못박는다. */
+        .cts-tabulator .tabulator-header {
+            background-color: #fff;
+            border-top: none;
+            border-bottom: 2px solid #007bff;
+            font-weight: 600;
+            color: #495057;
+        }
+        .cts-tabulator .tabulator-header .tabulator-col { background-color: transparent; border-right: none; }
         .sd-table .tabulator-cell { padding: 6px 10px; }
+
+        /* 페이지네이션 footer — devices·simulations·errors 와 같은 꼴 */
+        .cts-tabulator .tabulator-footer,
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents {
+            background: #fff !important; background-image: none !important;
+        }
+        .cts-tabulator .tabulator-footer { border-top: 1px solid #dee2e6 !important; padding: 0; }
+        .cts-tabulator .tabulator-footer .tabulator-footer-contents { padding: 6px 10px; }
+        .cts-tabulator .tabulator-footer .tabulator-page {
+            border-radius: 3px; margin: 0 2px; transition: background-color 0.12s ease;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover {
+            background-color: #eef5ff; border-color: #b8dcff;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page.active {
+            background-color: #007bff; color: #fff; border-color: #007bff;
+        }
+        .cts-tabulator .tabulator-footer .tabulator-page.disabled { opacity: 0.4; }
         .sd-locked-cell { background: #d3f9d8 !important; position: relative; }
+        /* 잠긴 행은 지브라·호버보다 세다 — 잠금은 색으로만 알리므로 묻히면 뜻을 잃는다.
+           호버는 같은 계열의 더 진한 초록으로 줘서 반응은 남긴다. */
+        .cts-tabulator .tabulator-row.sd-locked-cell,
+        .cts-tabulator .tabulator-row.tabulator-row-even.sd-locked-cell { background-color: #d3f9d8 !important; }
+        .cts-tabulator .tabulator-row.sd-locked-cell:hover { background-color: #b2f2bb !important; }
         /* Highlight the moment of a change: uses outline so background color is not overridden */
         .sd-flash { animation: sdFlash 0.9s ease-out; }
         @keyframes sdFlash {
@@ -283,7 +311,7 @@
             will-change: transform;
         }
 
-        /* ── Collapsible panel (Raw) ── */
+        /* ── Collapsible panel (Raw·Focus 공통) ── */
         .sd-focus-panel-header.collapsible { cursor: pointer; user-select: none; }
         .sd-focus-panel-header.collapsible:hover { background: #eef5ff; }
         .sd-focus-panel-header .sd-collapse-caret {
@@ -297,33 +325,117 @@
             opacity: 0;
         }
 
+        /*
+         * ── 카드형 블록(XGT)의 접기 ──
+         * Modbus Raw 와 같은 규칙으로 한 번에 한 블록만 연다. 열린 블록의 표가 남은 높이를
+         * 다 쓰고, 그 높이에 맞춰 쪽당 행 수가 정해진다.
+         */
+        .sd-main.is-cards { display: flex; flex-direction: column; gap: 8px; }
+        /*
+         * 블록이 여럿(XGT 는 6개)이라 카드 머리가 기본 높이면 접힌 머리만으로 칸을 다 먹는다.
+         * 이 화면의 블록 머리만 좁힌다 — 다른 카드들은 Tabler 기본 그대로다.
+         */
+        /* 머리는 줄지 않는다. 열린 카드가 칸보다 커지는 순간(높이를 다시 재기 전)에도 표만 넘친다 */
+        .sd-main.is-cards > .card > .card-header {
+            padding: .4rem .75rem; min-height: 0; flex-shrink: 0;
+        }
+        .sd-main.is-cards > .card { margin-bottom: 0; flex: 0 0 auto; min-height: 0; }
+        .sd-main.is-cards > .card:not(.collapsed) { flex: 1 1 auto; }
+        .sd-main.is-cards > .card.collapsed > .card-body { display: none; }
+        /* ── 카드 그리드 (Modbus·XGT 를 뺀 프로토콜) ───────────────
+         * 카드는 #sdContainer 의 평평한 자식이고 자리는 grid-area 가 정한다.
+         * 가로/세로 전환은 여기서 끝난다 — JS 에 그 분기를 두지 않는다.
+         * 기준은 목록 화면(css/cts-table.css 의 .cts-split)과 같은 orientation 이다.
+         */
+        .sd-main.is-cardgrid {
+            display: grid; gap: 12px; overflow-y: auto; overflow-x: hidden;
+            grid-template-columns: var(--sd-cols-l, 1fr);
+            grid-template-rows:    var(--sd-rows-l, 1fr);
+            grid-template-areas:   var(--sd-areas-l);
+        }
+        @media (orientation: portrait) {
+            .sd-main.is-cardgrid {
+                grid-template-columns: var(--sd-cols-p, 1fr);
+                grid-template-rows:    var(--sd-rows-p, 1fr);
+                grid-template-areas:   var(--sd-areas-p);
+            }
+        }
+        .sd-main.is-cardgrid > .card {
+            margin-bottom: 0; min-width: 0;
+            display: flex; flex-direction: column;
+        }
+        .sd-main.is-cardgrid > .card > .card-header {
+            padding: .4rem .75rem; min-height: 0; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .sd-main.is-cardgrid > .card > .card-body {
+            flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        /* 한 카드 안에 표가 여럿인 경우(BACnet). 표마다 소제목 한 줄 */
+        .sd-subtable { display: flex; flex-direction: column; min-height: 0; }
+        .sd-subtitle {
+            flex: 0 0 auto; padding: 3px 10px;
+            font-size: .75rem; font-weight: 600; color: #6c757d;
+            background: #fafbfc; border-bottom: 1px solid #f1f3f5;
+        }
+        .sd-card-badge { font-size: .72rem; color: #868e96; font-weight: 500; white-space: nowrap; }
+
+        .sd-main .card-header.collapsible { cursor: pointer; user-select: none; }
+        .sd-main .card-header.collapsible:hover { background: var(--tblr-gray-100); }
+        .sd-main .card-header .sd-collapse-caret {
+            display: inline-block; width: 16px; text-align: center;
+            color: var(--tblr-gray-600); margin-right: 4px;
+            transition: transform 0.22s ease;
+        }
+        .sd-main > .card.collapsed .sd-collapse-caret { transform: rotate(-90deg); }
+
+        /*
+         * ── Focus 배치 ──
+         * Raw 와 달리 접지 않는다. Focus 는 활성만 추려 보여 주므로 FC 사이 분량 차이가 크고,
+         * 넷을 합쳐도 대개 한 칸에 들어간다 — 하나만 열어 칸을 늘리면 내용이 적은 FC 에서 속이 빈다.
+         *
+         * 그래서 넷을 다 펼치고 칸 높이를 **활성 행 수에 비례해** 나눠 갖는다(flex-grow).
+         * 칸은 항상 꽉 차니 높이가 흔들리지 않고, 남는 자리는 내용이 많은 FC 로 간다.
+         * 제 몫보다 긴 FC 만 제 본문 안에서 스크롤한다.
+         */
+        .sd-main.is-focus { display: flex; flex-direction: column; gap: 12px; }
+        /* 패널 바닥(머리 + 첫 줄)의 합조차 안 들어갈 만큼 칸이 낮을 때만 칸이 스크롤한다 */
+        .sd-main.is-focus.is-overflowing { overflow-y: auto; }
+        .sd-main.is-focus .sd-focus-panel {
+            display: flex; flex-direction: column;
+            margin-bottom: 0;
+            /* 평소 높이는 layoutFocusPanels() 가 준다. 이것은 그 전 한 틱의 안전망이다 */
+            min-height: 84px;
+        }
+        .sd-main.is-focus .sd-focus-body {
+            flex: 1 1 auto; min-height: 0;
+            overflow-y: auto; overflow-x: hidden;
+            height: auto !important;   /* Raw 쪽 높이 계산이 남긴 인라인 높이를 무시한다 */
+        }
+
         /* ── Main layout split: focus/raw area + inspection sidebar ── */
-        .sd-main-layout { display: flex; gap: 12px; align-items: flex-start; }
-        .sd-main       { flex: 1 1 auto; min-width: 0; }
+        .sd-main-layout { display: flex; gap: 12px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
+        .sd-main       { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+        /* 어댑터가 없는 프로토콜에서는 Watch·Inspection 이 동작하지 않는다(startup 참고).
+           감추면 .sd-main 이 flex:1 로 남은 폭을 전부 가져간다. display:none 이라
+           flex gap 도 생기지 않는다. */
+        body.sd-no-inspector .sd-inspection { display: none; }
+        /*
+         * Watch 와 Inspection 은 각각 독립한 카드다. 둘이 세로를 나눠 갖고,
+         * 넘치는 내용은 각자의 본문 안에서만 스크롤한다 — 화면은 스크롤하지 않는다.
+         */
         .sd-inspection {
             flex: 0 0 340px; max-width: 340px;
-            border: 1px solid #dee2e6; border-radius: 4px; background: #fff;
-            position: sticky; top: 12px; max-height: calc(100vh - 120px);
-            display: flex; flex-direction: column; overflow: hidden;
+            display: flex; flex-direction: column; gap: 12px; min-height: 0;
         }
-        .sd-inspection-section { display: flex; flex-direction: column; min-height: 0; }
-        .sd-inspection-section + .sd-inspection-section { border-top: 1px solid #dee2e6; }
-        .sd-inspection-section:first-child { max-height: 50%; }
-        .sd-inspection-section:last-child  { flex: 1 1 auto; min-height: 0; }
-        .sd-inspection-section-header {
-            padding: 6px 12px; background: #f8f9fa; border-bottom: 1px solid #e9ecef;
-            display: flex; align-items: center; justify-content: space-between;
-        }
-        .sd-inspection-section-title {
-            font-weight: 600; font-size: 0.78rem; color: #495057;
-            text-transform: uppercase; letter-spacing: 0.05em;
-        }
-        .sd-inspection-empty {
-            padding: 14px; text-align: center;
-            color: #adb5bd; font-size: 0.8rem;
-        }
+        .sd-inspection > .card:first-child { flex: 0 1 auto; max-height: 50%; }
+        .sd-inspection > .card:last-child  { flex: 1 1 auto; min-height: 0; }
+        /* 비었을 때의 한 줄은 .cts-empty (css/cts-empty.css) 가 맡는다 */
         .sd-watch-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 8px; }
         .sd-inspection-body { padding: 10px 12px; overflow-y: auto; font-size: 0.85rem; flex: 1 1 auto; min-height: 0; }
+        /* 두 본문은 카드 본문 자리에 그대로 들어간다 — 카드 쪽 여백은 쓰지 않는다 */
+        .sd-inspection .card-body { padding: 0; display: flex; flex-direction: column; min-height: 0; }
         .sd-inspection-body h6 { font-size: 0.8rem; color: #6c757d; margin: 12px 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
         .sd-inspection-body h6:first-child { margin-top: 0; }
         .sd-inspection-body .kv-row {
@@ -376,19 +488,21 @@
         .sd-watch-card.src-API_WRITE        { border-left: 4px solid #40c057; }
 
         /* ── Focus panel: chunk-based rendering ── */
+        /* Tabler 카드와 같은 톤. 클래스명은 높이 계산(fitOpenPanelHeight)과 접기 로직이
+           참조하므로 그대로 두고 모양만 맞춘다. 머리 높이는 min-height 로 고정해
+           패널 높이 계산이 흔들리지 않게 한다. */
         .sd-focus-panel {
             border: 1px solid #dee2e6; border-radius: 4px; background: #fff;
             margin-bottom: 12px; overflow: hidden;
         }
+        /* 마지막 패널의 아래 여백은 칸 바닥에 빈 띠로 남는다 — 오른쪽 칸과 바닥이 어긋난다 */
+        .sd-main .sd-focus-panel:last-child { margin-bottom: 0; }
         .sd-focus-panel-header {
-            padding: 8px 12px; border-bottom: 1px solid #dee2e6; background: #f8f9fa;
+            padding: 6px 10px; border-bottom: 1px solid #dee2e6; background: #fff;
+            min-height: 42px;
             display: flex; align-items: center; justify-content: space-between;
         }
-        .sd-focus-panel-header .fc-title { font-weight: 600; font-size: 0.95rem; }
         .sd-focus-panel-body { padding: 6px 10px; }
-        .sd-focus-empty {
-            padding: 18px 14px; text-align: center; color: #adb5bd; font-size: 0.85rem;
-        }
         .sd-empty-banner {
             display: block; width: 100%;
             padding: 5px 10px; margin: 4px 0;
@@ -482,49 +596,14 @@
         }
     </style>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li>
-            <li class="nav-item d-none d-sm-inline-block"><a href="/" class="nav-link">Home</a></li>
-        </ul>
-    </nav>
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('devices')}"></th:block>
 
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="#" class="brand-link">
-            <img src="/img/icon_logo_1.png" alt="Onion Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-            <span class="brand-text font-weight-light">MK119 CTS</span>
-        </a>
-        <div class="sidebar">
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                    <li class="nav-item"><a href="/" class="nav-link active"><i class="nav-icon fas fa-table"></i><p>Devices</p></a></li>
-                    <li class="nav-item"><a href="/simulations" class="nav-link"><i class="nav-icon fas fa-chart-area"></i><p>Value Simulations</p></a></li>
-                    <li class="nav-item"><a href="/errors" class="nav-link"><i class="nav-icon fas fa-bomb"></i><p>Error Simulations</p></a></li>
-                    <li class="nav-item"><a href="/testplans" class="nav-link"><i class="nav-icon fas fa-tasks"></i><p>Test Plans</p></a></li>
-                    <li class="nav-item"><a href="/settings" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>Settings</p></a></li>
-                </ul>
-            </nav>
-        </div>
-    </aside>
+    <div class="page-wrapper">
+        <th:block th:replace="~{fragments/tabler :: navbar('Server Data', ~{})}"></th:block>
 
-    <div class="content-wrapper">
-        <div class="content-header">
-            <div class="container-fluid">
-                <div class="row mb-2">
-                    <div class="col-sm-6"><h1 class="m-0" id="title">Server Data</h1></div>
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="/">Home</a></li>
-                            <li class="breadcrumb-item active">Server Data</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section class="content">
+        <div class="page-body">
             <div class="container-fluid">
                 <div id="sdStatusBar" class="sd-status-bar status-connecting">
                     <span id="sdStatusText"><i class="fas fa-spinner fa-spin"></i> Connecting…</span>
@@ -561,33 +640,35 @@
                 <div class="sd-main-layout">
                     <div id="sdContainer" class="sd-main"></div>
                     <aside id="sdInspection" class="sd-inspection">
-                        <div class="sd-inspection-section">
-                            <div class="sd-inspection-section-header">
-                                <span class="sd-inspection-section-title">Watch</span>
-                                <button type="button" class="btn btn-sm btn-outline-primary" id="sdAddWatchBtn"
-                                        title="Add a watch item"><i class="fas fa-plus"></i></button>
+                        <div class="card cts-card">
+                            <div class="card-header">
+                                <h3 class="card-title mb-0">Watch</h3>
+                                <div class="card-actions">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="sdAddWatchBtn"
+                                            title="Add a watch item"><i class="fas fa-plus"></i></button>
+                                </div>
                             </div>
-                            <div id="sdWatchList" class="sd-watch-list">
-                                <div class="sd-inspection-empty">No watches yet. Add one to keep an eye on a target.</div>
+                            <div class="card-body">
+                                <div id="sdWatchList" class="sd-watch-list">
+                                    <div class="cts-empty">No watches yet. Add one to keep an eye on a target.</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="sd-inspection-section">
-                            <div class="sd-inspection-section-header">
-                                <span class="sd-inspection-section-title">Inspection</span>
+                        <div class="card cts-card">
+                            <div class="card-header">
+                                <h3 class="card-title mb-0">Inspection</h3>
                             </div>
-                            <div id="sdInspectionBody" class="sd-inspection-body">
-                                <div class="sd-inspection-empty">Click any cell or watch to inspect.</div>
+                            <div class="card-body">
+                                <div id="sdInspectionBody" class="sd-inspection-body">
+                                    <div class="cts-empty">Click any cell or watch to inspect.</div>
+                                </div>
                             </div>
                         </div>
                     </aside>
                 </div>
             </div>
-        </section>
+        </div>
     </div>
-
-    <footer class="main-footer">
-        <strong>Copyright &copy; 2024 <a href="https://onionsoftware.com">OnionSoftware</a>.</strong> All rights reserved.
-    </footer>
 </div>
 
 <div class="modal fade" id="watchModal" tabindex="-1" role="dialog" aria-hidden="true">
@@ -595,21 +676,21 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add watch</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Target</label>
                     <input type="text" class="form-control" id="watchTarget" placeholder="e.g. 3_18, %DW200, myOID">
                     <small class="text-muted" style="font-size:0.8rem">Protocol-specific address of the value to watch.</small>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Label</label>
                     <input type="text" class="form-control" id="watchLabel" placeholder="e.g. Pressure sensor">
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Format</label>
-                    <select class="form-control" id="watchFormat">
+                    <select class="form-select" id="watchFormat">
                         <option value="auto">auto</option>
                         <option value="hex">hex</option>
                         <option value="dec">dec (unsigned)</option>
@@ -620,13 +701,13 @@
                         <option value="float">float (needs data type)</option>
                     </select>
                 </div>
-                <div class="form-group" id="watchDataTypeGroup" style="display:none">
+                <div class="mb-3" id="watchDataTypeGroup" style="display:none">
                     <label>Data type</label>
-                    <select class="form-control" id="watchDataType"></select>
+                    <select class="form-select" id="watchDataType"></select>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" id="watchAddBtn">Add</button>
             </div>
         </div>
@@ -638,18 +719,18 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Edit value</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Target</label>
                     <input type="text" class="form-control" id="editTarget" readonly>
                 </div>
-                <div class="form-group" id="editDataTypeGroup" style="display:none">
+                <div class="mb-3" id="editDataTypeGroup" style="display:none">
                     <label>Data type</label>
-                    <select class="form-control" id="editDataType"></select>
+                    <select class="form-select" id="editDataType"></select>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Value</label>
                     <input type="text" class="form-control" id="editValue" placeholder="New value">
                     <small id="editHint" class="text-muted" style="font-size:0.8rem"></small>
@@ -657,20 +738,18 @@
                 <div class="text-muted" style="font-size:0.85rem">Saving will automatically lock this target so simulations cannot overwrite it.</div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="editCancelBtn" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-outline-secondary" id="editCancelBtn" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" id="editSaveBtn">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<script src="../../plugins/jquery/jquery.min.js"></script>
-<script src="../../plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../../js/adminlte.js"></script>
-<script src="../../plugins/tabulator/js/tabulator.min.js"></script>
-<script src="../../js/cts-table.js"></script>
-<script src="../../plugins/sockjs/sockjs.min.js"></script>
-<script src="../../plugins/stomp/stomp.umd.min.js"></script>
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script src="/plugins/sockjs/sockjs.min.js"></script>
+<script src="/plugins/stomp/stomp.umd.min.js"></script>
 
 <script th:inline="javascript">
     /*<![CDATA[*/
@@ -1160,6 +1239,11 @@
     }
 
     /** Write a value into the appropriate slot of a snapshot in-place (Modbus/XGT/OPC/etc.). */
+    /**
+     * 손에 든 스냅샷의 값도 함께 고친다. 표를 직접 고치는 것만으로는 모자라다 —
+     * lock 이 바뀌면 applyLocks 가 이 스냅샷으로 전체를 다시 그리므로, 여기가 비면
+     * 방금 쓴 값이 옛 값으로 되돌아간다.
+     */
     function writeSnapshotValue(snap, target, value) {
         const p = snap.payload; if (!p) return;
         if (snap.protocol === 'MODBUS') {
@@ -1174,8 +1258,28 @@
             for (let i = 0; i < p.objects.length; i++) {
                 if (p.objects[i].target === target) { p.objects[i].value = value; break; }
             }
+        } else if (snap.protocol === 'XGT_PLC' && p.blocks) {
+            // target 은 바이트 번지다 (%MB200). 이벤트의 affectedTargets 가 이 형식으로 온다
+            const m = /^%([A-Z])B(\d+)$/.exec(String(target).toUpperCase());
+            if (m && p.blocks[m[1]]) p.blocks[m[1]][parseInt(m[2], 10)] = value & 0xFF;
+        } else if (snap.protocol === 'DAEYUN_RCU') {
+            if (target.indexOf('@RCUAI_') === 0 && p.analogChannels) {
+                p.analogChannels[parseInt(target.substring(7), 10) - 1] = value;
+            } else if (target.indexOf('@RCUDI_') === 0 && p.digitalChannels) {
+                p.digitalChannels[parseInt(target.substring(7), 10) - 1] = value ? 1 : 0;
+            } else if (p.txFields) {
+                p.txFields[target] = value;
+            }
+        } else if (snap.protocol === 'SNMP' && p.oids) {
+            p.oids[target] = value;
+        } else if (snap.protocol === 'ETHERNET_IP' && p.tags) {
+            p.tags[target] = value;
+        } else if (snap.protocol === 'GENERIC' && p.fields) {
+            p.fields[target] = value;
+        } else if (snap.protocol === 'OPC_AGENT' && p.values) {
+            const i = parseInt(target, 10);
+            if (!isNaN(i) && i >= 0 && i < p.values.length) p.values[i] = value;
         }
-        // Other protocols will be handled once their Focus adapters are added.
     }
 
     function applyDeltaToRowTable(key, target, ev, isBase, isLockingSource, perTargetValue) {
@@ -1189,6 +1293,7 @@
             if (fmt) data.display = fmt(perTargetValue);
         }
         data.source = ev.source;
+        if ('updated' in data) data.updated = sdClock(ev.ts || Date.now());
         if (isLockingSource) data.locked = true;
         const rows = allRows[key];
         if (rows) {
@@ -1222,40 +1327,24 @@
     }
 
     function renderRaw(snap) {
-        // For grid-shaped protocols (Modbus), use the same square-cell renderer as Focus.
-        // Other protocols still use the legacy Tabulator renderers until their adapters land.
+        // 격자로 그리는 프로토콜(Modbus)은 Focus 와 같은 사각 칸 renderer 를 쓴다.
+        // XGT 는 블록 덤프 아코디언, 그 밖은 카드 그리드다.
         if (isGridProtocol(snap.protocol)) { renderSquareGrid(snap, 'raw'); return; }
-        renderRawLegacy(snap);
+        if (snap.protocol === 'XGT_PLC') { renderRawLegacy(snap); return; }
+        renderCards(snap);
     }
 
+    /** XGT 블록 덤프. 나머지 프로토콜은 renderCards 가 그린다. */
     function renderRawLegacy(snap) {
-        invalidateCellIndex();              // legacy tables replace the grid cells
+        invalidateCellIndex();              // 표가 격자 칸을 대신한다
         const container = $('#sdContainer');
         if (!container.hasClass('sd-raw-active')) {
-            container.empty().addClass('sd-raw-active');
+            container.empty().addClass('sd-raw-active').removeClass('is-cardgrid');
             tables = {}; allRows = {}; tableMeta = {}; displayFormatters = {};
+            cardSignature = null;
         }
         const firstRender = container.children().length === 0;
-        const protocol = snap.protocol;
-        const p = snap.payload;
-        const locks = new Set(snap.locks || []);
-        if (protocol === 'XGT_PLC') {
-            renderXGT(p, locks, firstRender);
-        } else if (protocol === 'OPC_AGENT') {
-            renderOpcAgent(p, locks, firstRender);
-        } else if (protocol === 'DAEYUN_RCU') {
-            renderDaeyun(p, locks, firstRender);
-        } else if (protocol === 'SNMP') {
-            renderKeyValue('SNMP OIDs', p.oids, locks, firstRender, 'snmp', 'OID');
-        } else if (protocol === 'ETHERNET_IP') {
-            renderKeyValue('EtherNet/IP Tags', p.tags, locks, firstRender, 'eip', 'Tag');
-        } else if (protocol === 'GENERIC') {
-            renderKeyValue('Generic Fields', p.fields, locks, firstRender, 'generic', 'Field');
-        } else if (protocol === 'BACNET') {
-            renderBACnet(p, locks, firstRender);
-        } else {
-            container.html('<div class="alert alert-warning">Unsupported protocol: ' + protocol + '</div>');
-        }
+        renderXGT(snap.payload, new Set(snap.locks || []), firstRender);
     }
 
     // ── Protocol adapters ─────────────────────────────────────
@@ -1504,10 +1593,11 @@
 
     // ── Watch tier (session-scoped) ────────────────────────────
     function renderWatchRow(snap) {
+        if (!inspectorAvailable()) return;   // 사이드바가 숨겨져 있다 — 그릴 필요가 없다
         const $list = $('#sdWatchList');
         $list.empty();
         if (watchItems.length === 0) {
-            $list.append('<div class="sd-inspection-empty">No watches yet. Add one to keep an eye on a target.</div>');
+            $list.append('<div class="cts-empty">No watches yet. Add one to keep an eye on a target.</div>');
             return;
         }
         watchItems.forEach(function (w) {
@@ -1652,6 +1742,7 @@
             const newKeys = panels.map(function (p) { return p.key; });
             const canReuse = existingKeys.length === newKeys.length &&
                              existingKeys.every(function (k, i) { return k === newKeys[i]; });
+            container.removeClass('is-focus').removeClass('is-cards');
             if (canReuse) {
                 panels.forEach(function (panel) { rawScrollers[panel.key].refresh(panel, locks); });
             } else {
@@ -1668,7 +1759,11 @@
         } else {
             rawScrollers = {}; // leaving Raw
             container.empty();
+            // Focus 는 접지 않고 넷이 높이를 나눠 갖는다 (CSS 의 .sd-main.is-focus)
+            container.addClass('is-focus').removeClass('is-cards');
+            clearAllScrollerHeights();      // Raw 가 남긴 인라인 높이를 지운다
             panels.forEach(function (panel) { container.append(renderGridPanel(snap, panel, locks, mode)); });
+            requestAnimationFrame(layoutFocusPanels);
         }
     }
 
@@ -1692,21 +1787,144 @@
             '</div>';
     }
 
-    function renderGridPanel(snap, panel, locks, mode) {
-        const $panel = $('<div class="sd-focus-panel">' + renderPanelHeaderHtml(panel, locks) + '<div class="sd-focus-panel-body"></div></div>');
-        const $body = $panel.find('.sd-focus-panel-body');
-        const activeCount = countActive(panel, locks);
-        if (mode === 'focus' && activeCount === 0) {
-            $body.append('<div class="sd-focus-empty">No active data. Switch to Raw view to browse.</div>');
-            return $panel;
-        }
-        const rows = buildRowPlan(panel, locks, mode);
-        const parts = [];
-        rows.forEach(function (r) {
-            if (r.type === 'row') parts.push(renderGridRowHtml(panel, r.start, locks));
-            else parts.push(renderEmptyRowHtml(r.rows, r.startAddr, r.endAddr));
+    const FOCUS_GAP = 12;   // .sd-main.is-focus / .is-cards 의 gap
+
+    // 카드형 블록(XGT)의 아코디언 상태. 한 번에 하나만 열린다
+    let cardOrder = [];
+    let cardExpandedKey = null;
+
+    /**
+     * 열린 카드의 표가 남은 높이를 다 쓰게 한다.
+     *
+     * 접힌 카드들은 머리만 남으므로 그 높이의 합을 빼면 열린 카드 몫이 나온다.
+     * 표 높이가 바뀌면 쪽당 행 수·행 높이는 CtsTable 이 그 높이에 맞춘다 — 스크롤 대신 쪽으로 넘긴다.
+     */
+    function fitOpenCardHeight() {
+        const container = document.getElementById('sdContainer');
+        if (!container || !container.classList.contains('is-cards')) return;
+        const cards = Array.prototype.slice.call(container.querySelectorAll(':scope > .card'));
+        if (!cards.length) return;
+        const open = cards.filter(function (c) { return !c.classList.contains('collapsed'); })[0];
+        if (!open) return;
+
+        let chrome = 0;
+        cards.forEach(function (c) {
+            const h = c.querySelector('.card-header');
+            chrome += (h ? CtsZoom.rect(h).height : 0) + 2;   // 2 = 카드 테두리. CSS px (js/cts-zoom.js)
         });
-        $body[0].innerHTML = parts.join('');
+        chrome += FOCUS_GAP * (cards.length - 1);
+
+        const key = open.getAttribute('data-card-key');
+        const table = tables[key];
+        if (!table || !table.element) return;
+        // 표 바깥(카드 본문 여백 + 쪽 넘김 줄)은 Tabulator 가 제 높이 안에서 처리한다
+        const h = Math.max(140, Math.floor(sdAvailH() - chrome));
+        if (table.element.style.height !== h + 'px') table.setHeight(h);
+    }
+
+    // 블록 머리 클릭 → 단일 개방. 열린 것을 다시 눌러도 닫지 않는다 (Raw 와 같은 규칙)
+    $(document).on('click', '#sdContainer.is-cards > .card > .card-header.collapsible', function () {
+        const card = this.parentElement;
+        if (!card.classList.contains('collapsed')) return;
+        const container = document.getElementById('sdContainer');
+        container.querySelectorAll(':scope > .card').forEach(function (c) { c.classList.add('collapsed'); });
+        card.classList.remove('collapsed');
+        cardExpandedKey = card.getAttribute('data-card-key');
+        // 첫 번째는 카드 크기를, 두 번째는 그려진 줄을 재서 줄 수의 정수배로 맞춘다
+        requestAnimationFrame(fitOpenCardHeight);
+    });
+
+    /**
+     * Focus 패널들의 높이를 나눈다.
+     *
+     * flex 의 grow/shrink 로는 안 된다. 줄이는 양이 (기준 높이 × shrink) 로 가중되는 탓에,
+     * 가중치를 줄 수에 비례시키면 사실상 줄 수의 제곱이 되어 **가장 큰 패널이 먼저 바닥까지
+     * 짓눌린다**. 971줄짜리가 한 줄만 보이고 200줄짜리가 세 줄을 가져가는 식이다.
+     *
+     * 그래서 직접 나눈다 — 작은 요구부터 채우고 남는 것은 아직 모자란 쪽끼리 똑같이 나눈다.
+     *   1. 모든 패널에 바닥(머리 + 첫 줄)을 깐다 — 어떤 FC 든 한 줄은 온전히 보인다.
+     *   2. 남는 높이를 아직 더 바라는 패널에 똑같이 나눠 준다. 제 내용을 다 채운 패널은
+     *      거기서 멈추고, 남은 것은 다시 모자란 쪽으로 돌아간다.
+     * 결과: 분량이 적은 FC 는 전부 보이고, 큰 FC 들끼리는 남은 자리를 공평하게 나눠 갖는다.
+     *
+     * 줄 높이는 FC 마다 다르다 — 코일은 한 줄에 여러 칸이 접혀 들어가 96px, 레지스터는 41px 이다.
+     * 그래서 고정값을 쓰지 않고 그려 놓은 첫 줄을 실제로 잰다.
+     */
+    function layoutFocusPanels() {
+        const container = document.getElementById('sdContainer');
+        if (!container || !container.classList.contains('is-focus')) return;
+        const panels = Array.prototype.slice.call(container.querySelectorAll('.sd-focus-panel'));
+        if (!panels.length) return;
+
+        const items = panels.map(function (p) {
+            const header = p.querySelector('.sd-focus-panel-header');
+            const body = p.querySelector('.sd-focus-body');
+            const cs = getComputedStyle(body);
+            const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+            const chrome = CtsZoom.rect(header).height + pad + 2;  // 2 = 패널 테두리. CSS px (js/cts-zoom.js)
+            const row = body.firstElementChild;
+            const floor = chrome + (row ? CtsZoom.rect(row).height : 0);
+            // scrollHeight 는 여백을 포함한다. chrome 에 이미 여백이 들어 있으므로 한 번 뺀다
+            const want = Math.max(floor, chrome + body.scrollHeight - pad);
+            return { el: p, body: body, floor: Math.ceil(floor), want: Math.ceil(want) };
+        });
+
+        const avail = container.clientHeight - FOCUS_GAP * (panels.length - 1);
+        const h = items.map(function (it) { return it.floor; });
+        let left = avail - h.reduce(function (a, b) { return a + b; }, 0);
+
+        // 바닥조차 안 들어가면 칸을 스크롤시킨다 (한 줄도 못 보는 것보다 낫다)
+        container.classList.toggle('is-overflowing', left < 0);
+
+        while (left > 0.5) {
+            const hungry = [];
+            items.forEach(function (it, i) { if (h[i] < it.want) hungry.push(i); });
+            if (!hungry.length) break;
+            const share = left / hungry.length;
+            let used = 0;
+            hungry.forEach(function (i) {
+                const add = Math.min(share, items[i].want - h[i]);
+                h[i] += add;
+                used += add;
+            });
+            if (used < 0.5) break;
+            left -= used;
+        }
+
+        items.forEach(function (it, i) {
+            it.el.style.flex = '0 0 auto';
+            it.el.style.height = Math.floor(h[i]) + 'px';
+            it.el.style.minHeight = '';
+        });
+    }
+
+    /**
+     * Focus 패널 하나. 접지 않는다 — 넷이 다 펼쳐진 채로 칸 높이를 나눠 갖는다.
+     * 몫은 그려진 줄 수에 비례한다(flex-grow). 제 몫보다 긴 FC 만 제 본문 안에서 스크롤한다.
+     */
+    function renderGridPanel(snap, panel, locks, mode) {
+        const $panel = $(
+            '<div class="sd-focus-panel">' +
+            renderPanelHeaderHtml(panel, locks) +
+            '<div class="sd-focus-panel-body sd-focus-body"></div>' +
+            '</div>'
+        );
+        const $body = $panel.find('.sd-focus-body');
+        const activeCount = countActive(panel, locks);
+        let rowCount = 0;
+        if (mode === 'focus' && activeCount === 0) {
+            $body.append('<div class="cts-empty">No active data. Switch to Raw view to browse.</div>');
+        } else {
+            const rows = buildRowPlan(panel, locks, mode);
+            rowCount = rows.length;
+            const parts = [];
+            rows.forEach(function (r) {
+                if (r.type === 'row') parts.push(renderGridRowHtml(panel, r.start, locks));
+                else parts.push(renderEmptyRowHtml(r.rows, r.startAddr, r.endAddr));
+            });
+            $body[0].innerHTML = parts.join('');
+        }
+        // 높이는 layoutFocusPanels() 가 정한다 (flex 가중치로는 큰 쪽이 굶는다 — 아래 설명 참고)
         return $panel;
     }
 
@@ -1721,7 +1939,11 @@
         return !!panelExpandedState[panelKey];
     }
 
-    /** Which panel should be initially open (single-open policy). null = all closed. */
+    /**
+     * 처음에 열어 둘 패널 하나 (Raw·Focus 공통, 한 번에 하나만 열린다).
+     * 머리를 다시 눌러도 닫히지 않으므로, 여기서도 항상 하나는 고른다 — 아무것도 안 열린 채로
+     * 시작하면 머리만 늘어선 화면이 된다.
+     */
     function chooseInitialOpenPanel(panels, locks) {
         // Respect previous user choice if it still refers to a known panel.
         for (const k of Object.keys(panelExpandedState)) {
@@ -1731,12 +1953,13 @@
         for (const p of panels) {
             if (countActive(p, locks) > 0) return p.key;
         }
-        return null;
+        // 활성 데이터가 하나도 없으면 그냥 첫 패널을 연다.
+        return panels.length ? panels[0].key : null;
     }
 
     /**
      * Size the currently-open Raw panel's scroller so all panels + toolbars fit in the
-     * viewport (no page/content-wrapper scroll). Uses the "shrink-to-measure" trick:
+     * viewport (no page scroll). Uses the "shrink-to-measure" trick:
      * temporarily collapse the scroller to 1px, then measure the slack between the last
      * panel's bottom edge and the footer's top edge. Grow the scroller by that slack so
      * the last panel bottom touches (but does not overrun) the footer.
@@ -1748,41 +1971,49 @@
     /**
      * Compute the open scroller's target height without touching the scroller itself.
      * Sums the invariants (each panel's header + border + margin) and subtracts from the
-     * remaining space in .content-wrapper. This is animation-safe — the header heights
+     * remaining space in the viewport. This is animation-safe — the header heights
      * do not change while bodies are transitioning.
      */
+    /*
+     * 높이 계산의 기준은 패널이 들어가는 통(#sdContainer) 자체다.
+     * 화면은 스크롤하지 않으므로(html.cts-fixed) 이 통은 이미 "남은 높이"를 받아 놓은 상태다 —
+     * 예전처럼 뷰포트 높이에서 위쪽 요소들을 빼 나갈 필요가 없다.
+     */
+    function sdAvailH() {
+        const c = document.getElementById('sdContainer');
+        return c ? c.clientHeight : document.documentElement.clientHeight;
+    }
+
     function fitOpenPanelHeight() {
         const container = document.getElementById('sdContainer');
         if (!container) return;
+        // Focus 는 flex 가 높이를 나누므로 여기서 손댈 것이 없다 (Raw 전용)
+        if (container.classList.contains('is-focus')) return;
         const openPanel = container.querySelector('.sd-focus-panel:not(.collapsed)');
         if (!openPanel) return;
         const body = openPanel.querySelector('.sd-raw-body');
         if (!body) return;
-        const cw = document.querySelector('.content-wrapper');
-        if (!cw) return;
-
-        // Container's top position within content-wrapper (stable regardless of body sizes).
-        const cwRect = cw.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        const containerTop = containerRect.top - cwRect.top + cw.scrollTop;
-        const safety = 8;
-        const availForContainer = cw.clientHeight - containerTop - safety;
+        // 여유를 두지 않는다. 더미가 칸을 꽉 채워야 오른쪽 Watch·Inspection 칸과 바닥이 맞는다.
+        // .sd-main 이 overflow:hidden 이라 반올림으로 1px 넘쳐도 스크롤바가 생기지 않는다.
+        const availForContainer = sdAvailH();
 
         // Sum animation-invariant chrome (header + border + margin) across all panels.
         const panels = container.querySelectorAll('.sd-focus-panel');
         let sumChrome = 0;
-        panels.forEach(function (p) {
+        panels.forEach(function (p, i) {
             const header = p.querySelector('.sd-focus-panel-header');
-            if (header) sumChrome += header.getBoundingClientRect().height;
-            sumChrome += PANEL_BORDER_V + PANEL_MARGIN_B;
+            if (header) sumChrome += CtsZoom.rect(header).height;   // CSS px (js/cts-zoom.js)
+            sumChrome += PANEL_BORDER_V;
+            // 마지막 패널은 아래 여백이 없다 (위 CSS 의 :last-child)
+            if (i < panels.length - 1) sumChrome += PANEL_MARGIN_B;
         });
 
-        const avail = availForContainer - sumChrome;
+        const avail = Math.floor(availForContainer - sumChrome);
         const finalH = avail > 120 ? avail : 200;
         body.style.height = finalH + 'px';
     }
     function clearAllScrollerHeights() {
-        const list = document.querySelectorAll('#sdContainer .sd-raw-body');
+        const list = document.querySelectorAll('#sdContainer .sd-raw-body, #sdContainer .sd-focus-body');
         list.forEach(function (el) {
             el.style.height = '';
         });
@@ -1836,7 +2067,8 @@
             $viewport[0].innerHTML = parts.join('');
             invalidateCellIndex();          // scrolling swapped the rendered rows
             if (!measured && $viewport[0].firstElementChild) {
-                const h = $viewport[0].firstElementChild.getBoundingClientRect().height;
+                // scrollTop 과 같은 CSS px 로 (js/cts-zoom.js)
+                const h = CtsZoom.rect($viewport[0].firstElementChild).height;
                 if (h > 0 && Math.abs(h - rowHeight) > 1) {
                     rowHeight = h;
                     $sizer.css('height', (totalRows * rowHeight) + 'px');
@@ -1876,7 +2108,7 @@
                 const rs = rawScrollers[k];
                 if (!rs || rs.$panel.hasClass('collapsed')) return;
                 const b = rs.$panel.find('.sd-raw-body')[0];
-                if (b) b.style.height = b.getBoundingClientRect().height + 'px';
+                if (b) b.style.height = CtsZoom.rect(b).height + 'px';
                 rs.$panel.addClass('collapsed');
                 panelExpandedState[k] = false;
             });
@@ -1998,6 +2230,7 @@
     // ── Inspection tier ────────────────────────────────────────
     // The panel is always mounted; "open" only tracks whether a target is selected for detail render.
     function openInspection(target) {
+        if (!inspectorAvailable()) return;   // 사이드바가 숨겨져 있다
         inspectionTarget = target;
         inspectionOpen = true;
         if (latestSnapshot) {
@@ -2012,12 +2245,12 @@
     function renderInspection(target, snap) {
         const ad = getAdapter(snap.protocol);
         if (!ad || !ad.parseTarget) {
-            $('#sdInspectionBody').html('<div class="text-muted">Inspection not available for this protocol yet.</div>');
+            $('#sdInspectionBody').html('<div class="cts-empty">Inspection not available for this protocol yet.</div>');
             return;
         }
         const parsed = ad.parseTarget(snap, target);
         if (!parsed) {
-            $('#sdInspectionBody').html('<div class="text-muted">Target not found in current snapshot.</div>');
+            $('#sdInspectionBody').html('<div class="cts-empty">Target not found in current snapshot.</div>');
             return;
         }
         const meta = lastChangeMeta[target] || {};
@@ -2079,7 +2312,7 @@
             const ad = getAdapter(latestSnapshot.protocol);
             if (ad && ad.defaultLabel) $('#watchLabel').val(ad.defaultLabel(latestSnapshot, prefillTarget));
         }
-        $('#watchModal').modal('show');
+        CtsModal.show('watchModal');
     }
     $(document).on('click', '#sdAddWatchBtn', function () { openWatchModal(null); });
     $(document).on('change', '#watchFormat', function () {
@@ -2100,7 +2333,7 @@
         const dt = $('#watchDataTypeGroup').is(':visible') ? $('#watchDataType').val() : null;
         if (!t) { alert('Target is required.'); return; }
         addWatch(t, l, f, dt);
-        $('#watchModal').modal('hide');
+        CtsModal.hide('watchModal');
     });
 
     // ── View mode tabs (Focus / Raw) ──────────────────────────
@@ -2160,38 +2393,31 @@
         }
     }
 
-    // Keep the open Raw panel sized to viewport on window resize.
+    /*
+     * 칸(#sdContainer) 크기가 바뀌면 다시 나눈다. Raw 는 열린 패널 하나를, Focus 는 넷 전부를,
+     * 카드형은 열린 표를 다시 잰다. 창 크기만 보면 안 된다 — 세로 폭에서 메뉴를 펼치면
+     * 창은 그대로인데 칸만 줄어, 표가 예전 높이로 남아 넘쳤다.
+     * 줄 폭(Auto)을 먼저 맞춘다. 다시 그리게 되면 그 결과를 재야 한다.
+     */
     (function () {
-        let t = 0;
-        window.addEventListener('resize', function () {
-            clearTimeout(t);
-            t = setTimeout(function () { fitOpenPanelHeight(); }, 80);
-        });
-    })();
-
-    // Observe container width so Auto mode reflows on window/sidebar resize.
-    (function () {
+        function refit() {
+            if (rowWidthMode === 'auto') maybeReflowRowWidth(false);
+            fitOpenPanelHeight(); layoutFocusPanels(); fitOpenCardHeight();
+        }
         function attach() {
             const el = document.getElementById('sdContainer');
             if (!el) return;
             if (typeof ResizeObserver === 'function') {
                 let raf = 0;
-                const ro = new ResizeObserver(function () {
+                new ResizeObserver(function () {
                     if (raf) cancelAnimationFrame(raf);
-                    raf = requestAnimationFrame(function () {
-                        raf = 0;
-                        if (rowWidthMode === 'auto') maybeReflowRowWidth(false);
-                    });
-                });
-                ro.observe(el);
+                    raf = requestAnimationFrame(function () { raf = 0; refit(); });
+                }).observe(el);
             } else {
-                // Fallback: window resize
                 let t = 0;
                 window.addEventListener('resize', function () {
                     clearTimeout(t);
-                    t = setTimeout(function () {
-                        if (rowWidthMode === 'auto') maybeReflowRowWidth(false);
-                    }, 120);
+                    t = setTimeout(refit, 80);
                 });
             }
         }
@@ -2214,6 +2440,19 @@
 
     // (Old Tabulator-based Modbus grid was removed — Focus/Raw now share renderSquareGrid.)
 
+    // 기준 행 높이. 쪽당 행 수와 실제 행 높이는 CtsTable 이 표 높이에 맞춰 정한다
+    const SD_ROW_H = 33;
+
+    /** 두 행이 모든 칸에서 같은가. 열이 늘어도 비교를 따로 고치지 않도록 키를 돌며 본다. */
+    function sdSameRow(a, b) {
+        if (!a || !b) return false;
+        const keys = Object.keys(b);
+        for (let i = 0; i < keys.length; i++) {
+            if (a[keys[i]] !== b[keys[i]]) return false;
+        }
+        return true;
+    }
+
     /** Compare newRows[] with oldRows[]; apply only changed via table.updateData. Assumes index=target. */
     function diffUpdate(key, newRows) {
         const table = tables[key];
@@ -2223,9 +2462,7 @@
         const updates = [];
         newRows.forEach(function (r) {
             const o = oldMap[r.target];
-            if (!o || o.value !== r.value || o.locked !== r.locked || o.display !== r.display) {
-                updates.push(r);
-            }
+            if (!sdSameRow(o, r)) updates.push(r);
         });
         allRows[key] = newRows;
         if (updates.length > 0) table.updateData(updates);
@@ -2253,19 +2490,31 @@
             });
             allRows[key] = rows;
             if (firstRender) {
+                container.addClass('is-cards').removeClass('is-focus');
+                // Modbus Raw 와 같은 규칙: 한 번에 한 블록만 연다. 처음엔 첫 블록
+                const open = cardExpandedKey === null ? (cardOrder.length === 0) : (cardExpandedKey === key);
+                if (cardOrder.indexOf(key) < 0) cardOrder.push(key);
+                if (open) cardExpandedKey = key;
                 container.append(
-                    '<div class="sd-panel">' +
-                    '  <div class="sd-panel-header"><span class="fc-title">' + blockName + ' Block</span></div>' +
-                    '  <div class="sd-panel-body"><div id="tbl_' + key + '"></div></div>' +
+                    '<div class="card' + (open ? '' : ' collapsed') + '" data-card-key="' + key + '">' +
+                    '  <div class="card-header collapsible">' +
+                    '    <span class="fc-title"><span class="sd-collapse-caret"><i class="fas fa-chevron-down"></i></span>'
+                    + blockName + ' Block</span>' +
+                    '    <span class="text-secondary ms-auto" style="font-size:0.8rem">' + arr.length + ' bytes</span>' +
+                    '  </div>' +
+                    '  <div class="card-body"><div id="tbl_' + key + '" class="cts-tabulator sd-table"></div></div>' +
                     '</div>'
                 );
                 const table = new Tabulator('#tbl_' + key, {
-                    data: rows, index: 'target', layout: 'fitData', height: '360px', virtualDom: true, cssClass: 'sd-table',
+                    data: rows, index: 'target', layout: 'fitData', height: '360px', renderVertical: 'basic',
+                    // 블록이 수천 바이트라 쪽을 나눈다. 쪽당 행 수는 열린 높이에 맞춰 정해진다
+                    pagination: true, paginationSize: 20, paginationButtonCount: 3,
                     columns: xgtColumns(),
                     rowFormatter: rowLockFormatter
                 });
                 tables[key] = table;
-                CtsTable.enhanceResize(table);
+                CtsTable.attach(table, { rowH: SD_ROW_H });
+                table.on('tableBuilt', function () { requestAnimationFrame(fitOpenCardHeight); });
                 table.on('rowDblClick', function (e, row) {
                     openEditModal({
                         target: row.getData().target,
@@ -2280,262 +2529,542 @@
                 diffUpdate(key, rows);
             }
         });
+        if (firstRender) {
+            requestAnimationFrame(fitOpenCardHeight);
+        }
     }
     function xgtColumns() {
-        return [
-            { title: 'Byte addr', field: 'address', width: 120, minWidth: 120, hozAlign: 'center', headerHozAlign: 'center', headerSort: false },
-            { title: 'Value', field: 'display', hozAlign: 'center', headerHozAlign: 'center', minWidth: 140, headerSort: false,
+        return CtsTable.columns([
+            { title: 'Byte addr', field: 'address', kind: 'number', headerSort: false },
+            { title: 'Value', field: 'display', kind: 'number', headerSort: false,
               formatter: function (cell) {
                   const d = cell.getRow().getData();
                   return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
               }
             },
-            { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
+            { title: 'Source', field: 'source', kind: 'text', headerSort: false,
               formatter: function (cell) {
                   const v = cell.getValue();
                   return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
               }
             }
-        ];
+        ]);
     }
     function rowLockFormatter(row) {
         if (row.getData().locked) row.getElement().classList.add('sd-locked-cell');
         else row.getElement().classList.remove('sd-locked-cell');
     }
 
-    // ── OPC Agent renderer ─────────────────────────────────────
-    function renderOpcAgent(p, locks, firstRender) {
-        const container = $('#sdContainer');
-        const key = 'opc_values';
-        const fmt = function (v) { return v; };
-        displayFormatters[key] = fmt;
-        const rows = (p.values || []).map(function (v, i) {
-            const target = String(i);
-            return { target: target, address: i, value: v, display: fmt(v), locked: locks.has(target), source: null };
-        });
-        allRows[key] = rows;
-        if (firstRender) {
-            container.empty();
-            container.append(
-                '<div class="sd-panel">' +
-                '  <div class="sd-panel-header"><span class="fc-title">OPC Agent Values</span></div>' +
-                '  <div class="sd-panel-body"><div id="tbl_' + key + '"></div></div>' +
-                '</div>'
-            );
-            const table = new Tabulator('#tbl_' + key, {
-                data: rows, index: 'target', layout: 'fitData', height: '500px', virtualDom: true, cssClass: 'sd-table',
-                columns: [
-                    { title: 'Index', field: 'address', width: 120, minWidth: 120, hozAlign: 'center', headerHozAlign: 'center', headerSort: false },
-                    { title: 'Value', field: 'display', hozAlign: 'center', headerHozAlign: 'center', minWidth: 160, headerSort: false,
-                      formatter: function (cell) {
-                          const d = cell.getRow().getData();
-                          return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
-                      }
-                    },
-                    { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
-                      formatter: function (cell) {
-                          const v = cell.getValue();
-                          return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
-                      }
-                    }
-                ],
-                rowFormatter: rowLockFormatter
-            });
-            tables[key] = table;
-            CtsTable.enhanceResize(table);
-            table.on('rowDblClick', function (e, row) {
-                openEditModal({
-                    target: row.getData().target,
-                    dataTypeOptions: null,
-                    defaultDataType: null,
-                    value: row.getData().value,
-                    mode: 'free',
-                    hint: 'Numeric value'
-                });
-            });
-        } else {
-            diffUpdate(key, rows);
-        }
-    }
-
-    // ── Daeyun renderer ────────────────────────────────────────
-    function renderDaeyun(p, locks, firstRender) {
-        const container = $('#sdContainer');
-        if (firstRender) container.empty();
-        const groups = [
-            { key: 'dae_ai', title: 'Analog channels (@RCUAI_)', prefix: '@RCUAI_', arr: p.analogChannels, base: 1 },
-            { key: 'dae_di', title: 'Digital channels (@RCUDI_)', prefix: '@RCUDI_', arr: p.digitalChannels, base: 1 }
-        ];
-        groups.forEach(function (g) {
-            const fmt = function (v) { return v; };
-            displayFormatters[g.key] = fmt;
-            const rows = g.arr.map(function (v, i) {
-                const target = g.prefix + (i + g.base);
-                return { target: target, address: (i + g.base), value: v, display: fmt(v), locked: locks.has(target), source: null };
-            });
-            allRows[g.key] = rows;
-            if (firstRender) {
-                container.append(
-                    '<div class="sd-panel">' +
-                    '  <div class="sd-panel-header"><span class="fc-title">' + g.title + '</span></div>' +
-                    '  <div class="sd-panel-body"><div id="tbl_' + g.key + '"></div></div>' +
-                    '</div>'
-                );
-                const table = new Tabulator('#tbl_' + g.key, {
-                    data: rows, index: 'target', layout: 'fitData', height: '340px', virtualDom: true, cssClass: 'sd-table',
-                    columns: xgtColumns(),
-                    rowFormatter: rowLockFormatter
-                });
-                tables[g.key] = table;
-                CtsTable.enhanceResize(table);
-                table.on('rowDblClick', function (e, row) {
-                    openEditModal({
-                        target: row.getData().target,
-                        dataTypeOptions: null,
-                        defaultDataType: null,
-                        value: row.getData().value,
-                        mode: 'free',
-                        hint: 'Numeric value'
-                    });
-                });
-            } else {
-                diffUpdate(g.key, rows);
-            }
-        });
-    }
-
-    // ── Key/Value renderer (SNMP/EIP/Generic) ─────────────────
-    function renderKeyValue(title, obj, locks, firstRender, key, keyLabel) {
-        const container = $('#sdContainer');
-        const fmt = function (v) { return v; };
-        displayFormatters[key] = fmt;
-        const rows = Object.keys(obj || {}).map(function (k) {
-            return { target: k, key: k, value: obj[k], display: fmt(obj[k]), locked: locks.has(k), source: null };
-        });
-        allRows[key] = rows;
-        if (firstRender) {
-            container.empty();
-            container.append(
-                '<div class="sd-panel">' +
-                '  <div class="sd-panel-header"><span class="fc-title">' + title + '</span></div>' +
-                '  <div class="sd-panel-body"><div id="tbl_' + key + '"></div></div>' +
-                '</div>'
-            );
-            const table = new Tabulator('#tbl_' + key, {
-                data: rows, index: 'target', layout: 'fitData', height: '500px', virtualDom: true, cssClass: 'sd-table',
-                columns: [
-                    { title: keyLabel, field: 'key', minWidth: 180, headerSort: false },
-                    { title: 'Value', field: 'display', hozAlign: 'right', headerHozAlign: 'right', minWidth: 160, headerSort: false,
-                      formatter: function (cell) {
-                          const d = cell.getRow().getData();
-                          return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
-                      }
-                    },
-                    { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center', headerHozAlign: 'center', headerSort: false,
-                      formatter: function (cell) {
-                          const v = cell.getValue();
-                          return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
-                      }
-                    }
-                ],
-                rowFormatter: rowLockFormatter,
-                placeholder: 'No data yet. Waiting for simulation or write…'
-            });
-            tables[key] = table;
-            CtsTable.enhanceResize(table);
-            table.on('rowDblClick', function (e, row) {
-                openEditModal({
-                    target: row.getData().target,
-                    dataTypeOptions: null,
-                    defaultDataType: null,
-                    value: row.getData().value,
-                    mode: 'free',
-                    hint: 'Numeric value'
-                });
-            });
-        } else {
-            diffUpdate(key, rows);
-        }
-    }
-
-    // ── BACnet renderer ────────────────────────────────────────
-    /**
-     * BACnet stores values per simulation id, so an "object" here IS a simulation:
-     * its target ("<object_type> <instance>") is the object identifier. The snapshot
-     * ships payload.objects = [{ target, object, name, simulationId, value }].
-     * Writing to a target with no simulation is rejected by the server, so the rows
-     * shown here are exactly the writable set.
+    // ══ 카드 그리드 ═══════════════════════════════════════════════════════
+    /*
+     * Modbus(격자)와 XGT(블록 덤프)를 뺀 모든 프로토콜이 여기로 온다.
+     * 카드는 #sdContainer 의 평평한 자식이고 자리는 grid-area 가 정한다.
+     * 가로/세로 전환은 CSS 가 하므로(@media orientation) 여기에는 그 분기가 없다.
      */
-    function renderBACnet(p, locks, firstRender) {
-        const container = $('#sdContainer');
-        const fmt = function (v) { return (v === null || v === undefined) ? '' : v; };
-        displayFormatters['bacnet'] = fmt;
-        const rows = (p.objects || []).map(function (o) {
-            return {
-                target: o.target,
-                object: o.object || o.target,
-                simName: o.name,
-                simulationId: o.simulationId,
-                value: o.value,
-                display: fmt(o.value),
-                locked: locks.has(o.target),
-                source: null
-            };
+
+    function sdSingleLayout(area) {
+        const one = { columns: '1fr', rows: '1fr', areas: [area] };
+        return { landscape: one, portrait: one };
+    }
+
+    const SD_LAYOUT = {
+        // 가로: 왼쪽이 AI/DI 를 5:5 로 나누고, Generic 이 오른쪽 두 행을 혼자 쓴다
+        DAEYUN_RCU: {
+            landscape: { columns: '5fr 5fr', rows: '5fr 5fr',     areas: ['ai tx', 'di tx'] },
+            portrait:  { columns: '1fr',     rows: '1fr 1fr 2fr', areas: ['ai', 'di', 'tx'] }
+        },
+        BACNET: {
+            landscape: { columns: '1fr 1fr 1fr', rows: '1fr',         areas: ['binary analog multistate'] },
+            portrait:  { columns: '1fr',         rows: '1fr 1fr 1fr', areas: ['binary', 'analog', 'multistate'] }
+        },
+        SNMP:        sdSingleLayout('oids'),
+        ETHERNET_IP: sdSingleLayout('tags'),
+        GENERIC:     sdSingleLayout('fields'),
+        OPC_AGENT:   sdSingleLayout('values')
+    };
+
+    /** 표 하나가 가질 수 있는 가장 작은 높이. 머리글 + 3행 + 쪽 넘김 줄. */
+    const SD_TABLE_MIN_H = 34 + SD_ROW_H * 3 + 40;
+    const SD_SUBTABLE_GAP = 8;      // .card-body 의 gap 과 같아야 한다
+
+    let cardSignature = null;       // 지금 그려진 카드 구성. 바뀔 때만 다시 짓는다
+    let cardObservers = [];         // 카드마다의 ResizeObserver
+
+    // ── 행 만들기 ─────────────────────────────────────────────
+    /**
+     * 스냅샷의 registry 를 target 으로 찾을 수 있게 편다.
+     * list 는 "값은 없지만 등록은 된 target" 을 행에 더하는 데 쓴다.
+     */
+    function sdRegistryIndex(snap) {
+        const list = snap.registry || [];
+        const map = {};
+        list.forEach(function (r) {
+            if (r && r.target !== null && r.target !== undefined) map[String(r.target)] = r;
         });
-        allRows['bacnet'] = rows;
-        if (firstRender) {
-            container.empty();
-            container.append(
-                '<div class="sd-panel">' +
-                '  <div class="sd-panel-header"><span class="fc-title">BACnet Objects</span></div>' +
-                '  <div class="sd-panel-body"><div id="tbl_bacnet"></div></div>' +
-                '</div>'
-            );
-            const table = new Tabulator('#tbl_bacnet', {
-                data: rows, index: 'target', layout: 'fitData', height: '500px',
-                virtualDom: true, cssClass: 'sd-table',
-                columns: [
-                    { title: 'Object', field: 'object', minWidth: 200, headerSort: false },
-                    { title: 'Target', field: 'target', minWidth: 180, headerSort: false,
-                      formatter: function (cell) {
-                          return '<span style="font-family:monospace">' + cell.getValue() + '</span>';
-                      }
-                    },
-                    { title: 'Value', field: 'display', hozAlign: 'right', headerHozAlign: 'right',
-                      minWidth: 140, headerSort: false,
-                      formatter: function (cell) {
-                          const d = cell.getRow().getData();
-                          return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
-                      }
-                    },
-                    { title: 'Simulation', field: 'simName', minWidth: 160, headerSort: false },
-                    { title: 'Source', field: 'source', width: 180, minWidth: 180, hozAlign: 'center',
-                      headerHozAlign: 'center', headerSort: false,
-                      formatter: function (cell) {
-                          const v = cell.getValue();
-                          return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
-                      }
-                    }
-                ],
-                rowFormatter: rowLockFormatter,
-                placeholder: 'No BACnet objects. Add a simulation to this device first.'
-            });
-            tables['bacnet'] = table;
-            CtsTable.enhanceResize(table);
-            table.on('rowDblClick', function (e, row) {
-                openEditModal({
-                    target: row.getData().target,
-                    dataTypeOptions: null,
-                    defaultDataType: null,
-                    value: row.getData().value,
-                    mode: 'free',
-                    hint: 'BACnet present value (numeric)'
+        return { map: map, list: list };
+    }
+
+    function sdTypeText(info) {
+        if (!info || !info.dataType) return '—';
+        return info.wireType ? info.dataType + ' · ' + info.wireType : info.dataType;
+    }
+
+    function sdClock(ts) {
+        const d = new Date(ts);
+        const pad = function (n) { return n < 10 ? '0' + n : String(n); };
+        return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+
+    /** 값이 없는 칸은 0 이 아니라 '—' 다. "0 을 썼다" 와 구분되어야 한다. */
+    function sdDisplay(v) { return (v === null || v === undefined) ? '—' : String(v); }
+
+    function sdRow(target, value, locks, reg, extra) {
+        const info = (reg && reg.map) ? reg.map[target] : null;
+        const meta = lastChangeMeta[target];
+        const row = {
+            target: target,
+            sim: (info && info.name) ? info.name : '—',
+            type: sdTypeText(info),
+            value: (value === undefined) ? null : value,
+            display: sdDisplay(value),
+            updated: (meta && meta.ts) ? sdClock(meta.ts) : '—',
+            locked: locks.has(target),
+            source: meta ? meta.source : null
+        };
+        return Object.assign(row, extra || {});
+    }
+
+    function sdCompareText(a, b) { return a < b ? -1 : (a > b ? 1 : 0); }
+    function sdCompareNum(a, b) { return Number(a) - Number(b); }
+    /** OID 는 마디별 수로 센다. 문자열로 비교하면 .10 이 .2 앞에 온다. */
+    function sdCompareOid(a, b) {
+        const x = String(a).replace(/^\./, '').split('.');
+        const y = String(b).replace(/^\./, '').split('.');
+        const n = Math.max(x.length, y.length);
+        for (let i = 0; i < n; i++) {
+            if (i >= x.length) return -1;
+            if (i >= y.length) return 1;
+            const d = (parseInt(x[i], 10) || 0) - (parseInt(y[i], 10) || 0);
+            if (d !== 0) return d;
+        }
+        return 0;
+    }
+
+    /**
+     * 행으로 그릴 target. 값 맵에 있는 것과 등록된 것(아직 값이 없어도)을 합친다.
+     * declared 는 선언 순서를 지키고, 그 밖은 cmp 로 줄 세운다.
+     */
+    function sdUnionTargets(valueMap, registryList, declared, cmp) {
+        const seen = {};
+        const head = [];
+        const rest = [];
+        (declared || []).forEach(function (t) {
+            t = String(t);
+            if (!seen[t]) { seen[t] = true; head.push(t); }
+        });
+        const add = function (t) {
+            if (t === null || t === undefined) return;
+            t = String(t);
+            if (!seen[t]) { seen[t] = true; rest.push(t); }
+        };
+        Object.keys(valueMap || {}).forEach(add);
+        (registryList || []).forEach(function (r) { if (r) add(r.target); });
+        rest.sort(cmp || sdCompareText);
+        return head.concat(rest);
+    }
+
+    /**
+     * 장비의 TX 프레임 선언. Generic 과 Daeyun 이 같은 모양을 쓴다.
+     * field_type 이 SIMULATION 인 것만 값을 넣을 수 있다 — 나머지는 프레임이 스스로 만든다.
+     */
+    function sdTxFields() {
+        const cs = device.communicationSettings || {};
+        const frames = Array.isArray(cs.tx) ? cs.tx : [];
+        const out = [];
+        frames.forEach(function (f) {
+            ((f && f.fields) ? f.fields : []).forEach(function (fd) {
+                if (!fd || fd.field_id === null || fd.field_id === undefined) return;
+                out.push({
+                    frame: f.tx_id, id: String(fd.field_id),
+                    fieldType: fd.field_type, dataType: fd.data_type
                 });
             });
-        } else {
-            diffUpdate('bacnet', rows);
+        });
+        return out;
+    }
+
+    // ── 공통 열 ───────────────────────────────────────────────
+    function sdValueColumn() {
+        return { title: 'Value', field: 'display', kind: 'number', headerSort: false,
+                 formatter: function (cell) {
+                     const d = cell.getRow().getData();
+                     return (d.locked ? '<i class="fas fa-lock sd-lock-icon"></i>' : '') + cell.getValue();
+                 } };
+    }
+    function sdSourceColumn() {
+        // 배지가 머리글보다 넓다. 폭을 고정해 다른 열이 그 나머지를 균등하게 나눠 갖게 한다
+        // (표 공통 규칙이 허용하는 예외 — settings 의 Test·Disconnect 열과 같은 경우다).
+        return { title: 'Source', field: 'source', kind: 'text', headerSort: false,
+                 width: 156, resizable: false,   // 'VALUE_SIMULATION' 배지(135px) + 칸 여백(20px)
+                 formatter: function (cell) {
+                     const v = cell.getValue();
+                     return v ? '<span class="sd-badge src-' + v + '">' + v + '</span>' : '';
+                 } };
+    }
+    /** 행 하나가 target 하나인 표의 공통 열. addr 은 프로토콜마다 이름이 다른 주소 열이다. */
+    function sdColumns(addr, extraCols) {
+        const cols = [
+            { title: 'Simulation', field: 'sim', kind: 'text', headerSort: false },
+            Object.assign({ headerSort: false }, addr)
+        ];
+        (extraCols || []).forEach(function (c) { cols.push(c); });
+        cols.push({ title: 'Type', field: 'type', kind: 'text', headerSort: false });
+        cols.push(sdValueColumn());
+        cols.push({ title: 'Updated', field: 'updated', kind: 'text', headerSort: false });
+        cols.push(sdSourceColumn());
+        return CtsTable.columns(cols);
+    }
+
+    // ── 프로토콜별 카드 ───────────────────────────────────────
+    /** SNMP·EtherNet/IP 처럼 키/값 한 묶음인 프로토콜. */
+    function sdKeyValueCard(key, title, addrTitle, valueMap, locks, reg, cmp) {
+        const targets = sdUnionTargets(valueMap, reg.list, null, cmp);
+        const rows = targets.map(function (t) {
+            return sdRow(t, (valueMap || {})[t], locks, reg, { address: t });
+        });
+        return { key: key, title: title, tables: [{
+            key: 'sd_' + key,
+            columns: sdColumns({ title: addrTitle, field: 'address', kind: 'text' }),
+            rows: rows
+        }] };
+    }
+
+    /**
+     * TX 필드 카드. Generic 장비 전체와 Daeyun 의 Generic 영역이 같은 함수를 쓴다.
+     * 값을 넣을 수 없는 필드(STATIC·REF·ITERATION)는 행으로 두지 않고 머리글에 수만 알린다.
+     */
+    function sdTxCard(key, title, valueMap, locks, reg, skip) {
+        const declared = sdTxFields();
+        const writable = declared.filter(function (f) { return f.fieldType === 'SIMULATION'; });
+        const byId = {};
+        declared.forEach(function (f) { if (!byId[f.id]) byId[f.id] = f; });
+        const frames = {};
+        declared.forEach(function (f) { frames[f.frame] = true; });
+        const multiFrame = Object.keys(frames).length > 1;
+
+        const targets = sdUnionTargets(valueMap, reg.list, writable.map(function (f) { return f.id; }), sdCompareText);
+        const rows = [];
+        targets.forEach(function (t) {
+            if (skip && skip(t)) return;
+            const row = sdRow(t, (valueMap || {})[t], locks, reg, { address: t });
+            const decl = byId[t];
+            // 등록된 Simulation 이 없어도 TX 선언이 타입을 알려 준다
+            if (row.type === '—' && decl && decl.dataType) row.type = decl.dataType;
+            if (multiFrame) row.frame = (decl && decl.frame) ? decl.frame : '—';
+            rows.push(row);
+        });
+
+        const hidden = declared.length - writable.length;
+        return {
+            key: key, title: title,
+            badge: hidden > 0 ? (hidden + ' computed field' + (hidden === 1 ? '' : 's') + ' hidden') : null,
+            tables: [{
+                key: 'sd_' + key,
+                columns: sdColumns({ title: 'Field', field: 'address', kind: 'text' },
+                                   multiFrame ? [{ title: 'Frame', field: 'frame', kind: 'text', headerSort: false }] : null),
+                rows: rows
+            }]
+        };
+    }
+
+    function sdOpcCard(p, locks, reg) {
+        const vals = p.values || [];
+        const rows = [];
+        for (let i = 0; i < vals.length; i++) {
+            rows.push(sdRow(String(i), vals[i], locks, reg, { address: i }));
+        }
+        return { key: 'values', title: 'OPC Agent Values', tables: [{
+            key: 'opc_values',
+            columns: sdColumns({ title: 'Index', field: 'address', kind: 'number' }),
+            rows: rows
+        }] };
+    }
+
+    /** Daeyun 채널 수. 저장 구조가 32칸 고정이라 설정이 더 커도 32를 넘지 못한다. */
+    function sdChannelCount(raw, len) {
+        const n = parseInt(raw, 10);
+        const limit = Math.min(isNaN(n) ? 32 : n, 32);
+        return Math.max(0, Math.min(limit, len));
+    }
+
+    /** AI/DI 표의 행. 채널 번호가 자리를 가리키므로 Simulation·Type 열을 두지 않는다. */
+    function sdChannelRows(prefix, arr, count, locks) {
+        const out = [];
+        for (let i = 0; i < count; i++) {
+            const target = prefix + (i + 1);
+            const value = (arr || [])[i];
+            const meta = lastChangeMeta[target];
+            out.push({
+                target: target, address: i + 1,
+                value: (value === undefined) ? null : value,
+                display: sdDisplay(value),
+                locked: locks.has(target),
+                source: meta ? meta.source : null
+            });
+        }
+        return out;
+    }
+
+    function sdDaeyunCards(p, locks, reg) {
+        const cs = device.communicationSettings || {};
+        const ai = p.analogChannels || [];
+        const di = p.digitalChannels || [];
+        const channelColumns = function () {
+            return CtsTable.columns([
+                { title: 'Channel', field: 'address', kind: 'number', headerSort: false },
+                sdValueColumn(), sdSourceColumn()
+            ]);
+        };
+        const isChannel = function (t) {
+            return t.indexOf('@RCUAI_') === 0 || t.indexOf('@RCUDI_') === 0;
+        };
+        return [
+            { key: 'ai', title: 'Analog Inputs (@RCUAI_)', tables: [{
+                key: 'dae_ai', columns: channelColumns(),
+                rows: sdChannelRows('@RCUAI_', ai, sdChannelCount(cs.aiCount, ai.length), locks),
+                hint: 'Analog channel value (16-bit signed)'
+            }] },
+            { key: 'di', title: 'Digital Inputs (@RCUDI_)', tables: [{
+                key: 'dae_di', columns: channelColumns(),
+                rows: sdChannelRows('@RCUDI_', di, sdChannelCount(cs.diCount, di.length), locks),
+                hint: '0 or 1'
+            }] },
+            sdTxCard('tx', 'Generic TX Fields', p.txFields, locks, reg, isChannel)
+        ];
+    }
+
+    const SD_BAC_GROUPS = [
+        { key: 'binary',     title: 'Binary' },
+        { key: 'analog',     title: 'Analog' },
+        { key: 'multistate', title: 'Multi-state' }
+    ];
+    const SD_BAC_KINDS = ['input', 'output', 'value'];
+    const SD_BAC_TARGET_RE = /^(analog|binary|multi_state)_(input|output|value)\s+(\d+)$/;
+
+    /**
+     * BACnet 은 object type 이 세 갈래(binary/analog/multi-state) × 세 쓰임(input/output/value)이다.
+     * 자리가 곧 타입이라 Type 열을 두지 않고, Instance 만 숫자로 보여 준다.
+     * 해석 안 되는 target(검증이 생기기 전의 옛 데이터)은 어느 카드에도 넣지 않는다.
+     */
+    function sdBacnetCards(p, locks) {
+        const bucket = {};
+        (p.objects || []).forEach(function (o) {
+            const m = SD_BAC_TARGET_RE.exec(String(o.target || '').trim());
+            if (!m) return;
+            const group = (m[1] === 'multi_state') ? 'multistate' : m[1];
+            const key = group + '_' + m[2];
+            const meta = lastChangeMeta[o.target];
+            (bucket[key] = bucket[key] || []).push({
+                target: o.target,
+                sim: o.name || '—',
+                instance: parseInt(m[3], 10),
+                value: (o.value === undefined) ? null : o.value,
+                display: sdDisplay(o.value),
+                locked: locks.has(o.target),
+                source: meta ? meta.source : null
+            });
+        });
+        return SD_BAC_GROUPS.map(function (g) {
+            let count = 0;
+            const tables = SD_BAC_KINDS.map(function (kind) {
+                const rows = (bucket[g.key + '_' + kind] || []).sort(function (a, b) {
+                    return a.instance - b.instance;
+                });
+                count += rows.length;
+                return {
+                    key: 'bac_' + g.key + '_' + kind,
+                    title: kind.charAt(0).toUpperCase() + kind.slice(1),
+                    columns: CtsTable.columns([
+                        { title: 'Simulation', field: 'sim', kind: 'text', headerSort: false },
+                        { title: 'Instance', field: 'instance', kind: 'number', headerSort: false },
+                        sdValueColumn(), sdSourceColumn()
+                    ]),
+                    rows: rows,
+                    placeholder: 'No objects',
+                    hint: 'BACnet present value (numeric)'
+                };
+            });
+            return { key: g.key, title: g.title, badge: count + ' object' + (count === 1 ? '' : 's'), tables: tables };
+        });
+    }
+
+    function sdCardsFor(snap) {
+        const p = snap.payload || {};
+        const locks = new Set(snap.locks || []);
+        const reg = sdRegistryIndex(snap);
+        switch (snap.protocol) {
+            case 'DAEYUN_RCU':  return sdDaeyunCards(p, locks, reg);
+            case 'BACNET':      return sdBacnetCards(p, locks);
+            case 'SNMP':        return [sdKeyValueCard('oids', 'SNMP OIDs', 'OID', p.oids, locks, reg, sdCompareOid)];
+            case 'ETHERNET_IP': return [sdKeyValueCard('tags', 'EtherNet/IP Tags', 'Tag', p.tags, locks, reg, sdCompareText)];
+            case 'GENERIC':     return [sdTxCard('fields', 'Generic Fields', p.fields, locks, reg, null)];
+            case 'OPC_AGENT':   return [sdOpcCard(p, locks, reg)];
+            default:            return null;
         }
     }
+
+    // ── 그리기 ────────────────────────────────────────────────
+    function renderCards(snap) {
+        invalidateCellIndex();
+        const $container = $('#sdContainer');
+        const cards = sdCardsFor(snap);
+        if (!cards) {
+            $container.removeClass('is-cardgrid').html(
+                '<div class="alert alert-warning">Unsupported protocol: ' + escapeHtml(String(snap.protocol)) + '</div>');
+            cardSignature = null;
+            return;
+        }
+        const signature = snap.protocol + '|' + cards.map(function (c) {
+            return c.key + ':' + c.tables.map(function (t) { return t.key; }).join('+');
+        }).join(',');
+        if (signature !== cardSignature) {
+            buildCardGrid(snap.protocol, cards);
+            cardSignature = signature;
+            return;
+        }
+        cards.forEach(function (card) {
+            sdSetCardBadge(card);
+            card.tables.forEach(function (t) { diffUpdate(t.key, t.rows); });
+        });
+    }
+
+    function sdApplyLayoutVars(container, protocol, cards) {
+        const layout = SD_LAYOUT[protocol] || sdSingleLayout(cards[0] ? cards[0].key : 'main');
+        const put = function (suffix, spec) {
+            container.style.setProperty('--sd-cols-' + suffix, spec.columns);
+            container.style.setProperty('--sd-rows-' + suffix, spec.rows);
+            container.style.setProperty('--sd-areas-' + suffix,
+                spec.areas.map(function (r) { return '"' + r + '"'; }).join(' '));
+        };
+        put('l', layout.landscape);
+        put('p', layout.portrait);
+    }
+
+    function sdSetCardBadge(card) {
+        const el = document.querySelector('#sdContainer .sd-card-badge[data-card="' + card.key + '"]');
+        if (el) el.textContent = card.badge || '';
+    }
+
+    function buildCardGrid(protocol, cards) {
+        const container = document.getElementById('sdContainer');
+        cardObservers.forEach(function (o) { o.disconnect(); });
+        cardObservers = [];
+        tables = {}; allRows = {}; tableMeta = {}; displayFormatters = {};
+
+        const $container = $(container);
+        $container.empty()
+            .removeClass('is-focus').removeClass('is-cards').removeClass('sd-raw-active')
+            .addClass('is-cardgrid');
+        sdApplyLayoutVars(container, protocol, cards);
+
+        cards.forEach(function (card) {
+            const $card = $('<div class="card"></div>');
+            $card[0].style.gridArea = card.key;
+            $card.append(
+                '<div class="card-header">' +
+                '  <span class="fc-title">' + escapeHtml(card.title) + '</span>' +
+                '  <span class="sd-card-badge" data-card="' + escapeHtml(card.key) + '"></span>' +
+                '</div>');
+            const $body = $('<div class="card-body"></div>');
+            card.tables.forEach(function (t) {
+                const $sub = $('<div class="sd-subtable"></div>');
+                if (t.title) $sub.append('<div class="sd-subtitle">' + escapeHtml(t.title) + '</div>');
+                $sub.append('<div id="tbl_' + t.key + '" class="cts-tabulator sd-table"></div>');
+                $body.append($sub);
+            });
+            $card.append($body);
+            $container.append($card);
+
+            // 표마다 '머리글 + 3행 + 쪽 넘김 줄' 은 있어야 한다. 그 합이 화면보다 크면
+            // 그리드가 넘치고 .sd-main 이 세로로 스크롤한다 — 비율은 남는 높이에만 쓰인다.
+            const n = card.tables.length;
+            const subtitleH = card.tables.filter(function (t) { return !!t.title; }).length * 22;
+            $card[0].style.minHeight =
+                (n * SD_TABLE_MIN_H + subtitleH + (n - 1) * SD_SUBTABLE_GAP + 38) + 'px';
+            card.el = $card[0];
+        });
+
+        cards.forEach(function (card) {
+            card.tables.forEach(sdBuildTable);
+            sdSetCardBadge(card);
+            const desc = { el: card.el, keys: card.tables.map(function (t) { return t.key; }) };
+            const observer = new ResizeObserver(function () {
+                requestAnimationFrame(function () { sdFitCardTables(desc); });
+            });
+            observer.observe(card.el);
+            cardObservers.push(observer);
+        });
+    }
+
+    function sdBuildTable(spec) {
+        displayFormatters[spec.key] = sdDisplay;
+        allRows[spec.key] = spec.rows;
+        const table = new Tabulator('#tbl_' + spec.key, {
+            data: spec.rows, index: 'target', layout: 'fitData',
+            // 자리만 잡는 값이다. sdFitCardTables 가 카드 높이에서 다시 구해 덮어쓴다
+            height: SD_TABLE_MIN_H + 'px',
+            renderVertical: 'basic',
+            pagination: true, paginationSize: 3, paginationButtonCount: 3,
+            columns: spec.columns,
+            rowFormatter: rowLockFormatter,
+            placeholder: spec.placeholder || 'No data yet. Waiting for simulation or write…'
+        });
+        tables[spec.key] = table;
+        CtsTable.attach(table, { rowH: SD_ROW_H });
+        table.on('rowDblClick', function (e, row) { sdOpenEdit(row.getData(), spec.hint); });
+    }
+
+    /**
+     * 카드 높이를 표들이 똑같이 나눠 갖는다(한 카드 안의 표는 늘 1:1:1 이다).
+     * 나눠떨어지지 않는 몇 px 은 CtsTable 이 쪽 넘김 줄로 흘린다 — 행은 잘리지 않는다.
+     */
+    function sdFitCardTables(desc) {
+        const body = desc.el ? desc.el.querySelector(':scope > .card-body') : null;
+        if (!body) return;
+        const avail = body.clientHeight;
+        if (avail <= 0) return;
+        const n = desc.keys.length;
+        let left = avail - SD_SUBTABLE_GAP * (n - 1);
+        desc.keys.forEach(function (key, i) {
+            const share = Math.floor(left / (n - i));
+            left -= share;
+            const table = tables[key];
+            if (!table || !table.element) return;
+            const sub = table.element.closest('.sd-subtable');
+            const title = sub ? sub.querySelector('.sd-subtitle') : null;
+            const h = Math.max(SD_TABLE_MIN_H, share - (title ? title.offsetHeight : 0));
+            if (table.element.style.height !== h + 'px') table.setHeight(h);
+        });
+    }
+
+    /**
+     * 편집창을 연다. target 이 받는 data type 을 골라 함께 보낸다 — 예전에는 늘 'free' 라
+     * 어떤 숫자든 통과시키고 타입 없이 보냈다.
+     */
+    function sdOpenEdit(data, hint) {
+        const types = (window.CtsDataTypes ? CtsDataTypes.typesFor(device.protocol, data.target) : []) || [];
+        const own = data.type ? String(data.type).split(' ')[0] : null;   // 'SI32DA · DINT' → 'SI32DA'
+        const def = (own && types.indexOf(own) >= 0) ? own : types[0];
+        openEditModal({
+            target: data.target,
+            dataTypeOptions: types.length ? types : null,
+            defaultDataType: def || null,
+            value: (data.value === null || data.value === undefined) ? '' : data.value,
+            mode: types.length ? 'datatype' : 'free',
+            hint: hint || 'Numeric value'
+        });
+    }
+
 
     // ── Value validation ───────────────────────────────────────
     /**
@@ -2562,6 +3091,20 @@
 
         if (ctx.mode === 'datatype') {
             const dt = $('#editDataType').val();
+            // 값을 그대로 담는 타입. 바이트 폭이 없어 아래의 비트 수 계산이 통하지 않는다
+            if (dt === 'BINARY') {
+                if (raw !== '0' && raw !== '1') return { ok: false, error: 'BINARY value must be 0 or 1.' };
+                return { ok: true, value: parseInt(raw, 10) };
+            }
+            if (dt === 'INTEGER') {
+                if (!/^-?\d+$/.test(raw)) return { ok: false, error: 'Integer required for INTEGER.' };
+                return { ok: true, value: parseInt(raw, 10) };
+            }
+            if (dt === 'FLOAT') {
+                const f = parseFloat(raw);
+                if (isNaN(f)) return { ok: false, error: 'Numeric value required for FLOAT.' };
+                return { ok: true, value: f };
+            }
             const bits = parseInt(dt.replace(/\D/g, ''), 10);
             const isFP = dt.startsWith('FP');
             const isUI = dt.startsWith('UI');
@@ -2602,6 +3145,8 @@
                     return { ok: false, error: 'FP32 range.' };
                 return { ok: true, value: v };
             }
+            // 여기에 닿는 타입은 없어야 한다. 조용히 undefined 를 돌려주면 저장 단추가 먹통이 된다
+            return { ok: false, error: 'Unsupported data type: ' + dt };
         }
 
         // mode: free
@@ -2626,7 +3171,7 @@
         } else {
             $('#editDataTypeGroup').hide();
         }
-        $('#editModal').modal('show');
+        CtsModal.show('editModal');
         setTimeout(function () { $('#editValue').trigger('focus').trigger('select'); }, 200);
     }
 
@@ -2666,7 +3211,7 @@
             target: $('#editTarget').val(),
             value: validated.value,
             // -1 = permanent lock: simulations must not overwrite what the editor just wrote.
-            // Released when this editing session ends (disconnect or ack timeout → clearPermanentLocks).
+            // Released when the device's last editing session ends (disconnect or ack timeout → clearPermanentLocks).
             lockSeconds: -1
         };
         if ($('#editDataTypeGroup').is(':visible')) {
@@ -2692,7 +3237,7 @@
                     targetValues: resp.targetValues || {},
                     ts: resp.ts
                 });
-                $('#editModal').modal('hide');
+                CtsModal.hide('editModal');
             } else {
                 alert('Write failed: ' + ((resp && resp.error) || 'unknown'));
             }
@@ -2708,8 +3253,18 @@
         });
     });
 
+    /**
+     * Watch·Inspection 은 프로토콜 어댑터에 기대어 값을 읽고(renderWatchCardHtml 의
+     * getAdapter), Inspection 은 사각 그리드의 .sd-fcell 클릭으로만 열린다. 어댑터가 없는
+     * 프로토콜(엔트리 기반 표 — BACnet·SNMP·EtherNet/IP·Generic)에서는 둘 다 동작하지
+     * 않으므로 사이드바를 숨기고 그 폭을 표에 준다.
+     * 어댑터가 추가되면 판정이 저절로 뒤집혀 다시 나타난다.
+     */
+    function inspectorAvailable() { return !!getAdapter(device.protocol); }
+
     // ── Startup ────────────────────────────────────────────────
     $(function () {
+        if (!inspectorAvailable()) document.body.classList.add('sd-no-inspector');
         initInfoBar();
         // Reflect the starting view mode on the tabs (the markup hardcodes Focus as active).
         $('#sdViewFocus').toggleClass('active', viewMode === 'focus')

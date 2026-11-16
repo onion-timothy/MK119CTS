@@ -1,0 +1,89 @@
+/*
+ * 목록 화면(devices / simulations / errors / testplans)이 공유하는 것.
+ * 네 화면이 글자까지 같은 규칙을 저마다 들고 있던 것을 여기로 모았다.
+ * 색은 Tabler 변수를 쓴다 — css/cts-tabler.css 와 짝이다.
+ */
+
+/* ── 좌우 분할 ───────────────────────────────────────────────
+ * 가로로 길면 좌(트리) / 우(표), 세로로 길면 위아래로 쌓는다.
+ * 비율은 화면마다 인라인 flex 로 정하므로 세로일 때만 !important 로 덮는다.
+ */
+.cts-split { display: flex; gap: 1rem; min-height: 0; }
+@media (orientation: portrait) {
+    .cts-split { flex-direction: column !important; }
+    .cts-split > .cts-split-side { flex: 2 1 0 !important; }
+    .cts-split > .cts-split-main { flex: 5 1 0 !important; }
+}
+
+/* ── 표를 담는 통과 툴바 ─────────────────────────────────────
+ * 툴바는 card-header 안으로 들어가므로 자기 테두리·배경은 내려놓는다.
+ * 좁아지면 버튼 글자를 숨기는데, 기준은 뷰포트가 아니라 카드 폭이다(컨테이너 쿼리).
+ */
+.cts-main-card { container-type: inline-size; container-name: tblpanel; }
+.table-panel {
+    border: 1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius);
+    background-color: var(--tblr-bg-surface, #fff); overflow: hidden;
+    container-type: inline-size; container-name: tblpanel;
+}
+.card-body > .table-panel { border: 0; border-radius: 0; background: transparent; }
+
+.table-toolbar { display: flex; gap: .25rem; align-items: center; flex-wrap: nowrap; }
+.card-header > .table-toolbar { padding: 0; border: none; background: transparent; }
+.table-toolbar .btn { white-space: nowrap; }
+@container tblpanel (max-width: 720px) {
+    .table-toolbar .btn-text { display: none; }
+}
+@container tblpanel (max-width: 520px) {
+    .table-toolbar input[type="search"] { width: 100px !important; }
+}
+
+/* ── Tabulator ───────────────────────────────────────────────
+ * 세로: 높이가 정해진 표는 모두 쪽을 나누고, CtsTable 이 쪽당 행 수를 높이에 딱 맞추므로
+ *       스크롤이 필요 없다.
+ * 가로: 모든 머리글이 들어갈 수 없을 만큼 좁으면 잘라 숨기지 말고 스크롤한다
+ *       (CtsTable 이 폭을 정수로 맞추므로 미세 overflow 로 스크롤바가 생기지는 않는다).
+ */
+.cts-tabulator { border: none !important; border-radius: 0 !important; font-size: .9rem; }
+.cts-tabulator .tabulator-header {
+    background-color: var(--tblr-bg-surface, #fff);
+    border-bottom: 2px solid var(--tblr-primary);
+    font-weight: 600; color: var(--tblr-body-color);
+}
+.cts-tabulator .tabulator-header .tabulator-col { background-color: transparent; border-right: none; }
+.cts-tabulator .tabulator-cell { border-right: none; }
+.cts-tabulator .tabulator-tableholder { overflow-x: auto !important; overflow-y: hidden !important; }
+.cts-tabulator .tabulator-row {
+    border-bottom: 1px solid var(--tblr-border-color-light, var(--tblr-border-color));
+    transition: background-color .12s ease;
+}
+.cts-tabulator .tabulator-row.tabulator-row-even { background-color: var(--tblr-bg-surface-tertiary, #fbfcfd); }
+/* 남는 높이를 채우는 표(flex 세로 배치의 자식). Tabulator 가 박는 height:100% 를 무시해야
+   같은 패널의 툴바를 빼고 채운다 */
+.cts-tabulator.cts-fill { flex: 1 1 0; min-height: 0; height: auto !important; }
+/* 행 높이 규칙은 CtsTable.attach 가 직접 넣는다(.cts-fit-rows) — 이 CSS 를 쓰지 않는 화면에서도 같게 돈다 */
+.cts-tabulator .tabulator-row:hover { background-color: var(--tblr-primary-lt) !important; }
+.cts-tabulator .tabulator-row.tabulator-selected { background-color: var(--tblr-primary-lt) !important; }
+
+.cts-tabulator .tabulator-footer,
+.cts-tabulator .tabulator-footer .tabulator-footer-contents {
+    background: var(--tblr-bg-surface, #fff) !important; background-image: none !important;
+}
+.cts-tabulator .tabulator-footer {
+    border-top: 1px solid var(--tblr-border-color) !important; padding: 0;
+}
+.cts-tabulator .tabulator-footer .tabulator-footer-contents { padding: 6px 10px; }
+.cts-tabulator .tabulator-footer .tabulator-page {
+    border-radius: var(--tblr-border-radius); margin: 0 2px; transition: background-color .12s ease;
+}
+.cts-tabulator .tabulator-footer .tabulator-page:not(.disabled):not(.active):hover {
+    background-color: var(--tblr-primary-lt); border-color: var(--tblr-primary-lt);
+}
+.cts-tabulator .tabulator-footer .tabulator-page.active {
+    background-color: var(--tblr-primary); color: #fff; border-color: var(--tblr-primary);
+}
+.cts-tabulator .tabulator-footer .tabulator-page.disabled { opacity: .4; }
+
+/* ── 좌측 트리 ───────────────────────────────────────────────
+ * 마크업은 fragments/tabler.html 의 tree-card 조각이다.
+ */
+#tree-container { overflow: auto; min-height: 0; }

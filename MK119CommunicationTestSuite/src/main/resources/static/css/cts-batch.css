@@ -1,0 +1,63 @@
+/*
+ * 일괄 등록 화면(batchAddDevices / Simulations / Errors / TestPlans)이 공유하는 것.
+ * 네 화면이 같은 규칙을 저마다 들고 있던 것을 모았다. 색은 Tabler 변수를 쓴다 —
+ * 다크 모드에서도 같이 바뀐다. css/cts-tabler.css, css/cts-table.css 뒤에 건다.
+ */
+
+/* ── 상단 바의 상태 한 줄 ────────────────────────────────────
+ * 버튼 왼쪽에 둔다. 좁아지면 줄바꿈 대신 말줄임으로 접는다.
+ */
+.cts-batch-status {
+    font-size: .85rem; color: var(--tblr-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.cts-batch-status.bad { color: var(--tblr-danger); }
+.cts-batch-status.ok { color: var(--tblr-success); }
+#pageActions { flex-wrap: nowrap; min-width: 0; }
+
+/* ── 칸 나누기 ───────────────────────────────────────────────
+ * 칸 수와 비율은 화면마다 다르므로 각 화면의 <style> 에서 grid-template-* 만 정한다.
+ * 가로로 길면 옆으로, 세로로 길면 위아래로 놓는 것도 각 화면이 orientation 으로 고른다.
+ */
+.cts-batch-panes { flex: 1 1 auto; min-height: 0; display: grid; gap: var(--cts-page-gap); }
+.cts-batch-panes > .card { margin: 0; }
+/* 표 칸은 본문이 스크롤하지 않는다 — Tabulator 가 쪽을 나눈다 */
+.cts-batch-panes .card-body.p-0 { overflow: hidden; }
+/* 파일 자체의 문제(시트 단위가 아닌 것). 비어 있으면 hidden 으로 숨긴다 */
+.cts-batch-issues { flex: 0 0 auto; margin-bottom: var(--cts-page-gap); }
+
+/* ── 행 상태 ─────────────────────────────────────────────── */
+.cts-tabulator .tabulator-row.row-error { background-color: var(--tblr-danger-lt) !important; }
+.error-chip { color: var(--tblr-danger); font-size: .8rem; white-space: normal; word-break: break-word; }
+.warn-chip { color: var(--tblr-warning); font-size: .8rem; white-space: normal; }
+.ok-chip { color: var(--tblr-success); font-size: .8rem; }
+/* 표 안에서는 한 줄 — 행 높이가 고정이다. 전체 문구는 툴팁으로 본다 */
+.cts-tabulator .error-chip { white-space: nowrap; }
+/* 아이콘 전용 칸: 기본 padding/말줄임 때문에 '...' 이 생기는 것을 막는다 */
+.tabulator .tabulator-cell.status-cell { padding-left: 2px; padding-right: 2px; text-overflow: clip; overflow: visible; }
+
+/* ── 상세 폼 ─────────────────────────────────────────────────
+ * 편집기와 같은 Tabler 폼(form-label·form-control·form-select·form-hint)을 쓴다.
+ * 맨 위의 검증 결과 한 줄과, 모드·정책처럼 고른 것에만 딸린 칸의 소제목만 여기서 맞춘다.
+ */
+.detail-alert { padding: .5rem .75rem; margin-bottom: 1rem; font-size: .85rem; }
+.detail-section {
+    margin: 1.25rem 0 .75rem; padding-top: .75rem; border-top: 1px solid var(--tblr-border-color);
+    font-size: .75rem; font-weight: 600; color: var(--tblr-secondary);
+    text-transform: uppercase; letter-spacing: .02em;
+}
+
+/* ── 등록 중 덮개 (fragments/tabler :: busy-overlay) ─────────── */
+.cts-busy {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0, 0, 0, .45); align-items: center; justify-content: center;
+}
+.cts-busy.show { display: flex; }
+.cts-busy-box {
+    background: var(--tblr-bg-surface); color: var(--tblr-body-color);
+    border-radius: var(--tblr-border-radius-lg, 8px); padding: 24px 32px; min-width: 260px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .3);
+}
+.cts-busy-text { font-weight: 600; }
+.cts-busy-sub { font-size: .8rem; color: var(--tblr-secondary); }
