@@ -372,6 +372,14 @@
             let p = (s.policies && s.policies.length > 0 && s.policies[0]) ? s.policies[0] : s;
             if (!blank(p.policy) && POLICIES.indexOf(String(p.policy)) < 0) return 'Invalid policy: ' + p.policy;
             if (!blank(p.data_type) && CtsDataTypes.ALL.indexOf(String(p.data_type)) < 0) return 'Invalid data_type: ' + p.data_type;
+            // 프로토콜·target 이 받는 타입인지 — 시뮬레이션 일괄 등록과 같은 규칙·문구(서버 DataTypeRules)
+            let dev = deviceByRid(s._deviceRid) || devices.find(d => d.name === String(deviceName));
+            if (dev && !blank(dev.protocol) && !blank(p.data_type)) {
+                let types = CtsDataTypes.typesFor(String(dev.protocol), s.target);
+                if (types.indexOf(String(p.data_type)) < 0) {
+                    return 'Data type ' + p.data_type + ' is not allowed for target "' + s.target + '". Use ' + types.join(', ') + '.';
+                }
+            }
             return null;
         }
 
