@@ -90,7 +90,7 @@ def run(ctx):
                   'FC6(holding register 쓰기)으로 레지스터 130 에 4444 를 쓴다. '
                   '주소 번호는 130 으로 같지만 function code 가 다르다')
         cts.add_simulation(did, 'coil', '1_130',
-                           [cts.policy(kind='STATIC', value=1)],
+                           [cts.policy(kind='STATIC', data_type='BINARY', value=1)],
                            interval=60, stop_on_control=8)
         time.sleep(3)
         fc6(port, 130, 4444)
@@ -108,17 +108,15 @@ def run(ctx):
               '보조 키 TAG1 도 함께 들고 있다 (EthernetIPData.aliasesOf)')
     dev = cts.add_device(cts.PREFIX + 's14enip', cts.PORT_BASE + 61,
                          protocol='ETHERNET_IP',
-                         settings={'cpuSlot': '0', 'syn_port': '2222',
-                                   'registers': '100',
-                                   'implicit_t2o_addr': '127.0.0.1'})
+                         settings=cts.eip_settings())
     did = dev['id']
     try:
         st, _ = cts.api('/simulation/addSimulation', 'PUT', {
             'device': {'id': did}, 'name': 'tag', 'target': 'REAL@TAG1',
-            'policies': [cts.policy(kind='STATIC', data_type='FP32AD', value=1.5)],
+            'policies': [cts.policy(kind='STATIC', data_type='FP32DA', value=1.5)],
             'interval': 60, 'enabled': 1})
         ctx.check(200 <= st < 300,
-                  'CIP 타입 접두어가 붙은 target 이 등록된다 (FP32AD ↔ REAL 로 타입도 맞다)', st)
+                  'CIP 타입 접두어가 붙은 target 이 등록된다 (FP32DA ↔ REAL 로 타입도 맞다)', st)
         time.sleep(3)
         snap = cts.snapshot(did)
         ctx.check(snap.get('protocol') == 'ETHERNET_IP',

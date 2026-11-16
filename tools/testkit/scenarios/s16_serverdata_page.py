@@ -11,6 +11,7 @@
 """
 import socket
 import struct
+import os
 import time
 import cts
 
@@ -58,6 +59,21 @@ def fc6(port, addr, value, host='127.0.0.1'):
         s.close()
 
 
+
+def _multi_session():
+    """앱 설정 cts.serverdata.multi-session.enabled 를 읽는다(기본 false). 설정이 기대를 바꾼다."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..',
+                        'MK119CommunicationTestSuite', 'application.properties')
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                k, _, v = line.strip().partition('=')
+                if k.strip() == 'cts.serverdata.multi-session.enabled':
+                    return v.strip().lower() == 'true'
+    except OSError:
+        pass
+    return False
+
 def run(ctx):
     try:
         import cdp
@@ -71,9 +87,7 @@ def run(ctx):
     mb_id = mb['id']
     enip = cts.add_device(cts.PREFIX + 's16enip', cts.PORT_BASE + 86,
                           protocol='ETHERNET_IP',
-                          settings={'cpuSlot': '0', 'syn_port': '2223',
-                                    'registers': '100',
-                                    'implicit_t2o_addr': '127.0.0.1'})
+                          settings=cts.eip_settings(syn_port=2223))
     enip_id = enip['id']
     browser = None
     try:
@@ -116,11 +130,18 @@ def run(ctx):
                   '상태 줄은 금방 다음 상태로 덮이므로 MutationObserver 로 변화를 모두 모아 둔다')
         second = browser.open_tab(cts.BASE + '/devices/%d/serverdata' % mb_id)
         second.js(WATCH_STATUS, wait=0.3)
-        hist = _await_status(second, 'Another editor')
-        ctx.check('Another editor' in hist,
-                  '두 번째 창은 "Another editor is active" 를 받고 편집 권한을 얻지 못한다. '
-                  '두 사람이 같은 장비 값을 동시에 덮어쓰는 일을 막는다',
-                  hist)
+        if _multi_session():
+            hist = _await_status(second, 'Editing session active')
+            ctx.check('Editing session active' in hist and 'Another editor' not in hist,
+                      'cts.serverdata.multi-session.enabled=true 라 두 번째 창도 편집 세션을 얻는다 '
+                      '(장비당 동시 편집 제한 없음)',
+                      hist)
+        else:
+            hist = _await_status(second, 'Another editor')
+            ctx.check('Another editor' in hist,
+                      '두 번째 창은 "Another editor is active" 를 받고 편집 권한을 얻지 못한다. '
+                      '두 사람이 같은 장비 값을 동시에 덮어쓰는 일을 막는다',
+                      hist)
 
         # ── 값의 출처 ──────────────────────────────────────────────────
         ctx.given('화면이 열린 채로, 먼저 주기 1초 시뮬레이션이 값을 쓰게 두고 '

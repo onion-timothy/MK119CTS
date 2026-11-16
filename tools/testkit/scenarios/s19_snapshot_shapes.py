@@ -28,28 +28,27 @@ CASES = [
      ['blocks'], '%MW100', 'UI16AB', 777),
 
     ('OPC_AGENT', 'UDP', {'registers': '100'},
-     ['values'], '7', 'UI16AB', 55),
+     ['values'], '7', 'INTEGER', 55),
 
     ('DAEYUN_RCU', 'TCP',
-     {'cpuAddr': '1', 'diCount': '32', 'doCount': '32', 'aiCount': '32'},
+     cts.rcu_settings(),
      ['analogChannels', 'digitalChannels', 'txFields'],
-     '@RCUAI_3', 'UI16AB', 42),
+     '@RCUAI_3', 'INTEGER', 42),
 
     ('SNMP', 'UDP',
      {'snmpVersion': '0', 'getCommunity': 'public', 'setCommunity': 'private'},
-     ['oids'], '1.3.6.1.2.1.1.1.0', 'UI16AB', 9),
+     ['oids'], '1.3.6.1.2.1.1.1.0', 'INTEGER', 9),
 
     ('ETHERNET_IP', 'TCP',
-     {'cpuSlot': '0', 'syn_port': '2231', 'registers': '100',
-      'implicit_t2o_addr': '127.0.0.1'},
-     ['tags'], 'DINT@ZZTAG', 'SI32AD', 321),
+     cts.eip_settings(syn_port=2231),
+     ['tags'], 'DINT@ZZTAG', 'SI32DA', 321),
 
     # 설정은 run 이 프로토콜 정의(power-meter 예시)를 만든 뒤 채운다. 전압1 은 UI16 ×0.1 이라 FLOAT 를 받는다
     ('GENERIC', 'TCP', None,
      ['fields'], '전압1', 'FLOAT', 220),
 
     ('BACNET', 'UDP', {'deviceInstanceId': '4399', 'broadcast': '255.255.255.255'},
-     ['objects'], 'analog_value 3', 'FP32AD', 12.5),
+     ['objects'], 'analog_value 3', 'FLOAT', 12.5),
 ]
 
 #: 스냅샷 안에서 심은 값을 찾아보는 방법. payload 모양이 프로토콜마다 달라서 따로 둔다.

@@ -3,10 +3,10 @@
 Modbus·XGT 는 raw 레지스터라 data_type 이 바이트 모양을 그대로 정한다. 그 밖의
 프로토콜은 값을 맵에 담아 두었다가 보낼 때 타입을 정하는데, 그 규칙이 셋 다 다르다.
 
-  SNMP         data_type 이 BER 타입을 정한다 (정수는 Integer32 / Unsigned32)
+  SNMP         data_type 이 BER 타입을 정한다 (INTEGER·BINARY 는 Integer32, FLOAT 는 OctetString)
   BACnet       object type 이 표현 타입을 정한다 (규격). analog=REAL, binary=ENUMERATED,
                multi-state=Unsigned
-  EtherNet/IP  target 접두어가 CIP 타입을 정한다. data_type 이 어긋나면 등록을 거절한다
+  EtherNet/IP  data_type 이 CIP 타입을 정한다. CIP 로 보낼 수 없는 타입은 등록을 거절한다
 
 값만 보면 어느 쪽이든 같아 보이므로, 타입까지 확인하려면 표준 클라이언트가 받는 바이트를
 봐야 한다. SNMP 는 snmpclient 로 GET 을 직접 만들고, BACnet 은 ReadProperty 응답의
@@ -22,10 +22,10 @@ NAME = '타입이 있는 프로토콜의 값 표현'
 
 #: (data_type, 넣을 값, 기대하는 BER 타입)
 SNMP_CASES = [
-    ('SI16AB', 1234,  'Integer32'),
-    ('UI8',    200,   'Integer32'),
-    ('UI32AD', 70000, 'Gauge32'),
-    ('FP32AD', 12.5,  'OctetString'),   # SNMP 에 실수 타입이 없다
+    ('INTEGER', 1234,   'Integer32'),
+    ('INTEGER', -70000, 'Integer32'),   # SNMP INTEGER 는 항상 부호 있음
+    ('BINARY',  1,      'Integer32'),
+    ('FLOAT',   12.5,   'OctetString'),  # SNMP 에 실수 타입이 없다
 ]
 
 #: (target, 넣을 값, 기대하는 BACnet application tag)
@@ -37,14 +37,14 @@ BACNET_CASES = [
 
 #: (target, data_type, 등록되어야 하는가)
 ENIP_CASES = [
-    ('REAL@T1', 'FP32AD', True),
-    ('REAL@T2', 'UI16AB', False),
-    ('DINT@T3', 'SI32AD', True),
-    ('DINT@T4', 'FP32AD', False),
-    ('INT@T5',  'UI16AB', True),
-    ('SINT@T6', 'UI8',    True),
-    ('SINT@T7', 'SI32AD', False),
-    ('BOOL@T8', 'UI8',    True),
+    ('T1', 'FP32DA', True),
+    ('T2', 'FP32AD', False),
+    ('T3', 'SI32DA', True),
+    ('T4', 'SI32AD', False),
+    ('T5', 'SI16BA', True),
+    ('T6', 'SI8',    True),
+    ('T7', 'UI8',    False),
+    ('T8', 'BINARY', True),
 ]
 
 
@@ -79,7 +79,7 @@ def run(ctx):
         time.sleep(4)
         ctx.given('SNMP 장비(v1, community public)에 data_type 만 달리한 STATIC 4건을 '
                   'OID .1.3.6.1.4.1.9999.1~4 에 주기 1초로 등록한다 '
-                  '(SI16AB=1234, UI32AD=70000, FP32AD=12.5, UI8=200). '
+                  '(INTEGER=1234, INTEGER=-70000, BINARY=1, FLOAT=12.5). '
                   '라이브러리 없이 BER 로 SNMP v1 GET 패킷을 직접 만들어 보내고, '
                   '응답 varbind 의 타입 태그를 그대로 읽는다 — 표준 매니저가 보는 것과 같다')
         for oid, (dt, value, expect) in zip(oids, SNMP_CASES):
@@ -103,7 +103,8 @@ def run(ctx):
     try:
         for i, (target, value, _) in enumerate(BACNET_CASES):
             cts.add_simulation(did, 'o%d' % i, target,
-                               [cts.policy(kind='STATIC', data_type='FP32AD', value=value)],
+                               [cts.policy(kind='STATIC', data_type=cts.types_for('BACNET', target)[0],
+                                           value=value)],
                                interval=1)
         time.sleep(4)
         ctx.given('BACnet 장비(device instance 55)에 object 세 종류를 둔다: '
@@ -124,15 +125,13 @@ def run(ctx):
 
     # ── EtherNet/IP ────────────────────────────────────────────────────
     dev = cts.add_device(cts.PREFIX + 's21enip', cts.PORT_BASE + 75, protocol='ETHERNET_IP',
-                         settings={'cpuSlot': '0', 'syn_port': '2244', 'registers': '100',
-                                   'implicit_t2o_addr': '127.0.0.1'}, enabled=0)
+                         settings=cts.eip_settings(syn_port=2244), enabled=0)
     did = dev['id']
     try:
-        ctx.given('EtherNet/IP 장비에 target 접두어와 data_type 의 조합 8가지를 등록해 본다. '
-                  'CIP 타입은 target 접두어가 정하므로(REAL@TAG1) data_type 이 어긋나면 '
-                  '화면에서 고른 것과 클라이언트가 읽는 것이 달라진다. '
-                  '맞는 짝 5건(REAL+FP32AD, DINT+SI32AD, INT+UI16AB, SINT+UI8, BOOL+UI8), '
-                  '어긋난 짝 3건(REAL+UI16AB, DINT+FP32AD, SINT+SI32AD)')
+        ctx.given('EtherNet/IP 장비에 태그 이름 + data_type 8가지를 등록해 본다. '
+                  'CIP 타입은 data_type 이 정하고 CIP 는 little-endian 이라 '
+                  'CIP 로 보낼 수 있는 5종(FP32DA, SI32DA, SI16BA, SI8, BINARY)만 받고 '
+                  '나머지 3건(FP32AD, SI32AD, UI8)은 거절해야 한다')
         accepted = rejected = 0
         detail = []
         for i, (target, dt, should_pass) in enumerate(ENIP_CASES):
@@ -149,8 +148,7 @@ def run(ctx):
                 rejected += 1
         ctx.check(not detail,
                   '맞는 %d건은 등록되고 어긋나는 %d건은 등록 시점에 거절된다. '
-                  '폭과 정수/실수 구분만 보고, 바이트 순서(AB/BA)는 CIP 가 '
-                  'little-endian 으로 고정하므로 따지지 않는다' % (accepted, rejected),
+                  '부호 없는 타입과 big-endian 타입은 CIP 로 보낼 수 없다' % (accepted, rejected),
                   '; '.join(detail) if detail else
                   '수용 %d건, 거절 %d건 모두 기대대로' % (accepted, rejected))
     finally:

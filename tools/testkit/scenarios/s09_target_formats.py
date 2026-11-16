@@ -13,8 +13,8 @@ import cts
 NAME = '프로토콜별 Target 형식 (부록 A)'
 
 #: EtherNet/IP 의 CIP 타입별로 짝이 되는 data_type
-CIP_DATA_TYPE = {'BOOL': 'UI8', 'SINT': 'UI8', 'INT': 'UI16AB',
-                 'DINT': 'SI32AD', 'REAL': 'FP32AD'}
+CIP_DATA_TYPE = {'BOOL': 'BINARY', 'SINT': 'SI8', 'INT': 'SI16BA',
+                 'DINT': 'SI32DA', 'REAL': 'FP32DA'}
 
 
 #: (프로토콜, 전송, 통신설정, [맞는 target], [틀린 target])
@@ -28,9 +28,9 @@ CASES = [
      ['MW100', '%ZW100', '%MX100', '%MW', '%M']),
 
     ('DAEYUN_RCU', 'TCP',
-     {'cpuAddr': '1', 'diCount': '32', 'doCount': '32', 'aiCount': '32'},
-     ['@RCUDI_1', '@RCUAI_32'],
-     ['@RCUDI_0', '@RCUAI_33', '@RCUDI_x']),
+     cts.rcu_settings(di=32, do=32, ai=8),
+     ['@RCUDI_1', '@RCUDI_32', '@RCUAI_8'],
+     ['@RCUDI_0', '@RCUDI_33', '@RCUAI_9', '@RCUDI_x']),
 
     ('SNMP', 'UDP',
      {'snmpVersion': '0', 'getCommunity': 'public', 'setCommunity': 'private'},
@@ -42,7 +42,7 @@ CASES = [
      ['100', '-1', 'abc']),
 
     ('ETHERNET_IP', 'TCP',
-     {'cpuSlot': '0', 'syn_port': '2222', 'registers': '100'},
+     cts.eip_settings(),
      ['REAL@TAG1', 'DINT@Motor_Speed', 'BOOL@Flag'],
      ['TAG1', 'FLOAT@TAG1', 'REAL@', '@TAG1']),
 
@@ -79,9 +79,9 @@ def run(ctx):
             bad_detail = []
             # 이름은 장비 안에서 고유해야 한다. 같은 이름을 쓰면 target 과 무관하게 거절된다.
             for i, t in enumerate(good):
-                # GENERIC: 정의의 타입이 UI16 ×0.1·UI32 ×0.1 이라 INTEGER/FLOAT 를 받는다
-                dt = CIP_DATA_TYPE.get(t.split('@')[0], 'UI16AB') \
-                    if protocol == 'ETHERNET_IP' else 'FLOAT' if protocol == 'GENERIC' else 'UI16AB'
+                # 형식만 보려는 시나리오라 그 target 이 받는 첫 타입을 쓴다(타입 규칙은 s21 이 본다)
+                dt = CIP_DATA_TYPE.get(t.split('@')[0], 'SI16BA') \
+                    if protocol == 'ETHERNET_IP' else cts.types_for(protocol, t)[0]
                 st, _ = cts.api('/simulation/addSimulation', 'PUT', {
                     'device': {'id': did}, 'name': 'g%d' % i, 'target': t,
                     'policies': [cts.policy(value=1, data_type=dt)],
@@ -93,7 +93,8 @@ def run(ctx):
             for i, t in enumerate(bad):
                 st, body = cts.api('/simulation/addSimulation', 'PUT', {
                     'device': {'id': did}, 'name': 'b%d' % i, 'target': t,
-                    'policies': [cts.policy(value=1)], 'interval': 60, 'enabled': 0})
+                    'policies': [cts.policy(value=1, data_type=cts.types_for(protocol, t)[0])],
+                    'interval': 60, 'enabled': 0})
                 if 200 <= st < 300:
                     bad_detail.append('거절되어야 할 %r 가 수용됨' % t)
                 else:

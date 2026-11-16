@@ -18,7 +18,7 @@ cd MK119CommunicationTestSuite && ./gradlew bootRun
 ## 실행
 
 ```bash
-python3 tools/testkit/run.py              # 전체 (약 6분 30초)
+python3 tools/testkit/run.py              # 전체 (약 8분 30초)
 python3 tools/testkit/run.py s03 s06      # 이름 앞부분으로 골라서
 python3 tools/testkit/run.py --list       # 목록만
 python3 tools/testkit/run.py --report=report.md   # 케이스별 상세 보고서까지

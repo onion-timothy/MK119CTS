@@ -73,6 +73,70 @@ def modbus_settings(unit_id=1, registers=30000):
     return {'unitId': str(unit_id), 'packetType': '1', 'registers': str(registers)}
 
 
+def eip_settings(cpu_slot=0, syn_port=2222):
+    """장비 설정 검사(DeviceSettingsValidator)가 요구하는 키를 모두 채운다."""
+    return {'cpuSlot': str(cpu_slot), 'syn_port': str(syn_port),
+            'implicit_t2o_addr': '127.0.0.1',
+            'implicit_t2o_assy_size': '0', 'implicit_o2t_assy_size': '0'}
+
+
+def rcu_settings(cpu_addr=1, di=32, do=32, ai=8):
+    """AI 는 1~8, DI·DO 는 1~32 (DeviceSettingsValidator)."""
+    return {'cpuAddr': str(cpu_addr), 'diCount': str(di), 'doCount': str(do), 'aiCount': str(ai)}
+
+
+# ── data type 표 ────────────────────────────────────────────────────────
+# 화면 static/js/cts-datatypes.js · 서버 DataTypeRules 와 같은 표. 목록의 첫 타입이 기본값이다.
+
+_SIZED = ['UI8', 'SI8', 'UI16AB', 'UI16BA', 'SI16AB', 'SI16BA',
+          'UI32AD', 'UI32CB', 'UI32BC', 'UI32DA', 'SI32AD', 'SI32CB', 'SI32BC', 'SI32DA',
+          'SI64AH', 'SI64GB', 'SI64BG', 'SI64HA',
+          'FP32AD', 'FP32CB', 'FP32BC', 'FP32DA', 'FP64AH', 'FP64GB', 'FP64BG', 'FP64HA']
+_PLAIN = ['INTEGER', 'FLOAT', 'BINARY']
+
+
+def _widths(*w):
+    def size(t):
+        for n, b in (('8', 1), ('16', 2), ('32', 4), ('64', 8)):
+            if n in t:
+                return b
+        return 0
+    return [t for t in _SIZED if size(t) in w]
+
+
+def types_for(protocol, target):
+    t = str(target or '').strip()
+    if protocol == 'MODBUS':
+        if t[:2] in ('1_', '2_'):
+            return ['BINARY']
+        if t[:2] in ('3_', '4_'):
+            return _widths(2, 4, 8)
+        return ['BINARY'] + _widths(2, 4, 8)
+    if protocol == 'XGT_PLC':
+        size = t[2:3].upper()
+        return {'B': _widths(1), 'W': _widths(2), 'D': _widths(4)}.get(size, _widths(1, 2, 4))
+    if protocol == 'ETHERNET_IP':
+        return ['SI8', 'SI16BA', 'SI32DA', 'FP32DA', 'BINARY']
+    if protocol == 'BACNET':
+        low = t.lower()
+        if low.startswith('binary_'):
+            return ['BINARY']
+        if low.startswith('multi_state_'):
+            return ['INTEGER']
+        if low.startswith('analog_'):
+            return ['FLOAT', 'INTEGER']
+        return list(_PLAIN)
+    if protocol == 'DAEYUN_RCU':
+        if t.startswith('@RCUDI_'):
+            return ['BINARY']
+        if t.startswith('@RCUAI_'):
+            return ['INTEGER']
+        return list(_PLAIN)
+    if protocol in ('SNMP', 'GENERIC', 'OPC_AGENT', 'DB'):
+        return list(_PLAIN)
+    return _SIZED + _PLAIN
+
+
 def device_body(name, port, protocol='MODBUS', transport='TCP',
                 settings=None, enabled=1, group_id=1):
     return {

@@ -8,8 +8,8 @@
   Interval        확률 판정 주기. 슬라이더가 아니라 숫자 입력칸이다
   Simulation stop ServerData 를 쓰기 보호해서 멈추는 값이므로 DB 장비에는 보이지 않는다
 
-슬라이더 호출은 jQuery 객체를 돌려주는데 CDP 가 그걸 직렬화하지 못한다. 값을 쓰는
-호출은 _void 로 감싸 숫자만 돌려받는다.
+Frequency 는 <input type=range>(CtsRange)다. 값을 넣을 때는 사람이 끈 것처럼 input·change
+이벤트를 함께 보낸다. 반환값이 필요 없는 호출은 _void 로 감싼다.
 """
 import time
 import cts
@@ -30,7 +30,7 @@ def _void(c, stmt, wait=1.0):
 
 
 def _freq(c):
-    return _probe(c, "frequency.bootstrapSlider('getValue')")
+    return _probe(c, "CtsRange.get('frequency')")
 
 
 def _wait_loaded(c, seconds=12):
@@ -96,7 +96,7 @@ def run(ctx):
 
         ctx.given('모드를 DISCARD(System 계열)로 둔 채 Frequency 슬라이더에 100 을 넣는다. '
                   '과거엔 이미 쓰인 70% 때문에 30 으로 깎였지만, 지금은 그대로 100 이 들어간다')
-        _void(c, "frequency.bootstrapSlider('setValue', 100, false, true);")
+        _void(c, "var el = document.getElementById('frequency'); el.value = 100; el.dispatchEvent(new Event('input', {bubbles: true})); el.dispatchEvent(new Event('change', {bubbles: true}));")
         ctx.check(_freq(c) == 100,
                   '100 이 그대로 보존된다. System 몫 70 과 합쳐 170 이 돼도 캡이 걸리지 않는다',
                   '%s%% (기대 100%%)' % _freq(c))
@@ -107,7 +107,7 @@ def run(ctx):
         ctx.check(_freq(c) == 100,
                   '모드를 바꿔도 Frequency 가 깎이지 않고 100 그대로 유지된다',
                   '%s%% (기대 100%%)' % _freq(c))
-        _void(c, "frequency.bootstrapSlider('setValue', 100, false, true);")
+        _void(c, "var el = document.getElementById('frequency'); el.value = 100; el.dispatchEvent(new Event('input', {bubbles: true})); el.dispatchEvent(new Event('change', {bubbles: true}));")
         ctx.check(_freq(c) == 100,
                   '다시 100 을 넣어도 100 이 들어간다. 계열별 캡도 모두 걷어내졌다',
                   '%s%% (기대 100%%)' % _freq(c))
@@ -121,16 +121,16 @@ def run(ctx):
         ctx.check(_probe(c, "document.getElementById('error-interval').min") == '1',
                   'min=1 이라 0 이하를 넣을 수 없다. 0 은 스케줄에 올라가지 않아 아무 일도 안 한다',
                   _probe(c, "document.getElementById('error-interval').min"))
-        ctx.check(_probe(c, "$('#interval-form-group').is(':visible')") is True,
+        ctx.check(_probe(c, "$('#error-interval').is(':visible')") is True,
                   'SIMULATION 모드에도 Interval 칸이 보인다. 이 모드도 자기 주기로 확률을 판정한다',
-                  _probe(c, "$('#interval-form-group').is(':visible')"))
+                  _probe(c, "$('#error-interval').is(':visible')"))
         ctx.check(_probe(c, "$('#simulation-stop-group').is(':visible')") is True,
                   'MODBUS 장비에는 Simulation stop 칸이 보인다 (멈출 ServerData 가 있다)',
                   _probe(c, "$('#simulation-stop-group').is(':visible')"))
-        ctx.check(_probe(c, "$('#duration-from-group').is(':visible')") is False,
+        ctx.check(_probe(c, "$('#duration-group').is(':visible')") is False,
                   'SIMULATION 모드에는 Duration 칸이 숨는다. 이 모드는 값을 한 번 덮는 것이라 '
                   '유지 시간 개념이 없다',
-                  _probe(c, "$('#duration-from-group').is(':visible')"))
+                  _probe(c, "$('#duration-group').is(':visible')"))
 
         ctx.given('이번에는 DB 프로토콜 장비의 /addError/{id} 화면을 열고 모드를 '
                   'SIMULATION 으로 바꾼다. DB 장비는 ServerData 없이 SQL 로 바로 쓰므로 '

@@ -47,7 +47,7 @@ def _sims_for(device):
          'enabled': 1, 'id': 'v1', 'policy': 'RANDOM', 'data_type': 'UI16AB',
          'value': None, 'range': '2180,2420', 'stopOnControl': 0},
         {'deviceName': device, 'name': 'Breaker State', 'target': '1_10', 'interval': 5,
-         'enabled': 1, 'id': 'v1', 'policy': 'STATIC', 'data_type': 'UI16AB',
+         'enabled': 1, 'id': 'v1', 'policy': 'STATIC', 'data_type': 'BINARY',
          'value': 1, 'range': None, 'stopOnControl': 10},
     ]
 
@@ -56,7 +56,7 @@ SIMULATIONS = (_sims_for('idpm300_test-11') + _sims_for('idpm300_test-12')
                + _sims_for('idpm300_test-13')
                + [{'deviceName': 'opc_agent_01', 'name': 'Tank Level', 'target': '12',
                    'interval': 2, 'enabled': 1, 'id': 'v1', 'policy': 'ACCUMULATE',
-                   'data_type': 'SI16AB', 'value': None, 'range': '220,1',
+                   'data_type': 'INTEGER', 'value': None, 'range': '220,1',
                    'stopOnControl': 0}])
 
 # 이미 등록된 장비에 시뮬레이션만 추가하는 템플릿. deviceName 열이 없다.
@@ -80,10 +80,10 @@ SIMS_ONLY = [
      'id': 'v1', 'policy': 'ACCUMULATE', 'data_type': 'UI16AB', 'value': None,
      'range': '0,1', 'stopOnControl': 0},
     {'name': 'Breaker State', 'target': '1_20', 'interval': 5, 'enabled': 1,
-     'id': 'v1', 'policy': 'STATIC', 'data_type': 'UI16AB', 'value': 1,
+     'id': 'v1', 'policy': 'STATIC', 'data_type': 'BINARY', 'value': 1,
      'range': None, 'stopOnControl': 30},
     {'name': 'Fault Flag', 'target': '1_21', 'interval': 5, 'enabled': 0,
-     'id': 'v1', 'policy': 'STATIC', 'data_type': 'UI16AB', 'value': 0,
+     'id': 'v1', 'policy': 'STATIC', 'data_type': 'BINARY', 'value': 0,
      'range': None, 'stopOnControl': 0},
 ]
 
@@ -103,7 +103,7 @@ COMMIT_SIMULATIONS = [
      'data_type': 'UI16AB', 'value': 4321, 'range': None, 'stopOnControl': 0},
     {'deviceName': 'ZZTMP_s18a', 'name': 'Breaker State', 'target': '1_10',
      'interval': 5, 'enabled': 1, 'id': 'v1', 'policy': 'STATIC',
-     'data_type': 'UI16AB', 'value': 1, 'range': None, 'stopOnControl': 12},
+     'data_type': 'BINARY', 'value': 1, 'range': None, 'stopOnControl': 12},
     {'deviceName': 'ZZTMP_s18b', 'name': 'Voltage R', 'target': '3_102',
      'interval': 1, 'enabled': 1, 'id': 'v1', 'policy': 'RANDOM',
      'data_type': 'UI16AB', 'value': None, 'range': '2180,2420', 'stopOnControl': 0},

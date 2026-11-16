@@ -59,6 +59,7 @@ def run(ctx):
     gone = cts.add_device(cts.PREFIX + 's23gone', cts.PORT_BASE + 166)
     did = dev['id']
     plans = []
+    extra = []
     try:
         # ── 등록 검증 ────────────────────────────────────────────────────
         ctx.given('POST /api/testplans 에 이름이 비고 Action 이 없는 Plan, dataType 없는 레지스터 Action, '
@@ -124,13 +125,15 @@ def run(ctx):
                                [a['status'] for a in acts1]))
 
         # ── 실패 처리 ───────────────────────────────────────────────────
-        gid = gone['id']
-        st, b1 = create('skip', [act(gid, '3_1', 1, 0), act(did, '3_20', 55, 0)])
-        st, b2 = create('fail', [act(gid, '3_1', 1, 0, stop=True), act(did, '3_21', 66, 0)])
+        # 쓰기가 실행 중에 실패하는 경로로 꺼진(enabled=0) 장비를 쓴다 — 404 device_not_available
+        off = cts.add_device(cts.PREFIX + 's23off', cts.PORT_BASE + 167, enabled=0)
+        extra.append(off['id'])
+        oid = off['id']
+        st, b1 = create('skip', [act(oid, '3_1', 1, 0), act(did, '3_20', 55, 0)])
+        st, b2 = create('fail', [act(oid, '3_1', 1, 0, stop=True), act(did, '3_21', 66, 0)])
         skip_id, fail_id = b1['plan']['id'], b2['plan']['id']
         plans += [skip_id, fail_id]
-        cts.delete_device_tree(gid)
-        ctx.given('다른 장비를 가리키는 Action 을 첫째로 둔 Plan 두 개(Stop 비움 / Stop=TRUE)를 만든 뒤 그 장비를 지운다. '
+        ctx.given('꺼진(enabled=0) 장비에 쓰는 Action 을 첫째로 둔 Plan 두 개(Stop 비움 / Stop=TRUE)를 만든다. '
                   '둘째 Action 은 같은 0초에 살아 있는 장비의 3_20=55 / 3_21=66 을 쓴다. 두 Plan 을 실행한다')
         cts.api('/testplans/%d/run' % skip_id, 'POST')
         cts.api('/testplans/%d/run' % fail_id, 'POST')
@@ -139,8 +142,8 @@ def run(ctx):
         rs, as_ = last_run(skip_id)
         rf, af = last_run(fail_id)
         ctx.check(rs and rs['result'] == 'COMPLETED_WITH_SKIPS' and cts.holding(did, 20) == 55
-                  and as_ and as_[0]['status'] == 'SKIPPED' and 'no longer exists' in (as_[0]['error'] or ''),
-                  'Stop 비움(기본): 첫 Action 은 SKIPPED("…no longer exists") 로 남고 둘째가 실행된다. '
+                  and as_ and as_[0]['status'] == 'SKIPPED' and 'device_not_available' in (as_[0]['error'] or ''),
+                  'Stop 비움(기본): 첫 Action 은 SKIPPED(device_not_available) 로 남고 둘째가 실행된다. '
                   '결과 COMPLETED_WITH_SKIPS',
                   '%s, 3_20=%s, %s' % (rs and rs['result'], cts.holding(did, 20),
                                        as_ and (as_[0]['status'], as_[0]['error'])))
@@ -148,6 +151,29 @@ def run(ctx):
                   'Stop=TRUE: 결과 FAILED, 그 자리에서 멈춰 같은 시각의 둘째 Action 도 실행하지 않는다 (3_21 은 0, 기록도 1건)',
                   '%s "%s", 3_21=%s, 기록 %d건' % (rf and rf['result'], rf and rf['message'],
                                                 cts.holding(did, 21), len(af)))
+
+        # ── 장비 삭제: Action 정리 ──────────────────────────────────────
+        gid = gone['id']
+        st, b3 = create('trim', [act(gid, '3_1', 1, 0), act(did, '3_22', 77, 5), act(did, '3_23', 88, 9)])
+        st, b4 = create('only', [act(gid, '3_1', 1, 0), act(gid, '3_2', 2, 3)])
+        trim_id, only_id = b3['plan']['id'], b4['plan']['id']
+        plans += [trim_id, only_id]
+        ctx.given('지울 장비의 Action 을 0초에 둔 Plan(trim: 그 뒤 5초·9초에 살아 있는 장비) 과 '
+                  '그 장비의 Action 만 가진 Plan(only) 을 만든 뒤 DELETE /api/device/deleteDevice/{id} 로 장비를 지운다')
+        st_del, res_del = cts.api('/device/deleteDevice/%d' % gid, 'DELETE')
+        st_t, trim = cts.api('/testplans/%d' % trim_id)
+        st_o, _ = cts.api('/testplans/%d' % only_id)
+        trim_acts = [(a['target'], a['atSeconds']) for a in (trim or {}).get('actions', [])] if st_t == 200 else None
+        ctx.check(st_del == 200 and (res_del or {}).get('deletedPlans') == [cts.PREFIX + 'only'],
+                  '삭제 응답의 deletedPlans 에 Action 이 하나도 안 남은 Plan 이름이 실린다',
+                  '%s %s' % (st_del, res_del))
+        ctx.check(st_o == 404,
+                  'Action 이 모두 그 장비 것이던 Plan 은 함께 지워진다 (남겨 두면 검증 A1 에 걸려 다시 저장할 수 없다)',
+                  st_o)
+        ctx.check(trim_acts == [('3_22', 0), ('3_23', 4)],
+                  '남은 Plan 에서는 그 장비의 Action 만 빠지고, 가장 이른 Action 이 0초가 되도록 '
+                  '시각을 같은 만큼 당긴다(A16): 5초·9초 → 0초·4초',
+                  trim_acts)
 
         # ── 실행 중: 409 와 Stop ────────────────────────────────────────
         st, b = create('long', [act(did, '3_30', 1, 0), act(did, '3_31', 2, 10)])
@@ -265,3 +291,5 @@ def run(ctx):
             cts.api('/testplans/%d' % p, 'DELETE')
         cts.delete_device_tree(did)
         cts.delete_device_tree(gone['id'])
+        for x in extra:
+            cts.delete_device_tree(x)
