@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
+<!--
+  프로토콜 정의 목록. Test Plans 와 같은 배치 — 좌(목록) · 우(고른 정의의 요약).
+  정의는 장비와 따로 저장되고 GENERIC·DAEYUN_RCU 장비가 가리킨다 (docs/PROTOCOL_ENGINE_DESIGN.md).
+  편집은 /protocols/edit/{id}, 새로 만들기는 /protocols/new (예시·JSON 파일도 저장 전 상태로 편집기에서 연다).
+-->
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MK119 CTS — Protocol Definitions</title>
+
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
+
+    <style>
+        /* 가로로 긴 화면: 좌(목록) · 우(요약). 세로로 긴 화면: 상(목록) · 하(요약) — Test Plans 와 같다 */
+        .pd-split { flex: 1 1 auto; min-height: 0; display: flex; gap: var(--cts-page-gap); }
+        .pd-list { flex: 0 0 440px; min-width: 0; container-type: inline-size; container-name: pdlist; }
+        .pd-detail { flex: 1 1 auto; min-width: 0; }
+        @media (orientation: portrait) {
+            .pd-split { flex-direction: column; }
+            .pd-list { flex: 0 0 34%; }
+            .pd-detail { flex: 1 1 auto; min-height: 0; }
+        }
+        .pd-list-tools .btn, .pd-actions .btn { white-space: nowrap; }
+        @container pdlist (max-width: 620px) { .pd-list .btn-text { display: none; } }
+        @container pdlist (max-width: 400px) { .pd-list-tools input[type="search"] { width: 90px !important; } }
+        @media (max-width: 900px) { .pd-actions .btn-text { display: none; } }
+        #defTable .tabulator-tableholder { overflow-x: auto !important; overflow-y: hidden !important; }
+        .cts-tabulator .tabulator-row.pd-current { background-color: var(--tblr-primary-lt) !important; }
+
+        /* 요약: 윗줄 사실 셋, 아래 메시지 표가 남는 높이를 쓴다 */
+        .pd-detail > .card-body { display: flex; flex-direction: column; }
+        .pd-body { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: .75rem; display: flex; flex-direction: column; gap: .75rem; }
+        .pd-desc { font-size: .85rem; color: var(--tblr-secondary); white-space: pre-wrap; }
+        .pd-desc:empty { display: none; }
+        .pd-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+        .pd-fact { border: 1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius); padding: .5rem .75rem; min-width: 0; }
+        .pd-fact h6, .pd-section > header h6 { font-size: .68rem; font-weight: 700; color: var(--tblr-secondary);
+            text-transform: uppercase; letter-spacing: .04em; margin: 0 0 .4rem; }
+        .pd-row { display: flex; justify-content: space-between; gap: .5rem; font-size: .82rem; padding: 1px 0; }
+        .pd-row > span:first-child { color: var(--tblr-secondary); }
+        .pd-row > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pd-none { font-size: .82rem; color: var(--tblr-secondary); }
+        .pd-section { border: 1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius); min-height: 0; }
+        .pd-section > header { padding: .5rem .75rem; border-bottom: 1px solid var(--tblr-border-color); }
+        .pd-section > header h6 { margin: 0; }
+        .pd-section .table { margin: 0; font-size: .82rem; }
+        .pd-section .table td, .pd-section .table th { padding-left: .75rem; }
+        .pd-badge { display: inline-block; font-size: .62rem; font-weight: 700; padding: .2rem .3rem; border-radius: 3px; margin-right: .35rem; }
+        .pd-badge.rx { background: var(--tblr-azure-lt); color: var(--tblr-azure); }
+        .pd-badge.tx { background: var(--tblr-green-lt); color: var(--tblr-green); }
+        .pd-chip { display: inline-block; font-family: var(--tblr-font-monospace); font-size: .72rem; padding: .05rem .35rem;
+            border-radius: 3px; background: var(--tblr-bg-surface-secondary); margin: .1rem .25rem .1rem 0; }
+        @media (max-width: 1100px) { .pd-facts { grid-template-columns: minmax(0, 1fr); } }
+    </style>
+</head>
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('protocols')}"></th:block>
+    <th:block th:replace="~{fragments/tabler :: navbar('Protocol Definitions', ~{})}"></th:block>
+
+    <div class="page-wrapper">
+        <div class="page-body">
+            <div class="pd-split">
+                <!-- 목록 -->
+                <div class="card cts-card pd-list">
+                    <div class="card-header">
+                        <h3 class="card-title">Definitions</h3>
+                        <div class="card-actions ms-auto pd-list-tools">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="export" title="Download the checked definitions as JSON">
+                                <i class="fas fa-file-export"></i> <span class="btn-text">Export</span></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete the checked definitions">
+                                <i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                            <input id="defSearch" type="search" class="form-control form-control-sm" placeholder="Search..." style="width:140px; min-width:0;">
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="defTable" class="cts-tabulator"></div>
+                    </div>
+                </div>
+
+                <!-- 요약 -->
+                <div class="card cts-card pd-detail">
+                    <div class="card-header">
+                        <h3 class="card-title" id="detailTitle">Select a definition</h3>
+                        <div class="card-actions ms-auto pd-actions" id="detailTools" style="display:none">
+                            <a class="btn btn-sm btn-outline-secondary" id="editBtn" href="#"><i class="fas fa-pen"></i> <span class="btn-text">Edit</span></a>
+                            <button class="btn btn-sm btn-outline-secondary" data-detail="duplicate"><i class="fas fa-copy"></i> <span class="btn-text">Duplicate</span></button>
+                            <button class="btn btn-sm btn-outline-secondary" data-detail="download"><i class="fas fa-download"></i> <span class="btn-text">Download</span></button>
+                            <button class="btn btn-sm btn-outline-danger" data-detail="delete" id="deleteBtn"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="cts-empty" id="detailEmpty">Select a definition on the list to see its summary.</div>
+                        <div class="pd-body" id="detailBody" style="display:none">
+                            <div class="pd-desc" id="descText"></div>
+                            <div class="pd-facts">
+                                <div class="pd-fact">
+                                    <h6>Contents</h6>
+                                    <div class="pd-row"><span>Messages</span><span id="sumMessages"></span></div>
+                                    <div class="pd-row"><span>Frames</span><span id="sumFrames"></span></div>
+                                    <div class="pd-row"><span>Checksums</span><span id="sumChecksums"></span></div>
+                                    <div class="pd-row"><span>Targets</span><span id="sumTargets"></span></div>
+                                    <div class="pd-row"><span>Tests</span><span id="sumTests"></span></div>
+                                </div>
+                                <div class="pd-fact">
+                                    <h6>Parameters</h6>
+                                    <div id="paramList"></div>
+                                </div>
+                                <div class="pd-fact">
+                                    <h6>Used by</h6>
+                                    <div id="deviceList"></div>
+                                    <div class="pd-row mt-1"><span>Updated</span><span id="updatedText"></span></div>
+                                </div>
+                            </div>
+                            <div class="pd-section">
+                                <header><h6>Messages</h6></header>
+                                <table class="table table-sm">
+                                    <thead><tr><th>Message</th><th>Frame</th><th>Match</th><th>Replies</th></tr></thead>
+                                    <tbody id="messageRows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 새로 만들기: 빈 문서 / 예시 / JSON 파일 — 모두 저장 전 상태로 편집기에서 연다 -->
+<div class="modal" id="addModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">New protocol definition</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="list-group mb-3">
+                    <a href="/protocols/new" class="list-group-item list-group-item-action">
+                        <div class="fw-semibold">Blank definition</div>
+                        <div class="text-secondary small">Start from an empty document.</div>
+                    </a>
+                </div>
+                <!-- 파일 칸은 숨긴다. 브라우저 기본 글(OS 언어)이 화면에 나오지 않게 버튼으로 연다 -->
+                <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+                <button type="button" class="btn btn-outline-secondary w-100" id="chooseFile"><i class="fas fa-file-import"></i> Import a JSON file</button>
+                <div class="hr-text">or start from an example</div>
+                <div class="list-group" id="exampleList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script th:inline="javascript">
+    const SELECTED_ON_LOAD = /*[[${selectedDefinition}]]*/ null;
+    /** 편집기가 저장 전 문서를 받아 가는 자리 (sessionStorage) — js/cts-protocol-editor.js 와 짝 */
+    const IMPORT_KEY = 'cts.protocolEditor.import';
+    const EXAMPLES = [
+        { id: 'power-meter', title: 'Modbus RTU power meter', sub: 'Coils, inputs and registers — reads, writes, exceptions' },
+        { id: 'thermo-controller', title: 'STX … BCC ETX controller', sub: 'Frame with length field, bit flags, writes, NAK' },
+        { id: 'ascii-meter', title: 'ASCII line meter', sub: 'Text fields, decimal text, hex text checksum' },
+        { id: 'xgt-fenet', title: 'LS XGT FEnet (XGK)', sub: 'Named variables, bit to lword access, block writes, NAK codes' },
+        { id: 'bacnet-ip', title: 'BACnet/IP ReadProperty · WriteProperty', sub: 'Device, analog and binary objects, error, reject and abort PDUs' }
+    ];
+    const BASE_ROW_H = 40;
+
+    let table, defs = [], selectedId = null, detail = null;
+    const checked = new Set();
+    let selectAllBox = null;
+
+    function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function fmtDateTime(s) {
+        if (!s) return '—';
+        const d = new Date(s);
+        if (isNaN(d)) return s;
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+    function api(method, url, body) {
+        return $.ajax({ url: url, method: method, contentType: 'application/json',
+            data: body === undefined ? undefined : JSON.stringify(body) });
+    }
+    function errorText(xhr) {
+        const b = xhr && xhr.responseJSON;
+        if (b && b.error) return b.error;
+        if (b && b.problems && b.problems.length) return b.problems.filter(p => p.level === 'error').map(p => p.text).join('\n');
+        return (xhr && xhr.statusText) || 'Request failed';
+    }
+    function messagesText(d) { return d.rx + ' RX · ' + d.tx + ' TX'; }
+    function download(name, obj) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2) + '\n'], { type: 'application/json' }));
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+
+    // ── 목록 ───────────────────────────────────────────────────────
+    function initTable() {
+        // 행 클릭은 요약 보기, 체크박스는 내보내기·삭제 대상이다 — Tabulator 의 행 선택을 쓰면 둘이 섞인다
+        table = new Tabulator('#defTable', {
+            data: [], index: 'id', layout: 'fitData', height: '100%', renderVertical: 'basic',
+            pagination: true, paginationSize: 10, paginationButtonCount: 3,
+            placeholder: 'No protocol definitions yet. Add one to describe a device protocol.',
+            rowFormatter: function (row) { row.getElement().classList.toggle('pd-current', row.getData().id === selectedId); },
+            columns: CtsTable.columns([
+                { field: 'id', kind: 'action', headerSort: false, width: 36, title: '', resizable: false,
+                  titleFormatter: function (cell, params, onRendered) {
+                      selectAllBox = document.createElement('input');
+                      selectAllBox.type = 'checkbox';
+                      selectAllBox.addEventListener('click', function (e) {
+                          e.stopPropagation();
+                          const ids = activeIds();
+                          const all = ids.length > 0 && ids.every(id => checked.has(id));
+                          if (all) checked.clear(); else ids.forEach(id => checked.add(id));
+                          table.getRows().forEach(r => r.reformat());
+                          syncSelectAll();
+                      });
+                      onRendered(syncSelectAll);
+                      return selectAllBox;
+                  },
+                  formatter: c => '<input type="checkbox"' + (checked.has(c.getValue()) ? ' checked' : '') + '>',
+                  cellClick: function (e, cell) {
+                      e.stopPropagation();
+                      const id = cell.getValue();
+                      if (checked.has(id)) checked.delete(id); else checked.add(id);
+                      cell.getRow().reformat();
+                      syncSelectAll();
+                  } },
+                { title: 'Name', field: 'name', kind: 'text' },
+                { title: 'Messages', field: 'rx', kind: 'text', headerSort: false, formatter: c => messagesText(c.getRow().getData()) },
+                // 수정 시각은 오른쪽 요약에 있다. 목록은 이름이 잘리지 않게 세 칸만 둔다
+                { title: 'Used by', field: 'usedBy', kind: 'number' }
+            ]),
+            rowContextMenu: [
+                { label: "<i class='fas fa-pen'></i> Edit definition", action: (e, row) => { location.href = '/protocols/edit/' + row.getData().id; } },
+                { label: "<i class='fas fa-copy'></i> Duplicate", action: (e, row) => duplicate(row.getData().id) },
+                { label: "<i class='fas fa-trash'></i> Delete definition", action: (e, row) => deleteDefs([row.getData().id]) }
+            ]
+        });
+        table.on('rowClick', function (e, row) { select(row.getData().id); });
+        table.on('rowDblClick', function (e, row) { location.href = '/protocols/edit/' + row.getData().id; });
+        table.on('dataFiltered', function () { setTimeout(syncSelectAll); });
+        CtsTable.attach(table, { rowH: BASE_ROW_H });
+        table.on('tableBuilt', injectFooterButtons);
+    }
+
+    function injectFooterButtons() {
+        const footer = table.element.querySelector('.tabulator-footer .tabulator-footer-contents');
+        if (!footer || footer.querySelector('.cts-footer-actions')) return;
+        const el = document.createElement('div');
+        el.className = 'cts-footer-actions';
+        el.style.cssText = 'display:inline-flex; gap:0.25rem;';
+        el.innerHTML = '<button type="button" class="btn btn-sm btn-outline-secondary" data-action="add" title="Create a definition, start from an example or import a JSON file">'
+            + '<i class="fas fa-plus"></i> <span class="btn-text">Add</span></button>';
+        footer.insertBefore(el, footer.firstChild);
+    }
+
+    function loadList() {
+        return api('GET', '/api/protocols').then(function (data) {
+            defs = data;
+            const ids = new Set(data.map(d => d.id));
+            checked.forEach(id => { if (!ids.has(id)) checked.delete(id); });
+            const page = table.getPage() || 1;
+            return table.replaceData(data).then(function () {
+                const max = table.getPageMax() || 1;
+                if (table.getPage() !== Math.min(page, max)) return table.setPage(Math.min(page, max));
+            }).then(function () {
+                table.getRows().forEach(r => r.reformat());
+                syncSelectAll();
+                if (selectedId && !ids.has(selectedId)) clearDetail();
+            });
+        });
+    }
+
+    function activeIds() { return table.getRows('active').map(r => r.getData().id); }
+    function syncSelectAll() {
+        if (!selectAllBox) return;
+        const ids = activeIds();
+        const n = ids.filter(id => checked.has(id)).length;
+        selectAllBox.checked = ids.length > 0 && n === ids.length;
+        selectAllBox.indeterminate = n > 0 && n < ids.length;
+    }
+    function checkedIds() { return defs.map(d => d.id).filter(id => checked.has(id)); }
+
+    // ── 동작 ───────────────────────────────────────────────────────
+    function deleteDefs(ids) {
+        if (!ids.length) { alert('Check the definitions to delete first.'); return; }
+        const names = ids.map(id => (defs.find(d => d.id === id) || {}).name).filter(Boolean);
+        if (!confirm('Delete ' + (ids.length === 1 ? '"' + names[0] + '"' : ids.length + ' definitions') + '? This cannot be undone.')) return;
+        const failures = [];
+        let p = $.Deferred().resolve().promise();
+        ids.forEach(function (id) {
+            p = p.then(function () {
+                return api('DELETE', '/api/protocols/' + id).then(function () { checked.delete(id); },
+                    function (xhr) { failures.push(errorText(xhr)); return $.Deferred().resolve(); });
+            });
+        });
+        p.then(function () {
+            if (failures.length) alert(failures.join('\n\n'));
+            loadList();
+        });
+    }
+
+    function duplicate(id) {
+        api('POST', '/api/protocols/' + id + '/duplicate').then(function (r) {
+            loadList().then(function () { select(r.definition.id); });
+        }, function (xhr) { alert(errorText(xhr)); });
+    }
+
+    function exportDefs(ids) {
+        if (!ids.length) { alert('Check the definitions to export first.'); return; }
+        $.when.apply($, ids.map(id => api('GET', '/api/protocols/' + id))).done(function () {
+            const results = ids.length === 1 ? [arguments[0]] : Array.prototype.map.call(arguments, a => a[0]);
+            if (results.length === 1) download(results[0].name + '.json', results[0].document);
+            else download('protocol-definitions.json', results.map(r => r.document));
+        }).fail(function (xhr) { alert(errorText(xhr)); });
+    }
+
+    /** 저장 전 문서를 편집기로 넘긴다 */
+    function openUnsaved(doc) {
+        try { sessionStorage.setItem(IMPORT_KEY, JSON.stringify(doc)); }
+        catch (e) { alert('The browser refused to hand the document to the editor.'); return; }
+        location.href = '/protocols/new?import=1';
+    }
+
+    // ── 요약 ───────────────────────────────────────────────────────
+    function select(id) {
+        selectedId = id;
+        table.getRows().forEach(r => r.reformat());
+        history.replaceState(null, '', '/protocols?definition=' + id);
+        api('GET', '/api/protocols/' + id).then(function (d) {
+            if (id !== selectedId) return;
+            detail = d;
+            renderDetail();
+        }, clearDetail);
+    }
+
+    function clearDetail() {
+        selectedId = null; detail = null;
+        $('#detailTitle').text('Select a definition');
+        $('#detailTools').hide(); $('#detailBody').hide(); $('#detailEmpty').show();
+    }
+
+    function count(o) { return o && typeof o === 'object' ? Object.keys(o).length : 0; }
+    function list(v) { return Array.isArray(v) ? v : []; }
+
+    function renderDetail() {
+        const d = detail, doc = d.document || {};
+        $('#detailEmpty').hide(); $('#detailBody').show(); $('#detailTools').show();
+        $('#detailTitle').text(d.name);
+        $('#editBtn').attr('href', '/protocols/edit/' + d.id);
+        $('#descText').text(d.description || '');
+        $('#sumMessages').text(messagesText(d));
+        $('#sumFrames').text(count(doc.frames));
+        $('#sumChecksums').text(count(doc.checksums));
+        let targets = 0, patterns = 0;
+        Object.keys(doc.targets || {}).forEach(function (g) {
+            const t = doc.targets[g] || {};
+            if (t.kind === 'pattern') patterns++;
+            else targets += list(t.items).filter(it => it && it.target).length;
+        });
+        $('#sumTargets').text(targets + (patterns ? ' + ' + patterns + (patterns === 1 ? ' pattern' : ' patterns') : ''));
+        $('#sumTests').text(list(doc.tests).length);
+
+        const params = Object.keys(doc.params || {});
+        $('#paramList').html(params.length ? params.map(function (n) {
+            const p = doc.params[n] || {};
+            return '<div class="pd-row"><span>' + esc(n) + '</span><span>' + esc((p.type || '') + (p.default != null ? ' · ' + p.default : '')) + '</span></div>';
+        }).join('') : '<div class="pd-none">No parameters.</div>');
+
+        $('#deviceList').html(d.devices.length ? d.devices.map(u =>
+            '<div class="pd-row"><span>' + esc(u.protocol) + '</span><span><a href="/editDevice/' + u.id + '">' + esc(u.name) + '</a></span></div>').join('')
+            : '<div class="pd-none">No device uses it.</div>');
+        $('#updatedText').text(fmtDateTime(d.updatedAt));
+        $('#deleteBtn').prop('disabled', d.devices.length > 0)
+            .attr('title', d.devices.length ? 'Devices use this definition. Choose another definition for them first.' : '');
+
+        const rows = list(doc.messages).map(function (m) {
+            m = m || {};
+            const replies = list(m.respond).map(r => r && r.reply).filter(Boolean).map(r => '<span class="pd-chip">' + esc(r) + '</span>').join('');
+            return '<tr><td><span class="pd-badge ' + (m.direction === 'tx' ? 'tx' : 'rx') + '">' + (m.direction === 'tx' ? 'TX' : 'RX') + '</span>' + esc(m.name) + '</td>'
+                + '<td>' + esc(m.frame || '') + '</td><td>' + (m.match ? '<code>' + esc(m.match) + '</code>' : '') + '</td><td>' + replies + '</td></tr>';
+        });
+        $('#messageRows').html(rows.join('') || '<tr><td colspan="4" class="pd-none">No messages.</td></tr>');
+    }
+
+    // ── 시작 ───────────────────────────────────────────────────────
+    $(function () {
+        initTable();
+        $('#defSearch').on('input', function () {
+            const v = this.value.trim();
+            if (v) table.setFilter('name', 'like', v); else table.clearFilter();
+        });
+        document.querySelector('.pd-list').addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const a = btn.getAttribute('data-action');
+            if (a === 'add') CtsModal.show('#addModal');
+            else if (a === 'export') exportDefs(checkedIds());
+            else if (a === 'delete') deleteDefs(checkedIds());
+        });
+        document.getElementById('detailTools').addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-detail]');
+            if (!btn || !detail) return;
+            const a = btn.getAttribute('data-detail');
+            if (a === 'duplicate') duplicate(detail.id);
+            else if (a === 'download') download(detail.name + '.json', detail.document);
+            else if (a === 'delete') deleteDefs([detail.id]);
+        });
+
+        $('#exampleList').html(EXAMPLES.map(x => '<a href="/protocols/new?example=' + x.id + '" class="list-group-item list-group-item-action">'
+            + '<div class="fw-semibold">' + esc(x.title) + '</div><div class="text-secondary small">' + esc(x.sub) + '</div></a>').join(''));
+        $('#chooseFile').on('click', function () { $('#importFile').click(); });
+        $('#importFile').on('change', function () {
+            const file = this.files && this.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function () {
+                let d;
+                try { d = JSON.parse(String(reader.result)); } catch (err) { alert('This file is not valid JSON: ' + err.message); return; }
+                if (!d || typeof d !== 'object' || Array.isArray(d)) { alert('This file is not a protocol definition.'); return; }
+                if (d.format !== 'cts-protocol' && !confirm('This does not look like a protocol definition. Open it anyway?')) return;
+                openUnsaved(d);
+            };
+            reader.readAsText(file);
+            this.value = '';
+        });
+
+        loadList().then(function () { if (SELECTED_ON_LOAD) select(SELECTED_ON_LOAD); });
+    });
+</script>
+</body>
+</html>

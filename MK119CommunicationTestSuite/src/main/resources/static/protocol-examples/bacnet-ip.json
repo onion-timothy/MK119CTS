@@ -1,0 +1,671 @@
+{
+  "format": "cts-protocol",
+  "version": 1,
+  "name": "bacnet-ip",
+  "doc": "BACnet/IP 서버의 ReadProperty·WriteProperty (UDP 47808). 객체는 Device 하나와 AI·AO·AV·BI·BO·BV 이고, I/O 객체의 Present_Value 가 Target 하나씩이다(AV-1 등). Device 는 Object_Name·Vendor 정보 같은 고정 속성만 읽힌다. SNET 이 있는 요청(라우터 경유)에는 DNET 으로 응답한다. 다른 서비스는 Reject, 분할 요청은 Abort, Who-Is 같은 Unconfirmed 요청에는 응답하지 않는다. 우선순위 배열은 없으며 Priority 는 범위만 검사한다.",
+  "params": {
+    "deviceInstance": {"value": "integer", "default": 1001, "min": 0, "max": 4194302, "doc": "Device 객체의 인스턴스 번호"},
+    "vendorId": {"value": "integer", "default": 999, "min": 0, "max": 65535, "doc": "Vendor_Identifier"}
+  },
+  "consts": {
+    "MAPS": "ai,ao,av,bi,bo,bv",
+    "PREFIXES": "AI-AO-AV-BI-BO-BV-",
+    "DEVICE_NAME": "CTS BACnet Device",
+    "VENDOR_NAME": "CTS Simulator",
+    "MODEL_NAME": "CTS-BIP"
+  },
+  "targets": {
+    "ai": {
+      "kind": "sequence",
+      "base": 1,
+      "slotSize": 4,
+      "doc": "analog-input 객체(종류 0). 번지가 곧 인스턴스 번호(1부터). Present_Value 는 REAL, 읽기 전용",
+      "items": [
+        {"target": "AI-1", "type": "FLOAT", "size": 4},
+        {"target": "AI-2", "type": "FLOAT", "size": 4},
+        {"target": "AI-3", "type": "FLOAT", "size": 4},
+        {"target": "AI-4", "type": "FLOAT", "size": 4}
+      ]
+    },
+    "ao": {
+      "kind": "sequence",
+      "base": 1,
+      "slotSize": 4,
+      "doc": "analog-output 객체(종류 1). 번지가 곧 인스턴스 번호(1부터). Present_Value 는 REAL",
+      "items": [{"target": "AO-1", "type": "FLOAT", "size": 4, "access": "rw"}, {"target": "AO-2", "type": "FLOAT", "size": 4, "access": "rw"}]
+    },
+    "av": {
+      "kind": "sequence",
+      "base": 1,
+      "slotSize": 4,
+      "doc": "analog-value 객체(종류 2). 번지가 곧 인스턴스 번호(1부터). Present_Value 는 REAL",
+      "items": [
+        {"target": "AV-1", "type": "FLOAT", "size": 4, "access": "rw"},
+        {"target": "AV-2", "type": "FLOAT", "size": 4, "access": "rw"},
+        {"target": "AV-3", "type": "FLOAT", "size": 4, "access": "rw"},
+        {"target": "AV-4", "type": "FLOAT", "size": 4, "access": "rw"}
+      ]
+    },
+    "bi": {
+      "kind": "sequence",
+      "base": 1,
+      "slotSize": 1,
+      "doc": "binary-input 객체(종류 3). 번지가 곧 인스턴스 번호(1부터). Present_Value 는 0(inactive)·1(active), 읽기 전용",
+      "items": [
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BI-1"}]},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BI-2"}]},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BI-3"}]},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BI-4"}]}
+      ]
+    },
+    "bo": {
+      "kind": "sequence",
+      "base": 1,
+      "slotSize": 1,
+      "doc": "binary-output 객체(종류 4). 번지가 곧 인스턴스 번호(1부터). Present_Value 는 0(inactive)·1(active)",
+      "items": [
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BO-1"}], "access": "rw"},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BO-2"}], "access": "rw"}
+      ]
+    },
+    "bv": {
+      "kind": "sequence",
+      "base": 1,
+      "slotSize": 1,
+      "doc": "binary-value 객체(종류 5). 번지가 곧 인스턴스 번호(1부터). Present_Value 는 0(inactive)·1(active)",
+      "items": [
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BV-1"}], "access": "rw"},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BV-2"}], "access": "rw"},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BV-3"}], "access": "rw"},
+        {"type": "BITS", "size": 1, "fields": [{"bit": 0, "target": "BV-4"}], "access": "rw"}
+      ]
+    }
+  },
+  "frames": {
+    "bip": {
+      "doc": "BVLC(4바이트) + NPDU. 본문은 APDU",
+      "header": [
+        {"name": "bvlcType", "type": "UINT", "size": 1, "const": 129, "doc": "BACnet/IP"},
+        {
+          "name": "bvlcFunction",
+          "type": "UINT",
+          "size": 1,
+          "value": "0x0A",
+          "expect": "this == 0x0A || this == 0x0B",
+          "doc": "Original-Unicast-NPDU(0x0A) · Original-Broadcast-NPDU(0x0B)"
+        },
+        {
+          "name": "length",
+          "type": "UINT",
+          "size": 2,
+          "value": "6 + ((npduControl & 0x28) != 0 ? 3 + addressLength : 0) + ((npduControl & 0x20) != 0 ? 1 : 0) + sizeof(body)",
+          "doc": "BVLC 길이 — 패킷 전체. 헤더(BVLC 4 + NPDU 2 + DNET 이 있으면 3 + 주소 + 홉 수 1)와 본문의 합. 자기 자신이 든 sizeof(header) 는 쓸 수 없어 헤더 크기를 직접 센다"
+        },
+        {"name": "npduVersion", "type": "UINT", "size": 1, "const": 1},
+        {
+          "name": "npduControl",
+          "type": "UINT",
+          "size": 1,
+          "value": "(req.header.npduControl & 0x08) != 0 ? 0x20 : 0",
+          "expect": "(this & 0xF0) == 0",
+          "doc": "받을 때 DNET(0x20)·네트워크 메시지(0x80)는 받지 않는다. SNET(0x08)이 있으면 DNET 으로 응답"
+        },
+        {"name": "net", "type": "UINT", "size": 2, "when": "(npduControl & 0x28) != 0", "value": "req.header.net", "doc": "받을 때 SNET, 보낼 때 DNET"},
+        {"name": "addressLength", "type": "UINT", "size": 1, "when": "(npduControl & 0x28) != 0", "value": "req.header.addressLength"},
+        {"name": "address", "type": "BYTES", "size": "addressLength", "when": "(npduControl & 0x28) != 0", "value": "req.header.address"},
+        {"name": "hopCount", "type": "UINT", "size": 1, "when": "(npduControl & 0x20) != 0", "value": "255"}
+      ],
+      "footer": [],
+      "bodySize": "header.length - sizeof(header)"
+    }
+  },
+  "messages": [
+    {
+      "name": "readProperty",
+      "direction": "rx",
+      "frame": "bip",
+      "doc": "ReadProperty 요청 (서비스 12)",
+      "body": [
+        {
+          "name": "pduType",
+          "type": "UINT",
+          "size": 1,
+          "expect": "this == 0x00 || this == 0x02",
+          "doc": "Confirmed-Request, 분할하지 않음 (0x02 는 분할 응답 수락 표시)"
+        },
+        {"name": "maxResponse", "type": "UINT", "size": 1},
+        {"name": "invokeId", "type": "UINT", "size": 1},
+        {"name": "service", "type": "UINT", "size": 1, "const": 12},
+        {"type": "UINT", "size": 1, "const": 12, "doc": "문맥 태그 0, 4바이트 — Object Identifier"},
+        {"name": "oid", "type": "BITS", "size": 4, "fields": [{"name": "type", "bit": 22, "bits": 10}, {"name": "instance", "bit": 0, "bits": 22}]},
+        {
+          "name": "propTag",
+          "type": "UINT",
+          "size": 1,
+          "expect": "(this & 0xF8) == 0x18 && (this & 7) >= 1 && (this & 7) <= 4",
+          "doc": "문맥 태그 1 — Property Identifier, 1~4바이트"
+        },
+        {"name": "propId", "type": "BYTES", "size": "propTag & 7"},
+        {
+          "name": "indexTag",
+          "type": "UINT",
+          "size": 1,
+          "when": "header.length - sizeof(header) > 10 + len(propId)",
+          "expect": "(this & 0xF8) == 0x28 && (this & 7) >= 1 && (this & 7) <= 4",
+          "doc": "문맥 태그 2 — Property Array Index. 본문이 Property Identifier 뒤에도 남았을 때만"
+        },
+        {"name": "arrayIndex", "type": "BYTES", "size": "indexTag & 7", "when": "has(body.indexTag)"}
+      ],
+      "respond": [
+        {
+          "name": "unknownObject",
+          "when": "!(body.oid.type == 8 ? body.oid.instance == $deviceInstance || body.oid.instance == 4194303 : body.oid.type <= 5 && fits(substr($MAPS, body.oid.type * 3, 2), body.oid.instance, 1))",
+          "reply": "error",
+          "args": {"errorClass": "1", "errorCode": "31"}
+        },
+        {
+          "name": "unknownProperty",
+          "when": "!(unpack(body.propId) in (body.oid.type == 8 ? [75, 77, 79, 70, 98, 112, 120, 121, 139] : [75, 77, 79, 81, 85, 111]))",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "32"}
+        },
+        {"name": "notAnArray", "when": "has(body.arrayIndex)", "reply": "error", "args": {"errorClass": "2", "errorCode": "50"}},
+        {
+          "name": "objectIdentifier",
+          "when": "unpack(body.propId) == 75",
+          "reply": "readAck",
+          "args": {"value": "x'C4' + pack((body.oid.type << 22) | (body.oid.type == 8 ? $deviceInstance : body.oid.instance), 4)"}
+        },
+        {"name": "objectType", "when": "unpack(body.propId) == 79", "reply": "readAck", "args": {"value": "x'91' + pack(body.oid.type, 1)"}},
+        {
+          "name": "deviceName",
+          "when": "unpack(body.propId) == 77 && body.oid.type == 8",
+          "reply": "readAck",
+          "args": {"value": "x'75' + pack(len($DEVICE_NAME) + 1, 1) + x'00' + bytes($DEVICE_NAME)"}
+        },
+        {
+          "name": "objectName",
+          "when": "unpack(body.propId) == 77",
+          "reply": "readAck",
+          "args": {
+            "value": "x'75' + pack(len(text(body.oid.instance)) + 4, 1) + x'00' + bytes(substr($PREFIXES, body.oid.type * 3, 3) + text(body.oid.instance))"
+          }
+        },
+        {
+          "name": "analogPresentValue",
+          "when": "unpack(body.propId) == 85 && body.oid.type <= 2",
+          "reply": "readAck",
+          "args": {"value": "x'44' + read(substr($MAPS, body.oid.type * 3, 2), body.oid.instance, 1)"}
+        },
+        {
+          "name": "binaryPresentValue",
+          "when": "unpack(body.propId) == 85",
+          "reply": "readAck",
+          "args": {"value": "x'91' + read(substr($MAPS, body.oid.type * 3, 2), body.oid.instance, 1)"}
+        },
+        {"name": "statusFlags", "when": "unpack(body.propId) == 111", "reply": "readAck", "args": {"value": "x'820400'"}},
+        {"name": "outOfService", "when": "unpack(body.propId) == 81", "reply": "readAck", "args": {"value": "x'10'"}},
+        {"name": "systemStatus", "when": "unpack(body.propId) == 112", "reply": "readAck", "args": {"value": "x'9100'"}},
+        {"name": "vendorIdentifier", "when": "unpack(body.propId) == 120", "reply": "readAck", "args": {"value": "x'22' + pack($vendorId, 2)"}},
+        {
+          "name": "vendorName",
+          "when": "unpack(body.propId) == 121",
+          "reply": "readAck",
+          "args": {"value": "x'75' + pack(len($VENDOR_NAME) + 1, 1) + x'00' + bytes($VENDOR_NAME)"}
+        },
+        {
+          "name": "modelName",
+          "when": "unpack(body.propId) == 70",
+          "reply": "readAck",
+          "args": {"value": "x'75' + pack(len($MODEL_NAME) + 1, 1) + x'00' + bytes($MODEL_NAME)"}
+        },
+        {"name": "protocolVersion", "when": "unpack(body.propId) == 98", "reply": "readAck", "args": {"value": "x'2101'"}},
+        {"name": "protocolRevision", "when": "unpack(body.propId) == 139", "reply": "readAck", "args": {"value": "x'210E'"}}
+      ]
+    },
+    {
+      "name": "writeProperty",
+      "direction": "rx",
+      "frame": "bip",
+      "doc": "WriteProperty 요청 (서비스 15)",
+      "body": [
+        {
+          "name": "pduType",
+          "type": "UINT",
+          "size": 1,
+          "expect": "this == 0x00 || this == 0x02",
+          "doc": "Confirmed-Request, 분할하지 않음 (0x02 는 분할 응답 수락 표시)"
+        },
+        {"name": "maxResponse", "type": "UINT", "size": 1},
+        {"name": "invokeId", "type": "UINT", "size": 1},
+        {"name": "service", "type": "UINT", "size": 1, "const": 15},
+        {"type": "UINT", "size": 1, "const": 12, "doc": "문맥 태그 0, 4바이트 — Object Identifier"},
+        {"name": "oid", "type": "BITS", "size": 4, "fields": [{"name": "type", "bit": 22, "bits": 10}, {"name": "instance", "bit": 0, "bits": 22}]},
+        {
+          "name": "propTag",
+          "type": "UINT",
+          "size": 1,
+          "expect": "(this & 0xF8) == 0x18 && (this & 7) >= 1 && (this & 7) <= 4",
+          "doc": "문맥 태그 1 — Property Identifier, 1~4바이트"
+        },
+        {"name": "propId", "type": "BYTES", "size": "propTag & 7"},
+        {
+          "name": "nextTag",
+          "type": "UINT",
+          "size": 1,
+          "expect": "this == 0x3E || (this & 0xF8) == 0x28 && (this & 7) >= 1 && (this & 7) <= 4",
+          "doc": "여는 태그 3(값의 시작) 또는 문맥 태그 2(Property Array Index)"
+        },
+        {"name": "arrayIndex", "type": "BYTES", "size": "nextTag & 7", "when": "nextTag != 0x3E"},
+        {"name": "openTag", "type": "UINT", "size": 1, "const": 62, "when": "nextTag != 0x3E"},
+        {
+          "name": "valueTag",
+          "type": "UINT",
+          "size": 1,
+          "expect": "(this & 0x08) == 0 && (this & 7) <= 4",
+          "doc": "응용 태그 하나 (길이 4 이하). 0x00 Null, 0x44 REAL, 0x91 Enumerated 1바이트 …"
+        },
+        {"name": "value", "type": "BYTES", "size": "(valueTag >> 4) == 1 ? 0 : valueTag & 7", "doc": "Boolean(태그 1)은 값이 태그 안에 있어 내용이 없다"},
+        {"type": "UINT", "size": 1, "const": 63, "doc": "닫는 태그 3"},
+        {
+          "name": "priorityTag",
+          "type": "UINT",
+          "size": 1,
+          "const": 73,
+          "when": "header.length - sizeof(header) > 13 + len(propId) + len(value) + (has(body.arrayIndex) ? len(body.arrayIndex) + 1 : 0)",
+          "doc": "문맥 태그 4 — Priority. 값 뒤에도 본문이 남았을 때만"
+        },
+        {"name": "priority", "type": "UINT", "size": 1, "when": "has(body.priorityTag)"}
+      ],
+      "respond": [
+        {
+          "name": "unknownObject",
+          "when": "!(body.oid.type == 8 ? body.oid.instance == $deviceInstance || body.oid.instance == 4194303 : body.oid.type <= 5 && fits(substr($MAPS, body.oid.type * 3, 2), body.oid.instance, 1))",
+          "reply": "error",
+          "args": {"errorClass": "1", "errorCode": "31"}
+        },
+        {
+          "name": "unknownProperty",
+          "when": "!(unpack(body.propId) in (body.oid.type == 8 ? [75, 77, 79, 70, 98, 112, 120, 121, 139] : [75, 77, 79, 81, 85, 111]))",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "32"}
+        },
+        {"name": "notWritable", "when": "unpack(body.propId) != 85", "reply": "error", "args": {"errorClass": "2", "errorCode": "40"}},
+        {"name": "notAnArray", "when": "has(body.arrayIndex)", "reply": "error", "args": {"errorClass": "2", "errorCode": "50"}},
+        {
+          "name": "readOnly",
+          "when": "body.oid.type == 8 || !writable(substr($MAPS, body.oid.type * 3, 2), body.oid.instance, 1)",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "40"}
+        },
+        {
+          "name": "badPriority",
+          "when": "has(body.priority) && (body.priority < 1 || body.priority > 16)",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "37"}
+        },
+        {"name": "relinquish", "when": "body.valueTag == 0", "reply": "simpleAck", "doc": "Null 은 우선순위 배열에서 값을 거두는 것이다. 우선순위 배열이 없으므로 받아들이기만 한다"},
+        {
+          "name": "analogNeedsReal",
+          "when": "body.oid.type <= 2 && body.valueTag != 0x44",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "9"}
+        },
+        {
+          "name": "binaryNeedsEnumerated",
+          "when": "body.oid.type > 2 && body.valueTag != 0x91",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "9"}
+        },
+        {
+          "name": "binaryOutOfRange",
+          "when": "body.oid.type > 2 && unpack(body.value) > 1",
+          "reply": "error",
+          "args": {"errorClass": "2", "errorCode": "37"}
+        },
+        {
+          "name": "writeAO",
+          "when": "body.oid.type == 1",
+          "reply": "simpleAck",
+          "write": [{"map": "ao", "address": "body.oid.instance", "bytes": "body.value"}]
+        },
+        {
+          "name": "writeAV",
+          "when": "body.oid.type == 2",
+          "reply": "simpleAck",
+          "write": [{"map": "av", "address": "body.oid.instance", "bytes": "body.value"}]
+        },
+        {
+          "name": "writeBO",
+          "when": "body.oid.type == 4",
+          "reply": "simpleAck",
+          "write": [{"map": "bo", "address": "body.oid.instance", "bytes": "body.value"}]
+        },
+        {
+          "name": "writeBV",
+          "when": "body.oid.type == 5",
+          "reply": "simpleAck",
+          "write": [{"map": "bv", "address": "body.oid.instance", "bytes": "body.value"}]
+        }
+      ]
+    },
+    {
+      "name": "segmentedRequest",
+      "direction": "rx",
+      "frame": "bip",
+      "doc": "분할된 Confirmed-Request — 분할을 지원하지 않는다",
+      "body": [
+        {"name": "pduType", "type": "UINT", "size": 1, "expect": "(this & 0xF0) == 0 && (this & 0x08) != 0"},
+        {"name": "maxResponse", "type": "UINT", "size": 1},
+        {"name": "invokeId", "type": "UINT", "size": 1},
+        {"name": "rest", "type": "BYTES", "size": "header.length - sizeof(header) - 3"}
+      ],
+      "respond": [{"reply": "abort", "args": {"reason": "4"}}]
+    },
+    {
+      "name": "otherService",
+      "direction": "rx",
+      "frame": "bip",
+      "doc": "그 밖의 Confirmed 서비스 — Reject(unrecognized-service)",
+      "body": [
+        {"name": "pduType", "type": "UINT", "size": 1, "expect": "this == 0x00 || this == 0x02"},
+        {"name": "maxResponse", "type": "UINT", "size": 1},
+        {"name": "invokeId", "type": "UINT", "size": 1},
+        {"name": "service", "type": "UINT", "size": 1},
+        {"name": "rest", "type": "BYTES", "size": "header.length - sizeof(header) - 4"}
+      ],
+      "respond": [{"reply": "reject", "args": {"reason": "9"}}]
+    },
+    {
+      "name": "readAck",
+      "direction": "tx",
+      "frame": "bip",
+      "doc": "ReadProperty-ACK (Complex-ACK). 값의 인코딩은 응답 규칙의 args.value",
+      "body": [
+        {"type": "UINT", "size": 1, "const": 48},
+        {"name": "invokeId", "type": "UINT", "size": 1, "value": "req.body.invokeId"},
+        {"type": "UINT", "size": 1, "const": 12},
+        {"type": "UINT", "size": 1, "const": 12},
+        {"name": "oid", "type": "UINT", "size": 4, "value": "(req.body.oid.type << 22) | req.body.oid.instance"},
+        {"name": "propTag", "type": "UINT", "size": 1, "value": "req.body.propTag"},
+        {"name": "propId", "type": "BYTES", "size": "len(req.body.propId)", "value": "req.body.propId"},
+        {"type": "UINT", "size": 1, "const": 62},
+        {"name": "value", "type": "BYTES", "size": "len(args.value)", "value": "args.value"},
+        {"type": "UINT", "size": 1, "const": 63}
+      ]
+    },
+    {
+      "name": "simpleAck",
+      "direction": "tx",
+      "frame": "bip",
+      "doc": "WriteProperty 의 Simple-ACK",
+      "body": [
+        {"type": "UINT", "size": 1, "const": 32},
+        {"name": "invokeId", "type": "UINT", "size": 1, "value": "req.body.invokeId"},
+        {"type": "UINT", "size": 1, "const": 15}
+      ]
+    },
+    {
+      "name": "error",
+      "direction": "tx",
+      "frame": "bip",
+      "doc": "Error PDU. args.errorClass, args.errorCode",
+      "body": [
+        {"type": "UINT", "size": 1, "const": 80},
+        {"name": "invokeId", "type": "UINT", "size": 1, "value": "req.body.invokeId"},
+        {"name": "service", "type": "UINT", "size": 1, "value": "req.body.service"},
+        {"type": "UINT", "size": 1, "const": 145},
+        {"name": "errorClass", "type": "UINT", "size": 1, "value": "args.errorClass"},
+        {"type": "UINT", "size": 1, "const": 145},
+        {"name": "errorCode", "type": "UINT", "size": 1, "value": "args.errorCode"}
+      ]
+    },
+    {
+      "name": "reject",
+      "direction": "tx",
+      "frame": "bip",
+      "doc": "Reject PDU",
+      "body": [
+        {"type": "UINT", "size": 1, "const": 96},
+        {"name": "invokeId", "type": "UINT", "size": 1, "value": "req.body.invokeId"},
+        {"name": "reason", "type": "UINT", "size": 1, "value": "args.reason"}
+      ]
+    },
+    {
+      "name": "abort",
+      "direction": "tx",
+      "frame": "bip",
+      "doc": "Abort PDU (서버가 보냄)",
+      "body": [
+        {"type": "UINT", "size": 1, "const": 113},
+        {"name": "invokeId", "type": "UINT", "size": 1, "value": "req.body.invokeId"},
+        {"name": "reason", "type": "UINT", "size": 1, "value": "args.reason"}
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "name": "AI-1 Present_Value (REAL)",
+      "data": {"AI-1": 21.5, "AI-2": -3.25, "AO-1": 50, "AV-1": 12.75, "AV-2": 0, "BI-1": 1, "BI-2": 0, "BO-1": 1, "BV-1": 0, "BV-3": 1},
+      "send": "81 0A 00 11 01 04 00 05 01 0C 0C 00 00 00 01 19 55",
+      "expect": "81 0A 00 17 01 00 30 01 0C 0C 00 00 00 01 19 55 3E 44 41 AC 00 00 3F"
+    },
+    {
+      "name": "AI-2 음수 REAL",
+      "send": "81 0A 00 11 01 04 00 05 02 0C 0C 00 00 00 02 19 55",
+      "expect": "81 0A 00 17 01 00 30 02 0C 0C 00 00 00 02 19 55 3E 44 C0 50 00 00 3F"
+    },
+    {
+      "name": "AV-1 Present_Value",
+      "send": "81 0A 00 11 01 04 00 05 03 0C 0C 00 80 00 01 19 55",
+      "expect": "81 0A 00 17 01 00 30 03 0C 0C 00 80 00 01 19 55 3E 44 41 4C 00 00 3F"
+    },
+    {
+      "name": "BI-1 Present_Value (Enumerated active)",
+      "send": "81 0A 00 11 01 04 00 05 04 0C 0C 00 C0 00 01 19 55",
+      "expect": "81 0A 00 14 01 00 30 04 0C 0C 00 C0 00 01 19 55 3E 91 01 3F"
+    },
+    {
+      "name": "BV-1 Present_Value (inactive)",
+      "send": "81 0A 00 11 01 04 00 05 05 0C 0C 01 40 00 01 19 55",
+      "expect": "81 0A 00 14 01 00 30 05 0C 0C 01 40 00 01 19 55 3E 91 00 3F"
+    },
+    {
+      "name": "AV-1 Object_Name",
+      "send": "81 0A 00 11 01 04 00 05 06 0C 0C 00 80 00 01 19 4D",
+      "expect": "81 0A 00 19 01 00 30 06 0C 0C 00 80 00 01 19 4D 3E 75 05 00 41 56 2D 31 3F"
+    },
+    {
+      "name": "AI-4 Object_Identifier",
+      "send": "81 0A 00 11 01 04 00 05 07 0C 0C 00 00 00 04 19 4B",
+      "expect": "81 0A 00 17 01 00 30 07 0C 0C 00 00 00 04 19 4B 3E C4 00 00 00 04 3F"
+    },
+    {
+      "name": "BO-2 Object_Type",
+      "send": "81 0A 00 11 01 04 00 05 08 0C 0C 01 00 00 02 19 4F",
+      "expect": "81 0A 00 14 01 00 30 08 0C 0C 01 00 00 02 19 4F 3E 91 04 3F"
+    },
+    {
+      "name": "AO-1 Status_Flags",
+      "send": "81 0A 00 11 01 04 00 05 09 0C 0C 00 40 00 01 19 6F",
+      "expect": "81 0A 00 15 01 00 30 09 0C 0C 00 40 00 01 19 6F 3E 82 04 00 3F"
+    },
+    {
+      "name": "BV-3 Out_Of_Service",
+      "send": "81 0A 00 11 01 04 00 05 0A 0C 0C 01 40 00 03 19 51",
+      "expect": "81 0A 00 13 01 00 30 0A 0C 0C 01 40 00 03 19 51 3E 10 3F"
+    },
+    {
+      "name": "Device Object_Name",
+      "send": "81 0A 00 11 01 04 00 05 0B 0C 0C 02 00 03 E9 19 4D",
+      "expect": "81 0A 00 26 01 00 30 0B 0C 0C 02 00 03 E9 19 4D 3E 75 12 00 43 54 53 20 42 41 43 6E 65 74 20 44 65 76 69 63 65 3F"
+    },
+    {
+      "name": "Device 와일드카드 인스턴스로 Object_Identifier",
+      "send": "81 0A 00 11 01 04 00 05 0C 0C 0C 02 3F FF FF 19 4B",
+      "expect": "81 0A 00 17 01 00 30 0C 0C 0C 02 3F FF FF 19 4B 3E C4 02 00 03 E9 3F"
+    },
+    {
+      "name": "Device Vendor_Identifier",
+      "send": "81 0A 00 11 01 04 00 05 0D 0C 0C 02 00 03 E9 19 78",
+      "expect": "81 0A 00 15 01 00 30 0D 0C 0C 02 00 03 E9 19 78 3E 22 03 E7 3F"
+    },
+    {
+      "name": "Device Vendor_Name",
+      "send": "81 0A 00 11 01 04 00 05 0E 0C 0C 02 00 03 E9 19 79",
+      "expect": "81 0A 00 22 01 00 30 0E 0C 0C 02 00 03 E9 19 79 3E 75 0E 00 43 54 53 20 53 69 6D 75 6C 61 74 6F 72 3F"
+    },
+    {
+      "name": "Device System_Status",
+      "send": "81 0A 00 11 01 04 00 05 0F 0C 0C 02 00 03 E9 19 70",
+      "expect": "81 0A 00 14 01 00 30 0F 0C 0C 02 00 03 E9 19 70 3E 91 00 3F"
+    },
+    {
+      "name": "Device Protocol_Revision",
+      "send": "81 0A 00 11 01 04 00 05 10 0C 0C 02 00 03 E9 19 8B",
+      "expect": "81 0A 00 14 01 00 30 10 0C 0C 02 00 03 E9 19 8B 3E 21 0E 3F"
+    },
+    {
+      "name": "파라미터로 바꾼 Device 인스턴스·Vendor",
+      "send": "81 0A 00 11 01 04 00 05 11 0C 0C 02 00 00 4D 19 78",
+      "expect": "81 0A 00 15 01 00 30 11 0C 0C 02 00 00 4D 19 78 3E 22 01 2C 3F",
+      "params": {"deviceInstance": 77, "vendorId": 300}
+    },
+    {
+      "name": "없는 객체 AV-9 → unknown-object",
+      "send": "81 0A 00 11 01 04 00 05 12 0C 0C 00 80 00 09 19 55",
+      "expect": "81 0A 00 0D 01 00 50 12 0C 91 01 91 1F"
+    },
+    {
+      "name": "인스턴스 0 → unknown-object",
+      "send": "81 0A 00 11 01 04 00 05 13 0C 0C 00 00 00 00 19 55",
+      "expect": "81 0A 00 0D 01 00 50 13 0C 91 01 91 1F"
+    },
+    {
+      "name": "다른 Device 인스턴스 → unknown-object",
+      "send": "81 0A 00 11 01 04 00 05 14 0C 0C 02 00 03 EA 19 4D",
+      "expect": "81 0A 00 0D 01 00 50 14 0C 91 01 91 1F"
+    },
+    {
+      "name": "Priority_Array(87) → unknown-property",
+      "send": "81 0A 00 11 01 04 00 05 15 0C 0C 00 80 00 01 19 57",
+      "expect": "81 0A 00 0D 01 00 50 15 0C 91 02 91 20"
+    },
+    {
+      "name": "2바이트 속성 번호(512) → unknown-property",
+      "send": "81 0A 00 12 01 04 00 05 16 0C 0C 00 80 00 01 1A 02 00",
+      "expect": "81 0A 00 0D 01 00 50 16 0C 91 02 91 20"
+    },
+    {
+      "name": "Device 에 Present_Value → unknown-property",
+      "send": "81 0A 00 11 01 04 00 05 17 0C 0C 02 00 03 E9 19 55",
+      "expect": "81 0A 00 0D 01 00 50 17 0C 91 02 91 20"
+    },
+    {
+      "name": "배열 번호를 붙이면 → property-is-not-an-array",
+      "send": "81 0A 00 13 01 04 00 05 18 0C 0C 00 80 00 01 19 55 29 01",
+      "expect": "81 0A 00 0D 01 00 50 18 0C 91 02 91 32"
+    },
+    {
+      "name": "AV-2 에 REAL 55.5 쓰기",
+      "send": "81 0A 00 18 01 04 00 05 1E 0F 0C 00 80 00 02 19 55 3E 44 42 5E 00 00 3F",
+      "expect": "81 0A 00 09 01 00 20 1E 0F",
+      "expectWrites": {"AV-2": 55.5}
+    },
+    {
+      "name": "쓴 값 다시 읽기 AV-2",
+      "send": "81 0A 00 11 01 04 00 05 1F 0C 0C 00 80 00 02 19 55",
+      "expect": "81 0A 00 17 01 00 30 1F 0C 0C 00 80 00 02 19 55 3E 44 42 5E 00 00 3F"
+    },
+    {
+      "name": "AO-2 에 우선순위 8 로 쓰기",
+      "send": "81 0A 00 1A 01 04 00 05 20 0F 0C 00 40 00 02 19 55 3E 44 C1 48 00 00 3F 49 08",
+      "expect": "81 0A 00 09 01 00 20 20 0F",
+      "expectWrites": {"AO-2": -12.5}
+    },
+    {
+      "name": "BV-1 을 active 로",
+      "send": "81 0A 00 15 01 04 00 05 21 0F 0C 01 40 00 01 19 55 3E 91 01 3F",
+      "expect": "81 0A 00 09 01 00 20 21 0F",
+      "expectWrites": {"BV-1": 1}
+    },
+    {
+      "name": "쓴 값 다시 읽기 BV-1",
+      "send": "81 0A 00 11 01 04 00 05 22 0C 0C 01 40 00 01 19 55",
+      "expect": "81 0A 00 14 01 00 30 22 0C 0C 01 40 00 01 19 55 3E 91 01 3F"
+    },
+    {
+      "name": "BO-1 을 inactive 로",
+      "send": "81 0A 00 17 01 04 00 05 23 0F 0C 01 00 00 01 19 55 3E 91 00 3F 49 10",
+      "expect": "81 0A 00 09 01 00 20 23 0F",
+      "expectWrites": {"BO-1": 0}
+    },
+    {
+      "name": "Null 쓰기(우선순위 해제) → 값은 그대로",
+      "send": "81 0A 00 16 01 04 00 05 24 0F 0C 00 80 00 01 19 55 3E 00 3F 49 08",
+      "expect": "81 0A 00 09 01 00 20 24 0F"
+    },
+    {
+      "name": "AI-1 쓰기 → write-access-denied",
+      "send": "81 0A 00 18 01 04 00 05 25 0F 0C 00 00 00 01 19 55 3E 44 3F 80 00 00 3F",
+      "expect": "81 0A 00 0D 01 00 50 25 0F 91 02 91 28"
+    },
+    {
+      "name": "BI-2 쓰기 → write-access-denied",
+      "send": "81 0A 00 15 01 04 00 05 26 0F 0C 00 C0 00 02 19 55 3E 91 01 3F",
+      "expect": "81 0A 00 0D 01 00 50 26 0F 91 02 91 28"
+    },
+    {
+      "name": "AV-1 Object_Name 쓰기 → write-access-denied",
+      "send": "81 0A 00 18 01 04 00 05 27 0F 0C 00 80 00 01 19 4D 3E 74 00 58 2D 31 3F",
+      "expect": "81 0A 00 0D 01 00 50 27 0F 91 02 91 28"
+    },
+    {
+      "name": "AV-1 에 Unsigned 쓰기 → invalid-data-type",
+      "send": "81 0A 00 15 01 04 00 05 28 0F 0C 00 80 00 01 19 55 3E 21 05 3F",
+      "expect": "81 0A 00 0D 01 00 50 28 0F 91 02 91 09"
+    },
+    {
+      "name": "BV-2 에 2 쓰기 → value-out-of-range",
+      "send": "81 0A 00 15 01 04 00 05 29 0F 0C 01 40 00 02 19 55 3E 91 02 3F",
+      "expect": "81 0A 00 0D 01 00 50 29 0F 91 02 91 25"
+    },
+    {
+      "name": "BV-2 에 Boolean 쓰기 → invalid-data-type",
+      "send": "81 0A 00 14 01 04 00 05 2A 0F 0C 01 40 00 02 19 55 3E 11 3F",
+      "expect": "81 0A 00 0D 01 00 50 2A 0F 91 02 91 09"
+    },
+    {
+      "name": "우선순위 0 → value-out-of-range",
+      "send": "81 0A 00 1A 01 04 00 05 2B 0F 0C 00 80 00 03 19 55 3E 44 3F 80 00 00 3F 49 00",
+      "expect": "81 0A 00 0D 01 00 50 2B 0F 91 02 91 25"
+    },
+    {
+      "name": "없는 객체 BV-5 쓰기 → unknown-object",
+      "send": "81 0A 00 15 01 04 00 05 2C 0F 0C 01 40 00 05 19 55 3E 91 01 3F",
+      "expect": "81 0A 00 0D 01 00 50 2C 0F 91 01 91 1F"
+    },
+    {
+      "name": "배열 번호를 붙인 쓰기 → property-is-not-an-array",
+      "send": "81 0A 00 1A 01 04 00 05 2D 0F 0C 00 80 00 03 19 55 29 02 3E 44 3F 80 00 00 3F",
+      "expect": "81 0A 00 0D 01 00 50 2D 0F 91 02 91 32"
+    },
+    {
+      "name": "SNET 이 있는 요청 → DNET 으로 응답",
+      "send": "81 0A 00 18 01 0C 00 05 04 0A 00 00 07 00 05 32 0C 0C 00 80 00 01 19 55",
+      "expect": "81 0A 00 1F 01 20 00 05 04 0A 00 00 07 FF 30 32 0C 0C 00 80 00 01 19 55 3E 44 41 4C 00 00 3F"
+    },
+    {
+      "name": "ReadPropertyMultiple → Reject(unrecognized-service)",
+      "send": "81 0A 00 13 01 04 00 05 33 0E 0C 00 80 00 01 1E 09 55 1F",
+      "expect": "81 0A 00 09 01 00 60 33 09"
+    },
+    {
+      "name": "분할 요청 → Abort(segmentation-not-supported)",
+      "send": "81 0A 00 13 01 04 08 05 34 00 04 0C 0C 00 80 00 01 19 55",
+      "expect": "81 0A 00 09 01 00 71 34 04"
+    },
+    {"name": "Who-Is(Unconfirmed) → 응답 없음", "send": "81 0B 00 08 01 00 10 08", "expect": null},
+    {"name": "BVLC 종류가 0x81 이 아니면 응답 없음", "send": "82 0A 00 11 01 04 00 05 35 0C 0C 00 80 00 01 19 55", "expect": null}
+  ]
+}

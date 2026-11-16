@@ -9,7 +9,8 @@ public class Daeyun {
     private byte address;
     private short function;
     private int length;
-    private GenericTCPUDPPacket packet;
+    /** RS(0x0A) 시리얼 중계 본문. 프로토콜 정의 엔진이 해석한다 (docs/PROTOCOL_ENGINE_DESIGN.md 10.2) */
+    private byte[] payload;
     private int port;
     private short cardAddress;
     private short inputChannelCount;

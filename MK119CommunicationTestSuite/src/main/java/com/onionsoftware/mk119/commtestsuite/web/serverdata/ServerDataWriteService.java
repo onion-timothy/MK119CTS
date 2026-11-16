@@ -92,7 +92,7 @@ public class ServerDataWriteService {
             return Result.fail(HttpStatus.NOT_FOUND, "device_not_available");
         }
         // 만료 없는 lock 은 그 디바이스에 살아있는 편집 세션이 있을 때만 접수한다.
-        // 세션이 있으면 종료/ack timeout 시 clearDeviceLocks 가 반드시 회수하므로 lock 이 영구히 박히지 않는다.
+        // 마지막 세션이 종료/ack timeout 으로 빠질 때 clearDeviceLocks 가 반드시 회수하므로 lock 이 영구히 박히지 않는다.
         // 세션 없는 호출(외부 스크립트/CI, Test Plan)은 만료 있는 lockSeconds > 0 을 써야 한다.
         if (ServerData.isPermanentLockRequest(lockSeconds)
                 && !serverDataSessionRegistry.hasActiveSession(deviceId)) {
@@ -101,13 +101,22 @@ public class ServerDataWriteService {
         }
         ServerData sd = serverOpt.get().getServerData();
 
-        // SNMP / GENERIC 은 맵 기반 저장이라 어떤 문자열이든 새 엔트리를 만들어버린다. 그래서
-        // 등록된 simulation 의 target 집합에 없는 쓰기는 거절한다. 판정 기준은 SNMP SET 경로
-        // (SnmpHandler.processSetRequest 는 미등록 OID 에 noSuchName 을 돌려준다)와 같게 맞췄다.
+        // SNMP / GENERIC 은 맵 기반 저장이라 어떤 문자열이든 새 엔트리를 만들어버린다.
+        // GENERIC 은 프로토콜 정의의 타겟 목록에 있는 것만 쓴다 (docs/PROTOCOL_ENGINE_DESIGN.md 9.3) — Simulation 이 없어도 된다.
         Device writeDevice = deviceId == null ? null : deviceService.selectDevice(deviceId);
-        if (writeDevice != null
-                && (writeDevice.getProtocol() == Protocol.SNMP
-                    || writeDevice.getProtocol() == Protocol.GENERIC)) {
+        if (writeDevice != null && writeDevice.getProtocol() == Protocol.GENERIC) {
+            com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry registry =
+                    com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry.current();
+            com.onionsoftware.mk119.commtestsuite.protocol.Definition def = registry == null ? null : registry.forDevice(writeDevice);
+            if (def == null || def.targetInfo(target) == null) {
+                return Result.fail(HttpStatus.NOT_IMPLEMENTED, def == null
+                        ? "This device has no usable protocol definition."
+                        : "No target \"" + target + "\" in protocol definition \"" + def.name + "\".");
+            }
+        }
+        // SNMP 는 등록된 simulation 의 target 집합에 없는 쓰기를 거절한다. 판정 기준은 SNMP SET 경로
+        // (SnmpHandler.processSetRequest 는 미등록 OID 에 noSuchName 을 돌려준다)와 같게 맞췄다.
+        if (writeDevice != null && writeDevice.getProtocol() == Protocol.SNMP) {
             // ServerData 의 색인을 쓴다. 핸들러가 보는 것과 같은 것을 봐야
             // "화면에선 되는데 API 로는 안 된다" 같은 어긋남이 생기지 않는다.
             boolean known = sd.simulationFor(target) != null;
@@ -139,7 +148,7 @@ public class ServerDataWriteService {
             }
             CIPData.Type tagCip = EthernetIPTypes.cipTypeOf(tagType);
             String prefix = EthernetIPTypes.legacyPrefixOf(target);
-            CIPData.Type asked = prefix != null ? CIPData.Type.forName(prefix)
+            CIPData.Type asked = prefix != null ? EthernetIPTypes.cipTypeOf(EthernetIPTypes.dataTypeForLegacyPrefix(prefix))
                     : (dt != null ? EthernetIPTypes.cipTypeOf(dt) : tagCip);
             if (tagCip != null && asked != tagCip) {
                 return Result.fail(HttpStatus.BAD_REQUEST, "Tag \"" + tag + "\" is " + tagCip + " (" + tagType

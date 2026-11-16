@@ -1,0 +1,280 @@
+{
+  "format": "cts-protocol",
+  "version": 1,
+  "name": "power-meter",
+  "doc": "Modbus RTU 전력 계측기. 코일(FC01 읽기·FC05 쓰기), 접점 입력(FC02), 보유 레지스터(FC03 읽기·FC06·FC16 쓰기)를 지원한다. 전력량은 32비트라 레지스터 7~8 두 칸을 쓴다. 그 밖의 기능 코드는 예외 01.",
+  "params": {"unitId": {"value": "integer", "default": 1, "min": 0, "max": 255, "doc": "장비 번호"}},
+  "checksums": {"crc": {"algorithm": "CRC-16/MODBUS", "covers": {"from": "header", "to": "body"}}},
+  "framing": {"maxLength": 256, "idleFlushMs": 50},
+  "targets": {
+    "coils": {
+      "kind": "sequence",
+      "base": 0,
+      "slotSize": 1,
+      "doc": "코일 0~9 (FC01 읽기, FC05 쓰기). 한 칸이 코일 하나, 값은 0 또는 1",
+      "items": [
+        {"target": "출력1", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력2", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력3", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력4", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력5", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력6", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력7", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력8", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력9", "type": "UINT", "size": 1, "access": "rw"},
+        {"target": "출력10", "type": "UINT", "size": 1, "access": "rw"}
+      ]
+    },
+    "inputs": {
+      "kind": "sequence",
+      "base": 0,
+      "slotSize": 1,
+      "doc": "접점 입력 0~9 (FC02 읽기). 값은 0 또는 1",
+      "items": [
+        {"target": "입력1", "type": "UINT", "size": 1},
+        {"target": "입력2", "type": "UINT", "size": 1},
+        {"target": "입력3", "type": "UINT", "size": 1},
+        {"target": "입력4", "type": "UINT", "size": 1},
+        {"target": "입력5", "type": "UINT", "size": 1},
+        {"target": "입력6", "type": "UINT", "size": 1},
+        {"target": "입력7", "type": "UINT", "size": 1},
+        {"target": "입력8", "type": "UINT", "size": 1},
+        {"target": "입력9", "type": "UINT", "size": 1},
+        {"target": "입력10", "type": "UINT", "size": 1}
+      ]
+    },
+    "holding": {
+      "kind": "sequence",
+      "base": 0,
+      "slotSize": 2,
+      "doc": "보유 레지스터 0~10 (FC03 읽기, FC06·FC16 쓰기). 측정값은 읽기 전용, CT비·경보전력만 쓸 수 있다",
+      "items": [
+        {"target": "전압1", "type": "UINT", "size": 2, "scale": 0.1},
+        {"target": "전압2", "type": "UINT", "size": 2, "scale": 0.1},
+        {"target": "전압3", "type": "UINT", "size": 2, "scale": 0.1},
+        {"target": "전류1", "type": "UINT", "size": 2, "scale": 0.01},
+        {"target": "전류2", "type": "UINT", "size": 2, "scale": 0.01},
+        {"target": "전류3", "type": "UINT", "size": 2, "scale": 0.01},
+        {"target": "전력", "type": "UINT", "size": 2},
+        {"target": "전력량", "type": "UINT", "size": 4, "scale": 0.1},
+        {"target": "CT비", "type": "UINT", "size": 2, "access": "rw"},
+        {"target": "경보전력", "type": "UINT", "size": 2, "access": "rw"}
+      ]
+    }
+  },
+  "frames": {
+    "rtu": {
+      "header": [
+        {"name": "unitId", "type": "UINT", "size": 1, "value": "req.header.unitId"},
+        {"name": "function", "type": "UINT", "size": 1, "value": "req.header.function"}
+      ],
+      "footer": [{"name": "crc", "type": "UINT", "size": 2, "byteOrder": "little", "checksum": "crc"}]
+    }
+  },
+  "messages": [
+    {
+      "name": "readCoils",
+      "direction": "rx",
+      "frame": "rtu",
+      "match": "header.function == 1",
+      "doc": "FC01 코일 읽기",
+      "body": [{"name": "start", "type": "UINT", "size": 2}, {"name": "quantity", "type": "UINT", "size": 2}],
+      "respond": [
+        {"when": "header.unitId != $unitId", "reply": "none"},
+        {"when": "body.quantity < 1 || body.quantity > 2000", "reply": "exception", "args": {"code": 3}},
+        {"when": "!fits('coils', body.start, body.quantity)", "reply": "exception", "args": {"code": 2}},
+        {"reply": "readBitsReply", "args": {"prefix": "'출력'"}}
+      ]
+    },
+    {
+      "name": "readInputs",
+      "direction": "rx",
+      "frame": "rtu",
+      "match": "header.function == 2",
+      "doc": "FC02 접점 입력 읽기",
+      "body": [{"name": "start", "type": "UINT", "size": 2}, {"name": "quantity", "type": "UINT", "size": 2}],
+      "respond": [
+        {"when": "header.unitId != $unitId", "reply": "none"},
+        {"when": "body.quantity < 1 || body.quantity > 2000", "reply": "exception", "args": {"code": 3}},
+        {"when": "!fits('inputs', body.start, body.quantity)", "reply": "exception", "args": {"code": 2}},
+        {"reply": "readBitsReply", "args": {"prefix": "'입력'"}}
+      ]
+    },
+    {
+      "name": "readHolding",
+      "direction": "rx",
+      "frame": "rtu",
+      "match": "header.function == 3",
+      "doc": "FC03 보유 레지스터 읽기",
+      "body": [{"name": "start", "type": "UINT", "size": 2}, {"name": "quantity", "type": "UINT", "size": 2}],
+      "respond": [
+        {"when": "header.unitId != $unitId", "reply": "none"},
+        {"when": "body.quantity < 1 || body.quantity > 125", "reply": "exception", "args": {"code": 3}},
+        {"when": "!fits('holding', body.start, body.quantity)", "reply": "exception", "args": {"code": 2}},
+        {"name": "readOk", "reply": "readHoldingReply"}
+      ]
+    },
+    {
+      "name": "writeCoil",
+      "direction": "rx",
+      "frame": "rtu",
+      "match": "header.function == 5",
+      "doc": "FC05 코일 하나 쓰기. 값은 0xFF00(켜기) 또는 0x0000(끄기)이고, 응답은 요청 그대로",
+      "body": [{"name": "address", "type": "UINT", "size": 2}, {"name": "value", "type": "UINT", "size": 2}],
+      "respond": [
+        {"when": "header.unitId != $unitId", "reply": "none"},
+        {"when": "body.value != 0xFF00 && body.value != 0", "reply": "exception", "args": {"code": 3}},
+        {"when": "!writable('coils', body.address, 1)", "reply": "exception", "args": {"code": 2}},
+        {"reply": "echo", "write": [{"map": "coils", "address": "body.address", "bytes": "body.value == 0xFF00 ? x'01' : x'00'"}]}
+      ]
+    },
+    {
+      "name": "writeRegister",
+      "direction": "rx",
+      "frame": "rtu",
+      "match": "header.function == 6",
+      "doc": "FC06 레지스터 하나 쓰기. 응답은 요청 그대로",
+      "body": [{"name": "address", "type": "UINT", "size": 2}, {"name": "value", "type": "BYTES", "size": 2}],
+      "respond": [
+        {"when": "header.unitId != $unitId", "reply": "none"},
+        {"when": "!writable('holding', body.address, 1)", "reply": "exception", "args": {"code": 2}},
+        {"reply": "echo", "write": [{"map": "holding", "address": "body.address", "bytes": "body.value"}]}
+      ]
+    },
+    {
+      "name": "writeRegisters",
+      "direction": "rx",
+      "frame": "rtu",
+      "match": "header.function == 16",
+      "doc": "FC16 레지스터 여러 칸 쓰기",
+      "body": [
+        {"name": "start", "type": "UINT", "size": 2},
+        {"name": "quantity", "type": "UINT", "size": 2},
+        {"name": "byteCount", "type": "UINT", "size": 1},
+        {"name": "values", "type": "BYTES", "size": "byteCount"}
+      ],
+      "respond": [
+        {"when": "header.unitId != $unitId", "reply": "none"},
+        {
+          "when": "body.quantity < 1 || body.quantity > 123 || body.byteCount != body.quantity * 2",
+          "reply": "exception",
+          "args": {"code": 3}
+        },
+        {"when": "!writable('holding', body.start, body.quantity)", "reply": "exception", "args": {"code": 2}},
+        {"reply": "writeRegistersReply", "write": [{"map": "holding", "address": "body.start", "bytes": "body.values"}]}
+      ]
+    },
+    {
+      "name": "otherFunction",
+      "direction": "rx",
+      "frame": "rtu",
+      "doc": "본문이 4바이트인 그 밖의 기능 코드(FC04 등). 앞 메시지에 안 맞은 요청은 여기서 예외 01 로 답한다.",
+      "body": [{"name": "data", "type": "BYTES", "size": 4}],
+      "respond": [{"when": "header.unitId != $unitId", "reply": "none"}, {"reply": "exception", "args": {"code": 1}}]
+    },
+    {
+      "name": "readBitsReply",
+      "direction": "tx",
+      "frame": "rtu",
+      "doc": "FC01·FC02 응답. 비트 8개를 한 바이트에(첫 번지가 가장 아래 비트). args.prefix 는 Target 이름 앞부분('출력'·'입력'), 번지 n 의 Target 은 prefix + (n + 1)",
+      "body": [
+        {"name": "byteCount", "type": "UINT", "size": 1, "value": "(req.body.quantity + 7) // 8"},
+        {
+          "name": "status",
+          "type": "UINT",
+          "size": 1,
+          "count": "byteCount",
+          "value": "(i * 8 + 0 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 1)) != 0 ? 1 : 0) | (i * 8 + 1 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 2)) != 0 ? 2 : 0) | (i * 8 + 2 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 3)) != 0 ? 4 : 0) | (i * 8 + 3 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 4)) != 0 ? 8 : 0) | (i * 8 + 4 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 5)) != 0 ? 16 : 0) | (i * 8 + 5 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 6)) != 0 ? 32 : 0) | (i * 8 + 6 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 7)) != 0 ? 64 : 0) | (i * 8 + 7 < req.body.quantity && data(args.prefix + text(req.body.start + i * 8 + 8)) != 0 ? 128 : 0)"
+        }
+      ]
+    },
+    {
+      "name": "readHoldingReply",
+      "direction": "tx",
+      "frame": "rtu",
+      "body": [
+        {"name": "byteCount", "type": "UINT", "size": 1, "value": "sizeof(body.values)"},
+        {"name": "values", "type": "BYTES", "size": "byteCount", "value": "read('holding', req.body.start, req.body.quantity)"}
+      ]
+    },
+    {
+      "name": "writeRegistersReply",
+      "direction": "tx",
+      "frame": "rtu",
+      "body": [
+        {"name": "start", "type": "UINT", "size": 2, "value": "req.body.start"},
+        {"name": "quantity", "type": "UINT", "size": 2, "value": "req.body.quantity"}
+      ]
+    },
+    {
+      "name": "exception",
+      "direction": "tx",
+      "frame": "rtu",
+      "set": {"header.function": "req.header.function | 0x80"},
+      "body": [{"name": "code", "type": "UINT", "size": 1, "value": "args.code"}]
+    }
+  ],
+  "tests": [
+    {
+      "name": "FC03 전체 읽기 0..10",
+      "data": {
+        "전압1": 220.1,
+        "전압2": 220.3,
+        "전압3": 219.8,
+        "전류1": 5.12,
+        "전류2": 4.98,
+        "전류3": 5.05,
+        "전력": 3275,
+        "전력량": 12345.6,
+        "CT비": 100,
+        "경보전력": 5000
+      },
+      "send": "01 03 00 00 00 0B 04 0D",
+      "expect": "01 03 16 08 99 08 9B 08 96 02 00 01 F2 01 F9 0C CB 00 01 E2 40 00 64 13 88 25 DB"
+    },
+    {"name": "FC03 전류 3..5", "send": "01 03 00 03 00 03 F5 CB", "expect": "01 03 06 02 00 01 F2 01 F9 41 4A"},
+    {"name": "FC03 전력량 7..8", "send": "01 03 00 07 00 02 75 CA", "expect": "01 03 04 00 01 E2 40 E2 A3"},
+    {"name": "FC03 전력량 절반만", "send": "01 03 00 08 00 01 05 C8", "expect": "01 83 02 C0 F1"},
+    {"name": "FC03 범위 밖", "send": "01 03 00 0A 00 02 E4 09", "expect": "01 83 02 C0 F1"},
+    {"name": "FC03 수량 0", "send": "01 03 00 00 00 00 45 CA", "expect": "01 83 03 01 31"},
+    {
+      "name": "FC01 코일 0..9",
+      "data": {"출력1": 1, "출력2": 0, "출력3": 1, "출력4": 1, "출력5": 0, "출력6": 0, "출력7": 0, "출력8": 1, "출력9": 0, "출력10": 1},
+      "send": "01 01 00 00 00 0A BC 0D",
+      "expect": "01 01 02 8D 02 5D 6D"
+    },
+    {"name": "FC01 코일 2..4", "send": "01 01 00 02 00 03 DD CB", "expect": "01 01 01 03 11 89"},
+    {"name": "FC01 범위 밖", "send": "01 01 00 08 00 03 FD C9", "expect": "01 81 02 C1 91"},
+    {
+      "name": "FC02 입력 0..9",
+      "data": {"입력1": 0, "입력2": 1, "입력3": 0, "입력4": 0, "입력5": 1, "입력6": 1, "입력7": 0, "입력8": 0, "입력9": 1, "입력10": 1},
+      "send": "01 02 00 00 00 0A F8 0D",
+      "expect": "01 02 02 32 03 EC D9"
+    },
+    {"name": "FC02 수량 0", "send": "01 02 00 00 00 00 78 0A", "expect": "01 82 03 00 A1"},
+    {"name": "FC05 코일 4 켜기", "send": "01 05 00 04 FF 00 CD FB", "expect": "01 05 00 04 FF 00 CD FB", "expectWrites": {"출력5": 1}},
+    {"name": "FC05 코일 0 끄기", "send": "01 05 00 00 00 00 CD CA", "expect": "01 05 00 00 00 00 CD CA", "expectWrites": {"출력1": 0}},
+    {"name": "FC01 쓴 뒤 다시 읽기 0..9", "send": "01 01 00 00 00 0A BC 0D", "expect": "01 01 02 9C 02 51 3D"},
+    {"name": "FC05 값 틀림", "send": "01 05 00 01 12 34 91 7D", "expect": "01 85 03 02 91"},
+    {"name": "FC05 범위 밖", "send": "01 05 00 0A FF 00 AC 38", "expect": "01 85 02 C3 51"},
+    {
+      "name": "FC06 CT비 쓰기 (번지 9)",
+      "send": "01 06 00 09 00 C8 58 5E",
+      "expect": "01 06 00 09 00 C8 58 5E",
+      "expectWrites": {"CT비": 200}
+    },
+    {"name": "FC06 읽기 전용 레지스터", "send": "01 06 00 00 00 01 48 0A", "expect": "01 86 02 C3 A1"},
+    {
+      "name": "FC16 설정 두 칸 쓰기 9..10",
+      "send": "01 10 00 09 00 02 04 00 96 0F A0 D6 61",
+      "expect": "01 10 00 09 00 02 91 CA",
+      "expectWrites": {"CT비": 150, "경보전력": 4000}
+    },
+    {"name": "FC03 쓴 값 읽기 9..10", "send": "01 03 00 09 00 02 14 09", "expect": "01 03 04 00 96 0F A0 1F 97"},
+    {"name": "FC16 바이트 수 틀림", "send": "01 10 00 09 00 02 03 00 96 0F 23 22", "expect": "01 90 03 0C 01"},
+    {"name": "FC16 읽기 전용 포함 7..8", "send": "01 10 00 07 00 02 04 00 01 00 02 62 48", "expect": "01 90 02 CD C1"},
+    {"name": "FC04 (지원 안 함)", "send": "01 04 00 00 00 01 31 CA", "expect": "01 84 01 82 C0"},
+    {"name": "다른 장비", "send": "02 03 00 00 00 01 84 39", "expect": null},
+    {"name": "CRC 틀림", "send": "01 03 00 00 00 01 84 F5", "expect": null}
+  ]
+}

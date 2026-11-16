@@ -9,10 +9,6 @@ import javax.xml.bind.DatatypeConverter;
 
 import com.google.gson.Gson;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXField;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.RXFrame;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXField;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.*;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
@@ -376,175 +372,13 @@ public class ByteBufUtils {
         engine = manager.getEngineByName("js");
     }
 
-    public static void _writeTXPacketByFrame(TXFrame frame, ByteBuf out, GenericTCPUDPPacket packet) {
-        // 필드에 따른 버퍼 쓰기
-        int length = calulateTXLength(frame.getFields());
-        try {
-            for (TXField field : frame.getFields()) {
-                switch (field.getField_type()) {
-                    case STATIC:
-                        writeData(out, field.getData_type(), Double.parseDouble(field.getValue()));
-                        break;
-                    case REFERENCE:
-                        writeData(out, field.getData_type(), evalRefField(packet, field.getValue()));
-                        break;
-                    case SIMULATION:
-                        Double value = packet.getGenericData().getTxFieldsIdValueMap().get(field.getField_id());
-                        if (value == null) value = 0d;
-                        writeData(out, field.getData_type(), value);
-                        break;
-                    case CRC16:
-                        int start = (int) Double.parseDouble(field.getValue());
-                        byte[] toCRC = new byte[length - 2 - start];
-                        out.getBytes(start, toCRC, 0, length - 2 - start);
-                        short crc = Checksum.getCRC16(toCRC);
-                        out.writeShort(crc);
-                        break;
-                    case CHECKSUM8:
-                        int _start = (int) Double.parseDouble(field.getValue());
-                        byte[] toChecksum8 = new byte[length - 1 - _start];
-                        out.getBytes(_start, toChecksum8, 0, length - 1 - _start);
-                        byte checksum8 = Checksum.getChecksum8(toChecksum8);
-                        out.writeByte(checksum8);
-                        break;
-                }
-            }
-        } catch (Exception e) {
-            LoggerFactory.getLogger("io").error("Generic Packet generation error.", e);
-        }
-    }
-
-    public static double evalRefField(GenericTCPUDPPacket packet, String ref) {
-        double ret = Double.NaN;
-        Pattern pattern = Pattern.compile("@[a-zA-Z_]+");
-        Matcher matcher = pattern.matcher(ref);
-        while (matcher.find()) {
-            String token = matcher.group(0);
-            String id = token.replaceAll("@", "");
-            Optional<RXField> optrx = packet.getFields().stream().filter(e -> e.getField_id().equals(id)).findFirst();
-            if (optrx.isPresent()) {
-                RXField field = optrx.get();
-                ref = ref.replaceAll(token, Double.toString(field.getValue()));
-            }
-        }
-
-        try {
-            ret = (double) engine.eval(ref);
-        } catch (ScriptException e1) {
-            LoggerFactory.getLogger("io").error("Field evaluation failed.", e1);
-        }
-        return ret;
-    }
-
     public static void writeData(ByteBuf out, DataType type, Double value) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
         String methodName = "write" + type.name();
         Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class, Double.class);
         method.invoke(null, out, value);
     }
 
-    public static int calulateTXLength(List<TXField> fields) {
-        int ret = 0;
-        for (TXField field : fields) {
-            int temp = 0;
-            switch (field.getData_type()) {
-                case SI8:
-                case UI8:
-                    temp++;
-                    break;
-                case UI16AB:
-                case UI16BA:
-                case SI16AB:
-                case SI16BA:
-                    temp += 2;
-                    break;
-                case UI32AD:
-                case UI32CB:
-                case UI32BC:
-                case UI32DA:
-                case SI32AD:
-                case SI32CB:
-                case SI32BC:
-                case SI32DA:
-                case FP32AD:
-                case FP32CB:
-                case FP32BC:
-                case FP32DA:
-                    temp += 4;
-                    break;
-                case SI64AH:
-                case SI64GB:
-                case SI64BG:
-                case SI64HA:
-                case FP64AH:
-                case FP64GB:
-                case FP64BG:
-                case FP64HA:
-                    temp += 8;
-                    break;
-            }
-            ret += temp;
-
-        }
-        return ret;
-    }
-
     static Gson parser = new Gson();
-
-    public static GenericTCPUDPPacket parsePacket(RXFrame frame, ByteBuf in) {
-        GenericTCPUDPPacket ret;
-        if (frame.getLength() != null && frame.getLength() != in.readableBytes()) {
-            LoggerFactory.getLogger("io").error("Designated length not matched for generic packet. {}", parser.toJson(frame));
-            return null;
-        }
-        try {
-            ret = new GenericTCPUDPPacket(frame.getRx_id());
-            for (RXField field : frame.getFields()) {
-                String methodName = "read" + field.getData_type().name();
-                Method method = ByteBufUtils.class.getMethod(methodName, ByteBuf.class);
-                RXField newFieldObj = field.clone();
-                newFieldObj.setValue((Double) method.invoke(null, in));
-
-                if (field.getField_id().equals("CRC16") && (field.getData_type() == DataType.UI16AB || field.getData_type() == DataType.UI16BA)) {
-                    int crcByteCount = in.readerIndex() - 2;
-                    byte[] cpy = new byte[crcByteCount];
-                    in.getBytes(0, cpy, 0, crcByteCount);
-                    short crc16 = Checksum.getCRC16(cpy);
-                    if (crc16 != (short) newFieldObj.getValue().doubleValue()) {
-                        LoggerFactory.getLogger("io").error("CRC doesn't match for generic packet. {}", parser.toJson(frame));
-                        return null;
-                    }
-                }
-
-                if(methodName.contains("FP") && newFieldObj.getRequired_value() != null) {
-                    if(!isRoundedEqual(newFieldObj.getRequired_value(), newFieldObj.getValue(), 2)){
-                        LoggerFactory.getLogger("io").error("Designated value not matched for generic packet. {}", parser.toJson(frame));
-                        return null;
-                    }
-                }
-                if (!methodName.contains("FP") && newFieldObj.getRequired_value() != null && !newFieldObj.getRequired_value().equals(newFieldObj.getValue())) {
-                    LoggerFactory.getLogger("io").error("Designated value not matched for generic packet. {}", parser.toJson(frame));
-                    return null;
-                }
-                ret.getFields().add(newFieldObj);
-            }
-        } catch (Exception e) {
-            LoggerFactory.getLogger("io").error("Cannot parse generic packet. {}", parser.toJson(frame), e);
-            return null;
-        }
-
-        if (in.isReadable()) {
-            LoggerFactory.getLogger("io").error("Buffer remaining after parse generic packet. {}", parser.toJson(frame));
-            return null;
-        }
-
-        return ret;
-    }
-
-    public static boolean isRoundedEqual(double d1, double d2, int scale) {
-        BigDecimal bd1 = BigDecimal.valueOf(d1).setScale(scale, RoundingMode.HALF_UP);
-        BigDecimal bd2 = BigDecimal.valueOf(d2).setScale(scale, RoundingMode.HALF_UP);
-        return bd1.equals(bd2);
-    }
 
     public static OPCAgent parseOPCAgentPacket(ByteBuf in) {
         OPCAgent agent = new OPCAgent();
@@ -558,7 +392,8 @@ public class ByteBufUtils {
         }
     }
 
-    public static Daeyun parseDaeyunPacket(ByteBuf in, List<RXFrame> acceptFrames) {
+    /** RS(0x0A) 본문은 해석하지 않고 담아 둔다 — DaeyunHandler 가 프로토콜 정의 엔진에 넘긴다 */
+    public static Daeyun parseDaeyunPacket(ByteBuf in) {
         byte[] _cpyBuf = new byte[in.readableBytes() - 2];
         in.getBytes(0, _cpyBuf, 0, in.readableBytes() - 2);
         short _crc = Checksum.getCRC16(_cpyBuf);
@@ -591,30 +426,13 @@ public class ByteBufUtils {
                     LoggerFactory.getLogger("io").error("DaeyunRCU wrong DO parameter. {}", daeyun.getDOParam());
                     return null;
                 }
-            } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION && acceptFrames != null) {
-                // Serial
+            } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
+                // Serial — 본문은 프로토콜 정의가 해석한다
                 daeyun.setPort(in.readUnsignedShort());
                 daeyun.setLength(in.readUnsignedShort());
                 byte[] payload = new byte[daeyun.getLength()];
                 in.readBytes(payload);
-
-                ByteBuf temp = Unpooled.copiedBuffer(payload);
-                GenericTCPUDPPacket payloadPacket = null;
-                for (RXFrame frame : acceptFrames) {
-                    payloadPacket = ByteBufUtils.parsePacket(frame, temp);
-                    if (payloadPacket == null) {
-                        temp.resetReaderIndex();
-                    } else break;
-                }
-                if (payloadPacket != null) {
-                    daeyun.setPacket(payloadPacket);
-                } else {
-                    LoggerFactory.getLogger("io").error("DaeyunRCU RS not matched generic parser.");
-                    return null;
-                }
-            } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
-                LoggerFactory.getLogger("io").error("DaeyunRCU RS no generic parser.");
-                return null;
+                daeyun.setPayload(payload);
             } else {
                 LoggerFactory.getLogger("io").error("DaeyunRCU Invalid function. {}", daeyun.getFunction());
                 return null;

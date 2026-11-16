@@ -1,9 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.io.netty.handler;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServer;
-import com.onionsoftware.mk119.commtestsuite.io.netty.generic.TXFrame;
+import com.onionsoftware.mk119.commtestsuite.protocol.ProtocolEngine;
+import org.slf4j.LoggerFactory;
 import com.onionsoftware.mk119.commtestsuite.io.netty.packet.Daeyun;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DaeyunData;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.GenericData;
@@ -13,21 +12,15 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 
-import java.lang.reflect.Type;
 import java.util.*;
 
 public class DaeyunHandler extends MkHandler {
-    private List<TXFrame> sendFrames;
+    /** RS(0x0A) 본문을 해석하는 프로토콜 정의 엔진. 장비에 정의가 없으면 null — RS 요청에 답하지 않는다 */
+    private final ProtocolEngine engine;
 
-    public DaeyunHandler(IOServer server) {
+    public DaeyunHandler(IOServer server, ProtocolEngine engine) {
         super(server);
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        super.channelActive(ctx);
-        Type listType = new TypeToken<ArrayList<TXFrame>>() {}.getType();
-        this.sendFrames = new Gson().fromJson(new Gson().toJson(target.getDevice().getCommunicationSettings().get("tx"), listType), listType);
+        this.engine = engine;
     }
 
     @Override
@@ -80,18 +73,13 @@ public class DaeyunHandler extends MkHandler {
                 sendBuffer = out.copy();
                 return;
             } else if (daeyun.getFunction() == Daeyun.RS_FUNCTION) {
-                Optional<TXFrame> optionalTX = sendFrames.stream().filter(e -> e.getTx_id().equals(daeyun.getPacket().getRx_id())).findFirst();
-                daeyun.getPacket().setGenericData(new GenericData(daeyunData.getTxFieldsIdValueMap()));
-                if (optionalTX.isPresent()) {
-                    TXFrame frame = optionalTX.get();
-                    frame.translateFields(daeyun.getPacket());
-                    int len = ByteBufUtils.calulateTXLength(frame.getFields());
+                // 본문은 프로토콜 정의가 읽고 답한다. 답은 포트·길이·CRC 껍데기에 다시 담는다
+                byte[] reply = rsReply(daeyun.getPayload());
+                if (reply != null) {
                     out.writeShort(daeyun.getPort());
-                    out.writeShort(len);
-                    ByteBuf temp = Unpooled.buffer(len);
-                    ByteBufUtils._writeTXPacketByFrame(frame, temp, daeyun.getPacket());
-                    out.writeBytes(temp);
-                    length = len + 6;
+                    out.writeShort(reply.length);
+                    out.writeBytes(reply);
+                    length = reply.length + 6;
                 } else {
                     error = ERROR_TX_MATCH_NOT_FOUND;
                 }
@@ -106,6 +94,26 @@ public class DaeyunHandler extends MkHandler {
                 sendBuffer = out.copy();
             }
         }
+    }
+
+    /** RS 본문에 대한 정의의 응답. 정의가 없거나, 맞는 메시지·규칙이 없거나, 무응답이면 null */
+    private byte[] rsReply(byte[] payload) {
+        String device = target.getDevice().getName();
+        if (engine == null || engine.definition() == null) {
+            LoggerFactory.getLogger("io").warn("Daeyun RCU \"{}\" has no usable protocol definition for RS", device);
+            return null;
+        }
+        if (payload == null) return null;
+        ProtocolEngine.Match m = engine.match(payload, 0, payload.length, ProtocolEngine.Mode.EXACT, false);
+        if (m.status != ProtocolEngine.Status.MATCH) {
+            LoggerFactory.getLogger("io").warn("Daeyun RCU \"{}\" RS body matches no message ({})", device,
+                    m.reasons.isEmpty() ? "no messages" : m.reasons.get(0));
+            return engine.unmatchedReply(payload);
+        }
+        ProtocolEngine.Reply r = m.message.respond();
+        if (r.error != null) LoggerFactory.getLogger("io").warn("Daeyun RCU \"{}\" did not reply to {}: {}", device, m.message.name(), r.error);
+        for (String note : r.notes) LoggerFactory.getLogger("io").debug("Daeyun RCU \"{}\" {}: {}", device, m.message.name(), note);
+        return r.bytes;
     }
 
     public static final int ERROR_NO_ERROR = 0;

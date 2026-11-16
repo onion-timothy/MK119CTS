@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" class="cts-fixed" data-bs-navbar-position="combined" xmlns:th="http://www.thymeleaf.org">
+<!--
+  프로토콜 정의 편집기. 정의 문서(cts-protocol, docs/PROTOCOL_DEFINITION_FORMAT.md)를 편집해 서버에 저장한다.
+  목록은 /protocols (templates/protocols.html). 저장하지 않은 고침은 정의별 초안으로 이 브라우저에 남는다.
+  동작은 js/cts-protocol-editor.js, 모델·검사는 js/cts-protocol-model.js, 모양은 css/cts-protocol-editor.css.
+  표는 모두 Tabulator + js/cts-table.js(공통 표 규칙), 열리는 목록은 js/cts-select.js(5개 넘으면 검색).
+-->
+<head>
+    <th:block th:replace="~{fragments/tabler :: assets}"></th:block>
+    <title>MK119 CTS — Protocol definition</title>
+    <link rel="stylesheet" href="/css/cts-tabler.css">
+    <link rel="stylesheet" href="/plugins/tabulator/css/tabulator_bootstrap5.min.css">
+    <link rel="stylesheet" href="/css/cts-table.css">
+    <th:block th:replace="~{fragments/tabler :: select-assets}"></th:block>
+    <link rel="stylesheet" href="/css/cts-device-form.css">
+    <link rel="stylesheet" href="/css/cts-protocol-editor.css">
+</head>
+<body>
+<div class="page">
+    <th:block th:replace="~{fragments/tabler :: sidebar('protocols')}"></th:block>
+    <th:block th:replace="~{fragments/tabler :: navbar('Protocol definition', ~{::#pageActions})}"></th:block>
+    <!--/* 상단 바로 옮겨 그려진다. 이 자리에서는 지워진다 */-->
+    <div th:remove="all">
+        <div id="pageActions" class="btn-list">
+            <span class="pe-flash" id="pe-flash" role="status"></span>
+            <!-- 문서의 문제: 상태는 버튼에 늘 보이고, 목록은 눌러서 연다 (오른쪽 칸 높이는 속성 패널이 다 쓴다) -->
+            <div class="dropdown pe-problems-menu">
+                <button type="button" class="btn btn-outline-secondary" id="pe-problems-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Problems in this document">
+                    <i class="fas fa-check-circle" id="pe-problems-icon"></i> <span id="pe-problem-count">No problems</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end dropdown-menu-card pe-problems-pop">
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Problems</h3></div>
+                        <div class="card-body p-0" id="pe-problems"></div>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline-secondary" data-act="download-doc" title="Download this document as a JSON file"><i class="fas fa-download"></i><span class="pe-btn-label"> Download</span></button>
+            <button type="button" class="btn btn-outline-secondary" data-act="cancel-doc">Cancel</button>
+            <button type="button" class="btn btn-primary" data-act="save-doc"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+    <div class="page-wrapper">
+        <div class="page-body">
+            <div class="container-fluid cts-root">
+                <div class="pe-body">
+                    <!-- 문서의 차례. 세로·좁은 화면에서는 머리만 보이게 접힌다 (머리를 누르면 펼침) -->
+                    <div class="pe-col pe-left">
+                        <div class="card cts-card pe-grow">
+                            <div class="card-header pe-ol-head" id="pe-ol-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="pe-outline">
+                                <h3 class="card-title">Document<span class="pk-sub pe-where" id="pe-where"></span></h3>
+                                <div class="card-actions pe-ol-caret"><i class="fas fa-chevron-down"></i></div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="pe-ol" id="pe-outline"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 고른 항목 -->
+                    <div class="pe-col pe-main" id="pe-main"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--
+  표의 줄을 누르면 여는 속성 모달. 고치는 대로 문서에 들어가고(표·검사도 바로 바뀐다),
+  Cancel·Esc·× 는 연 때의 문서로 되돌린다. 검색 목록이 body 에 붙으므로 포커스를 가두지 않는다(data-bs-focus)
+-->
+<div class="modal fade" id="pe-props" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-focus="false">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pe-inspector-title">Properties</h5>
+                <div class="pe-props-actions" id="pe-inspector-actions"></div>
+                <button type="button" class="btn-close" data-act="props-cancel" aria-label="Cancel"></button>
+            </div>
+            <div class="modal-body" id="pe-inspector-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-act="props-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" data-act="props-ok">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+<th:block th:replace="~{fragments/tabler :: scripts}"></th:block>
+<th:block th:replace="~{fragments/tabler :: select-scripts}"></th:block>
+<script src="/plugins/tabulator/js/tabulator.min.js"></script>
+<script src="/js/cts-table.js"></script>
+<script th:inline="javascript">
+    /* 편집기가 읽는 값 — js/cts-protocol-editor.js 의 PAGE */
+    window.CTS_PROTOCOL_PAGE = { id: /*[[${definitionId}]]*/ null, example: /*[[${example}]]*/ null };
+</script>
+<script src="/js/cts-protocol-model.js"></script>
+<script src="/js/cts-protocol-editor.js"></script>
+</body>
+</html>

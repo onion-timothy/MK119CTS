@@ -17,7 +17,7 @@ public class GenericData extends ServerData {
     }
 
     public GenericData() {
-        this.txFieldsIdValueMap = new HashMap<>();
+        this.txFieldsIdValueMap = new java.util.concurrent.ConcurrentHashMap<>();   // Value Simulation 과 패킷 처리가 함께 쓴다
     }
 
     @Override

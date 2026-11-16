@@ -11,7 +11,7 @@ import java.util.Map;
 @Getter
 @Setter
 public class DaeyunData extends ServerData {
-    private final Map<String, Double> txFieldsIdValueMap = new HashMap<>();
+    private final Map<String, Double> txFieldsIdValueMap = new java.util.concurrent.ConcurrentHashMap<>();   // RS 본문용. Value Simulation 과 패킷 처리가 함께 쓴다
     private final short[] analogChannelValues = new short[32];
     private final BitSet digitalChannelValues = new BitSet(32);
 

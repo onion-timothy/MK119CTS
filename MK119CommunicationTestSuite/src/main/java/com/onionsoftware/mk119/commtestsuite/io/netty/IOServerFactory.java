@@ -18,6 +18,12 @@ public class IOServerFactory {
     private final com.onionsoftware.mk119.commtestsuite.db.service.SimulationService simulationService;
     private final com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService bacnetService;
     private final org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler taskScheduler;
+    /** GENERIC·DAEYUN_RCU 의 프로토콜 정의 (docs/PROTOCOL_ENGINE_DESIGN.md) */
+    private final com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry definitionRegistry;
+
+    private com.onionsoftware.mk119.commtestsuite.protocol.ProtocolEngine engine(IOServer server) {
+        return com.onionsoftware.mk119.commtestsuite.io.netty.protocol.ProtocolRuntime.engineFor(server, definitionRegistry, simulationService);
+    }
 
     @Bean
     @Scope("prototype")
@@ -64,7 +70,7 @@ public class IOServerFactory {
     public ChannelInboundHandlerAdapter decoder(Device device, IOServer server) {
         if (device.getTransport() == Transport.UDP) {
             switch (device.getProtocol()) {
-                case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.GenericUDPDecoder(server);
+                case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.GenericDatagramDecoder(server, engine(server));
                 case MODBUS: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.ModbusUDPDecoder(server);
                 case XGT_PLC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.XGTUDPDecoder(server);
                 case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.udp.DaeyunUDPDecoder(server);
@@ -76,7 +82,7 @@ public class IOServerFactory {
             }
         } else {
             switch (device.getProtocol()) {
-                case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.GenericTCPDecoder(server);
+                case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.GenericStreamDecoder(server, engine(server));
                 case MODBUS: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.ModbusDecoder(server);
                 case XGT_PLC: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.XGTDecoder(server);
                 case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.decoder.DaeyunDecoder(server);
@@ -89,10 +95,10 @@ public class IOServerFactory {
 
     public MkHandler handler(Device device, IOServer server) {
         switch (device.getProtocol()) {
-            case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.GenericTCPUDPHandler(server);
+            case GENERIC: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.GenericHandler(server);
             case MODBUS: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.ModbusHandler(server, simulationService);
             case XGT_PLC: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.XGTHandler(server, simulationService);
-            case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.DaeyunHandler(server);
+            case DAEYUN_RCU: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.DaeyunHandler(server, engine(server));
             case OPC_AGENT: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.OPCAgentHandler(server, simulationService);
             case SNMP: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.SnmpHandler(server, simulationService);
             case ETHERNET_IP: return new com.onionsoftware.mk119.commtestsuite.io.netty.handler.EthernetIPHandler(server, simulationService);

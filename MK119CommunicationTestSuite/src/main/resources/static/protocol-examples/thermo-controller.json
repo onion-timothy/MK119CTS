@@ -1,0 +1,117 @@
+{
+  "format": "cts-protocol",
+  "version": 1,
+  "name": "thermo-controller",
+  "doc": "STX … BCC ETX 이진 프로토콜의 온습도 제어기 (설명용 가상 장비).",
+
+  "params": {
+    "address": { "value": "integer", "default": 1, "min": 1, "max": 31, "doc": "국번" }
+  },
+
+  "consts": { "READ": 16, "WRITE": 32, "ACK": 6, "NAK": 21 },
+
+  "checksums": {
+    "bcc": {
+      "algorithm": "XOR8",
+      "covers": { "from": "header.address", "to": "body" },
+      "onMismatch": "flag",
+      "doc": "틀려도 버리지 않는다. respond 에서 valid('bcc') 로 보고 NAK 로 답한다"
+    }
+  },
+
+  "framing": { "syncOn": "0x02", "maxLength": 64, "idleFlushMs": 100 },
+
+  "targets": {
+    "points": {
+      "kind": "named",
+      "items": [
+        { "target": "운전",     "value": "binary" },
+        { "target": "경보",     "value": "binary" },
+        { "target": "현재온도", "value": "float" },
+        { "target": "습도",     "value": "integer" },
+        { "target": "설정온도", "value": "float", "access": "rw" }
+      ]
+    }
+  },
+
+  "frames": {
+    "stx": {
+      "header": [
+        { "type": "UINT", "size": 1, "const": "0x02", "doc": "STX" },
+        { "name": "address", "type": "UINT", "size": 1, "value": "$address" },
+        { "name": "command", "type": "UINT", "size": 1 },
+        { "name": "length",  "type": "UINT", "size": 1, "value": "sizeof(body)" }
+      ],
+      "bodySize": "header.length",
+      "footer": [
+        { "name": "bcc", "type": "UINT", "size": 1, "checksum": "bcc" },
+        { "type": "UINT", "size": 1, "const": "0x03", "doc": "ETX" }
+      ]
+    }
+  },
+
+  "messages": [
+    {
+      "name": "read",
+      "direction": "rx",
+      "frame": "stx",
+      "match": "header.command == $READ",
+      "body": [],
+      "respond": [
+        { "when": "header.address != $address", "reply": "none" },
+        { "when": "!valid('bcc')", "reply": "nak" },
+        { "name": "readOk", "reply": "status" }
+      ]
+    },
+    {
+      "name": "write",
+      "direction": "rx",
+      "frame": "stx",
+      "match": "header.command == $WRITE",
+      "body": [
+        { "name": "setpoint", "type": "INT", "size": 2, "scale": 0.1 }
+      ],
+      "respond": [
+        { "when": "header.address != $address", "reply": "none" },
+        { "when": "!valid('bcc')", "reply": "nak" },
+        { "when": "body.setpoint < 5 || body.setpoint > 40", "reply": "nak" },
+        { "name": "writeOk",
+          "write": [ { "target": "설정온도", "value": "body.setpoint" } ],
+          "reply": "ack" }
+      ]
+    },
+    {
+      "name": "status",
+      "direction": "tx",
+      "frame": "stx",
+      "set": { "header.command": "$READ" },
+      "body": [
+        { "name": "flags", "type": "BITS", "size": 1,
+          "fields": [
+            { "name": "run",   "bit": 0, "target": "운전" },
+            { "name": "alarm", "bit": 1, "target": "경보" }
+          ] },
+        { "name": "temperature", "type": "INT", "size": 2, "scale": 0.1, "target": "현재온도" },
+        { "name": "humidity",    "type": "UINT", "size": 1,                 "target": "습도" },
+        { "name": "setpoint",    "type": "INT", "size": 2, "scale": 0.1, "target": "설정온도" }
+      ]
+    },
+    { "name": "ack", "direction": "tx", "frame": "stx", "set": { "header.command": "$ACK" }, "body": [] },
+    { "name": "nak", "direction": "tx", "frame": "stx", "set": { "header.command": "$NAK" }, "body": [] }
+  ],
+
+  "tests": [
+    {
+      "name": "상태 읽기",
+      "data": { "운전": 1, "경보": 0, "현재온도": 23.4, "습도": 55, "설정온도": 25.0 },
+      "send":   "02 01 10 00 11 03",
+      "expect": "02 01 10 06 01 00 EA 37 00 FA 31 03"
+    },
+    { "name": "설정 26.5", "send": "02 01 20 02 01 09 2B 03", "expect": "02 01 06 00 07 03",
+      "expectWrites": { "설정온도": 26.5 } },
+    { "name": "설정 45.0 (범위 밖)", "send": "02 01 20 02 01 C2 E0 03", "expect": "02 01 15 00 14 03" },
+    { "name": "BCC 틀림",  "send": "02 01 10 00 44 03",    "expect": "02 01 15 00 14 03" },
+    { "name": "다른 국번", "send": "02 02 10 00 12 03",    "expect": null },
+    { "name": "앞에 잡음", "data": { "설정온도": 25.0 }, "send": "FF 02 01 10 00 11 03", "expect": "02 01 10 06 01 00 EA 37 00 FA 31 03" }
+  ]
+}

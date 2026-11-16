@@ -44,6 +44,14 @@ public abstract class MkHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         generateBuffer(ctx, msg);
+        transmit(ctx);
+    }
+
+    /**
+     * sendBuffer 를 보낸다: 시스템 오류(DISCARD·TIMEOUT·GARBAGE·DISCONNECT) → 전송 → 패킷 로그.
+     * 응답을 늦게 보내는 핸들러(GenericHandler 의 delayMs)도 이 길로 보낸다.
+     */
+    protected void transmit(ChannelHandlerContext ctx) {
         if (sendBuffer != null) {
             // 시스템 에러 플래그 확인 (스케줄러가 세팅한 플래그 기반)
             Error systemError = target.getActiveSystemError();

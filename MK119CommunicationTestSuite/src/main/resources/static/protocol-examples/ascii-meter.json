@@ -1,0 +1,85 @@
+{
+  "format": "cts-protocol",
+  "version": 1,
+  "name": "ascii-meter",
+  "doc": "ASCII 한 줄 명령/응답 계측기 (설명용 가상 장비). 응답 끝에 16진 두 글자 합 체크섬.",
+
+  "defaults": { "encoding": "ascii" },
+
+  "params": {
+    "address": { "value": "integer", "default": 1, "min": 0, "max": 99 }
+  },
+
+  "checksums": {
+    "sum": { "algorithm": "SUM", "width": 8, "covers": { "from": "header.address", "to": "body" } }
+  },
+
+  "framing": { "syncOn": "#", "maxLength": 32, "idleFlushMs": 200 },
+
+  "targets": {
+    "points": {
+      "kind": "named",
+      "items": [ { "target": "전압" }, { "target": "전류" }, { "target": "전력" } ]
+    }
+  },
+
+  "frames": {
+    "commandLine": {
+      "header": [
+        { "type": "TEXT", "size": 1, "const": "#" },
+        { "name": "command", "type": "TEXT",    "size": 1 },
+        { "name": "address", "type": "TEXTNUM", "size": 2, "pad": "0" }
+      ],
+      "footer": [ { "type": "TEXT", "size": 1, "const": "\r" } ]
+    },
+    "replyLine": {
+      "header": [
+        { "type": "TEXT", "size": 1, "const": "=" },
+        { "name": "address", "type": "TEXTNUM", "size": 2, "pad": "0", "value": "$address" }
+      ],
+      "footer": [
+        { "type": "TEXT", "size": 1, "const": "*" },
+        { "name": "sum", "type": "HEXNUM", "size": 2, "checksum": "sum" },
+        { "type": "TEXT", "size": 1, "const": "\r" }
+      ]
+    }
+  },
+
+  "messages": [
+    {
+      "name": "read",
+      "direction": "rx",
+      "frame": "commandLine",
+      "match": "header.command == 'R'",
+      "body": [],
+      "respond": [
+        { "when": "header.address != $address", "reply": "none" },
+        { "reply": "values" }
+      ]
+    },
+    {
+      "name": "values",
+      "direction": "tx",
+      "frame": "replyLine",
+      "body": [
+        { "type": "TEXT", "size": 1, "const": "," },
+        { "name": "voltage", "type": "TEXTNUM", "size": 6, "decimals": 1, "sign": "always", "pad": "0", "target": "전압" },
+        { "type": "TEXT", "size": 1, "const": "," },
+        { "name": "current", "type": "TEXTNUM", "size": 7, "decimals": 2, "sign": "always", "pad": "0", "target": "전류" },
+        { "type": "TEXT", "size": 1, "const": "," },
+        { "name": "power",   "type": "TEXTNUM", "size": 4, "pad": "0", "target": "전력" }
+      ]
+    }
+  ],
+
+  "tests": [
+    {
+      "name": "읽기",
+      "data": { "전압": 220.5, "전류": 5.12, "전력": 1100 },
+      "send":   "23 52 30 31 0D",
+      "expect": "3D 30 31 2C 2B 32 32 30 2E 35 2C 2B 30 30 35 2E 31 32 2C 31 31 30 30 2A 31 41 0D",
+      "doc": "'#R01\\r' → '=01,+220.5,+005.12,1100*1A\\r'"
+    },
+    { "name": "다른 주소", "send": "23 52 30 32 0D", "expect": null }
+  ]
+}
