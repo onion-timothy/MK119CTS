@@ -1,0 +1,318 @@
+/* Simulation target 입력 보조 (static/js/cts-target-aid.js) */
+
+.ta {
+    border: 1px solid #e3e6ea;
+    border-bottom: none;
+    border-radius: .5rem .5rem 0 0;
+    background: #f8f9fa;
+    padding: .55rem .75rem .65rem;
+}
+
+.ta.is-empty {
+    display: none;
+}
+
+/* 조각 줄 아래에 텍스트 칸을 붙여 한 덩어리로 보이게 한다 */
+.ta + #target-wrapper #target,
+.ta + .ta-text {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.ta-parts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: .5rem .75rem;
+}
+
+.ta-part {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    margin: 0;
+    min-width: 120px;
+    max-width: 100%;
+    font-weight: normal;
+}
+
+.ta-label {
+    font-size: .72rem;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+}
+
+.ta-part .custom-select,
+.ta-part .form-select,
+.ta-part .form-control {
+    font-variant-numeric: tabular-nums;
+}
+
+.ta.is-unparsed .ta-part .custom-select,
+.ta.is-unparsed .ta-part .form-select,
+.ta.is-unparsed .ta-part .form-control {
+    background-color: #fff;
+    border-style: dashed;
+}
+
+/* Bootstrap 4 화면에서는 .input-group-append 없이 넣은 버튼의 모서리가 안 잡힌다.
+   5 에서는 이미 같은 값이라 덮어써도 달라지지 않는다 */
+.ta-part .input-group > .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.ta-part .btn-outline-secondary {
+    border-color: #ced4da;
+    color: #495057;
+    background: #fff;
+}
+
+.ta-part .btn-outline-secondary:hover {
+    background: #e9ecef;
+}
+
+/* ── DB 자리표시자 ─────────────────────────────────────── */
+.ta-chips > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    min-height: calc(1.5em + .5rem + 2px);
+    align-items: center;
+}
+
+.ta-chip {
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .8rem;
+    background: #fff;
+    border: 1px solid #b6c7dc;
+    color: #2f5d94;
+    border-radius: 1rem;
+    padding: .1rem .6rem;
+}
+
+.ta-chip:hover {
+    background: #eaf1fa;
+}
+
+.ta-muted {
+    font-size: .82rem;
+    color: #868e96;
+}
+
+/* ── 상태 줄 ───────────────────────────────────────────── */
+.ta-status {
+    margin-top: .35rem;
+    min-height: 1.25rem;
+}
+
+.ta-line {
+    position: relative;
+    padding-left: 1.1rem;
+    font-size: .82rem;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+}
+
+.ta-line::before {
+    position: absolute;
+    left: 0;
+    width: 1rem;
+    text-align: center;
+    font-weight: 700;
+}
+
+/* hint 줄만 아이콘(✓·⚠)이 없다. 그 자리를 비워 두면 다른 입력칸 힌트보다 혼자 들여써진다 */
+.ta-line.is-hint {
+    color: #868e96;
+    padding-left: 0;
+}
+
+.ta-line.is-ok {
+    color: #2b8a3e;
+}
+
+.ta-line.is-ok::before {
+    content: "✓";
+}
+
+.ta-line.is-warn {
+    color: #a86400;
+}
+
+.ta-line.is-warn::before {
+    content: "!";
+}
+
+.ta-line.is-error {
+    color: #c92a2a;
+}
+
+.ta-line.is-error::before {
+    content: "×";
+}
+
+/* ── 표 칸 팝오버 (Test Plan Target) ───────────────────────── */
+.ta-pop {
+    position: fixed;
+    z-index: 1050;
+    width: 460px;
+    max-width: calc(100vw / var(--cts-zoom, 1) - 16px);   /* 팝오버에 배율이 걸리면 vw 에도 곱해진다 */
+    background: #fff;
+    border: 1px solid #d5dae0;
+    border-radius: .5rem;
+    box-shadow: 0 8px 24px rgba(30, 40, 60, .16);
+    font-size: .875rem;
+}
+
+.ta-pop-head {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem .75rem;
+    border-bottom: 1px solid #eef0f2;
+}
+
+.ta-pop-head b {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ta-pop-proto {
+    font-size: .72rem;
+    color: #6c757d;
+    background: #f1f3f5;
+    border-radius: 1rem;
+    padding: .05rem .5rem;
+    white-space: nowrap;
+}
+
+.ta-pop-kbd {
+    margin-left: auto;
+    font-size: .72rem;
+    color: #868e96;
+    white-space: nowrap;
+}
+
+.ta-pop-sec {
+    padding: .5rem .75rem;
+}
+
+.ta-pop-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    font-size: .72rem;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    margin-bottom: .35rem;
+}
+
+.ta-pop-filter.form-control {
+    width: 160px;
+    height: 26px;
+    font-size: .8rem;
+    padding: .1rem .45rem;
+    text-transform: none;
+}
+
+.ta-pop-list {
+    max-height: 170px;
+    overflow: auto;
+    border: 1px solid #eef0f2;
+    border-radius: .35rem;
+}
+
+.ta-pop-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: .5rem;
+    padding: .3rem .55rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f4f5f7;
+    font-variant-numeric: tabular-nums;
+}
+
+.ta-pop-item:last-child {
+    border-bottom: none;
+}
+
+.ta-pop-item:hover,
+.ta-pop-item.is-active {
+    background: #f1f6fc;
+}
+
+.ta-pop-item.is-cur {
+    background: #e7f1ff;
+}
+
+.ta-pop-item code {
+    color: #212529;
+    background: none;
+    font-size: .82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ta-pop-name {
+    color: #6c757d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ta-pop-type {
+    font-size: .72rem;
+    color: #495057;
+    background: #f1f3f5;
+    border-radius: .25rem;
+    padding: 0 .35rem;
+    align-self: center;
+}
+
+.ta-pop-empty {
+    padding: .4rem .55rem;
+    color: #868e96;
+}
+
+.ta-pop-or {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    color: #adb5bd;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 0 .75rem;
+}
+
+.ta-pop-or::before,
+.ta-pop-or::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid #eef0f2;
+}
+
+.ta-pop .ta {
+    border: none;
+    background: none;
+    padding: 0;
+}
+
+.ta-pop .ta-status {
+    margin: .35rem 0 0;
+}
+
+.ta-pop-note {
+    font-size: .78rem;
+    color: #868e96;
+    padding: .1rem .75rem .6rem;
+}

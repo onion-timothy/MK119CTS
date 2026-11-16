@@ -495,14 +495,26 @@ public class TestPlanValidator {
     private DataType checkTarget(Context ctx, Outcome out, Device device, String target, String legacyPrefix,
                                  DataType dataType, int index, Integer row) {
         // A3·A5·A8 — 형식·주소 범위, Modbus FC 1~4, EtherNet/IP 가 보낼 수 있는 타입
-        String formatError = simulationTargetValidator.validate(device, target, dataType);
+        String formatError = simulationTargetValidator.validateFormat(device, target, dataType);
         if (formatError != null) {
             err(out, "A3", "target", index, row, formatError);
             return dataType;
         }
         Protocol p = device.getProtocol();
+        // A4 — GENERIC 은 프로토콜 정의의 타겟 목록에 있는 것에만 쓴다 (docs/PROTOCOL_ENGINE_DESIGN.md 9.3)
+        if (p == Protocol.GENERIC) {
+            com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry registry =
+                    com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry.current();
+            com.onionsoftware.mk119.commtestsuite.protocol.Definition def = registry == null ? null : registry.forDevice(device);
+            if (registry != null && (def == null || def.targetInfo(target) == null)) {
+                err(out, "A4", "target", index, row, def == null
+                        ? "Device \"" + device.getName() + "\" has no usable protocol definition."
+                        : "No target \"" + target + "\" in protocol definition \"" + def.name + "\" of device \"" + device.getName() + "\".");
+                return dataType;
+            }
+        }
         // A4 — 맵 기반 저장이거나 시뮬레이션이 곧 object·태그인 프로토콜은 등록된 target 에만 쓴다
-        if (p == Protocol.SNMP || p == Protocol.GENERIC || p == Protocol.BACNET || p == Protocol.ETHERNET_IP) {
+        if (p == Protocol.SNMP || p == Protocol.BACNET || p == Protocol.ETHERNET_IP) {
             if (!ctx.simulationTargets(device).contains(target)) {
                 err(out, "A4", "target", index, row, "No simulation with target \"" + target + "\" on device \""
                         + device.getName() + "\". " + p + " can only write to a registered simulation target.");
@@ -513,15 +525,16 @@ public class TestPlanValidator {
         if (p == Protocol.ETHERNET_IP) {
             DataType tagType = ctx.tagType(device, target);
             CIPData.Type tagCip = EthernetIPTypes.cipTypeOf(tagType);
-            CIPData.Type asked = legacyPrefix != null ? CIPData.Type.forName(legacyPrefix)
+            CIPData.Type asked = legacyPrefix != null ? EthernetIPTypes.cipTypeOf(EthernetIPTypes.dataTypeForLegacyPrefix(legacyPrefix))
                     : (dataType != null ? EthernetIPTypes.cipTypeOf(dataType) : tagCip);
             if (tagCip != null && asked != tagCip) {
                 err(out, "A6", "dataType", index, row, "Tag \"" + target + "\" is " + tagCip + " (" + tagType
                         + "). This action would write " + (asked == null ? dataType : asked) + ".");
+                return dataType;
             }
             if (dataType == null) return tagType;
         }
-        // A6·A7 — Modbus 레지스터는 dataType 이 있어야 하고, XGT 는 크기 문자와 폭이 같아야 한다.
+        // A6·A7 — 타입이 target 에 맞아야 한다(DataTypeRules). Modbus 레지스터와 XGT 는 dataType 이 있어야 한다.
         // REST 쓰기와 같은 규칙(ServerDataValueRules)이다
         String typeError = ServerDataValueRules.dataTypeError(p, target, dataType);
         if (typeError != null) {

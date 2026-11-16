@@ -44,9 +44,9 @@ class TestPlanValidatorTest {
                 device(BACNET, "bac", Protocol.BACNET, null),
                 device(EIP, "eip", Protocol.ETHERNET_IP, null)));
         when(simulationService.selectSimulationsByDeviceId(EIP)).thenReturn(Arrays.asList(
-                simulation("TAG1", DataType.FP32AD),
-                simulation("REAL@OLD", DataType.FP32AD),      // 아직 옮기지 않은 예전 형식
-                simulation("FLAG", DataType.BOOL)));
+                simulation("TAG1", DataType.FP32DA),
+                simulation("REAL@OLD", DataType.FP32DA),      // 아직 옮기지 않은 예전 형식
+                simulation("FLAG", DataType.BINARY)));
         when(simulationService.selectSimulationsByDeviceId(SNMP)).thenReturn(
                 Collections.singletonList(simulation("1.3.6.1.4.1.1.0")));
         when(simulationService.selectSimulationsByDeviceId(BACNET)).thenReturn(
@@ -289,17 +289,36 @@ class TestPlanValidatorTest {
         // A6 태그와 다른 타입: 접두어로 말하든 dataType 으로 말하든
         assertRule("A6", validator.validatePlan(plan("E", action(EIP, "INT@TAG1", 1, null, null, 0, null)), null));
         assertRule("A6", validator.validatePlan(plan("E", action(EIP, "TAG1", 1, "SI16AB", null, 0, null)), null));
-        // A3 EtherNet/IP 로 보낼 수 없는 타입
-        assertRule("A3", validator.validatePlan(plan("E", action(EIP, "TAG1", 1, "FP64AH", null, 0, null)), null));
-        // A10 dataType 이 없으면 태그의 타입으로 값을 본다: BOOL 태그에 2
+        // A6 EtherNet/IP 로 보낼 수 없는 타입
+        assertRule("A6", validator.validatePlan(plan("E", action(EIP, "TAG1", 1, "FP64AH", null, 0, null)), null));
+        // A10 dataType 이 없으면 태그의 타입으로 값을 본다: BINARY 태그에 2
         assertRule("A10", validator.validatePlan(plan("E", action(EIP, "FLAG", 2, null, null, 0, null)), null));
         assertTrue(validator.validatePlan(plan("E", action(EIP, "FLAG", 1, null, null, 0, null)), null).isOk());
     }
 
     @Test
-    void boolAndBitsAreForEthernetIpOnly() {
-        assertRule("A3", validator.validatePlan(plan("B", action(MODBUS, "3_1", 1, "BOOL", null, 0, null)), null));
-        assertRule("A3", validator.validatePlan(plan("B", action(XGT, "%DD1", 1, "BITS", null, 0, null)), null));
+    void dataTypeMustFitTheTarget() {
+        // 없어진 타입
+        assertRule("A6", validator.validatePlan(plan("T", action(MODBUS, "3_1", 1, "BOOL", null, 0, null)), null));
+        // 레지스터에 폭 없는 타입, 비트에 레지스터 타입
+        assertRule("A6", validator.validatePlan(plan("T", action(MODBUS, "3_1", 1, "BINARY", null, 0, null)), null));
+        assertRule("A6", validator.validatePlan(plan("T", action(MODBUS, "1_1", 1, "UI16AB", null, 0, null)), null));
+        assertTrue(validator.validatePlan(plan("T", action(MODBUS, "1_1", 1, "BINARY", null, 0, null)), null).isOk());
+        assertRule("A7", validator.validatePlan(plan("T", action(XGT, "%DD1", 1, "INTEGER", null, 0, null)), null));
+        // BACnet analog 은 FLOAT·INTEGER
+        assertRule("A6", validator.validatePlan(plan("T", action(BACNET, "analog_value 1", 1, "BINARY", null, 0, null)), null));
+        assertTrue(validator.validatePlan(plan("T", action(BACNET, "analog_value 1", 1.5, "FLOAT", null, 0, null)), null).isOk());
+        assertTrue(validator.validatePlan(plan("T", action(BACNET, "analog_value 1", 2, "INTEGER", null, 0, null)), null).isOk());
+        assertRule("A10", validator.validatePlan(plan("T", action(BACNET, "analog_value 1", 1.5, "INTEGER", null, 0, null)), null));
+        // 값을 그대로 담는 프로토콜은 레지스터 타입을 받지 않는다
+        assertRule("A6", validator.validatePlan(plan("T", action(SNMP, "1.3.6.1.4.1.1.0", 1, "UI16AB", null, 0, null)), null));
+    }
+
+    @Test
+    void snmpIntegerIsSigned32() {
+        assertTrue(validator.validatePlan(plan("S", action(SNMP, "1.3.6.1.4.1.1.0", 2147483647d, "INTEGER", null, 0, null)), null).isOk());
+        assertRule("A10", validator.validatePlan(plan("S", action(SNMP, "1.3.6.1.4.1.1.0", 2147483648d, "INTEGER", null, 0, null)), null));
+        assertRule("A10", validator.validatePlan(plan("S", action(SNMP, "1.3.6.1.4.1.1.0", 2, "BINARY", null, 0, null)), null));
     }
 
     @Test

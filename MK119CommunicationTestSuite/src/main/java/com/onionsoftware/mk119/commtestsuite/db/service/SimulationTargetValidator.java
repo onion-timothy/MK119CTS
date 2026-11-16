@@ -4,11 +4,17 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Simulation;
 import com.onionsoftware.mk119.commtestsuite.db.bean.SimulationPolicy;
 import com.onionsoftware.mk119.commtestsuite.enums.DataType;
+import com.onionsoftware.mk119.commtestsuite.enums.Policy;
 import com.onionsoftware.mk119.commtestsuite.enums.Protocol;
 import com.onionsoftware.mk119.commtestsuite.io.bacnet.tag.BACnetObjectIdentifier;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.DataTypeRules;
+import com.onionsoftware.mk119.commtestsuite.protocol.Definition;
+import com.onionsoftware.mk119.commtestsuite.protocol.DefinitionRegistry;
 import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.EthernetIPTypes;
+import com.onionsoftware.mk119.commtestsuite.io.netty.serverData.ServerDataValueRules;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +34,8 @@ public class SimulationTargetValidator {
 
     /** Daeyun 저장 구조의 채널 수. analogChannelValues[32] / BitSet(32) 와 맞춘다. */
     private static final int DAEYUN_CHANNELS = 32;
+    /** BACnet object instance 는 22비트다. 4194303 은 '아무 instance' 를 뜻하는 예약값이라 쓸 수 없다. */
+    static final int BACNET_INSTANCE_MAX = 4194302;
 
     /** communicationSettings 의 정수 값. 없거나 숫자가 아니면 fallback. 값이 "1.0" 인 경우도 받는다. */
     private static int csInt(Device device, String key, int fallback) {
@@ -44,6 +52,9 @@ public class SimulationTargetValidator {
     /**
      * Simulation 하나를 통째로 본다. 정책이 여러 개면 모두 검사한다.
      * 하나라도 target 과 맞지 않으면 그 Simulation 은 등록되면 안 된다.
+     * <p>
+     * 정책마다 policy 와 data_type 이 있어야 하고, 그 타입이 target 에 맞아야 하고({@link DataTypeRules}),
+     * 정책의 값이 그 타입에 맞아야 한다({@link #policyValueError}).
      *
      * @return 첫 번째 오류 메시지, 또는 문제없으면 null
      */
@@ -53,11 +64,108 @@ public class SimulationTargetValidator {
         if (simulation.getPolicies() == null || simulation.getPolicies().isEmpty()) {
             return validate(device, target, null);
         }
+        boolean several = simulation.getPolicies().size() > 1;
+        // 정책이 여럿인 건 DB 뿐이다. DB 의 target 은 ${정책 ID} 자리를 가진 SQL 이라
+        // 정책 하나가 자리 하나를 채운다. 다른 프로토콜은 target 하나에 값 하나를 쓰므로
+        // 정책을 더 달아 봐야 같은 자리를 번갈아 덮어쓸 뿐이다.
+        if (several && protocolOf(device) != Protocol.DB) {
+            return "Only a DB device can have more than one policy."
+                    + " Other protocols write a single value to the target.";
+        }
         for (SimulationPolicy policy : simulation.getPolicies()) {
-            String error = validate(device, target, policy == null ? null : policy.getData_type());
-            if (error != null) return error;
+            if (policy == null) continue;
+            String error = validate(device, target, policy.getData_type());
+            // 예전 EtherNet/IP 형식(REAL@TAG1)은 접두어가 타입이다. 저장할 때 data_type 으로 옮겨진다
+            DataType type = policy.getData_type() != null ? policy.getData_type() : legacyPrefixType(device, target);
+            // 정책이 비면 policyValueError 가 통째로 건너뛴다 — BINARY 에 ACCUMULATE 를 쓰는 것조차 걸리지 않는다.
+            // 화면이 고를 수 없는 정책을 disabled 로 막으면 jQuery .val() 이 undefined 를 주고,
+            // 그 undefined 가 여기까지 그대로 온다. 그래서 타입과 똑같이 필수로 받는다
+            if (error == null && policy.getPolicy() == null) {
+                error = "Policy is required. Use " + joinPolicies() + ".";
+            }
+            if (error == null && type == null) {
+                error = "Data type is required. Use "
+                        + DataTypeRules.join(DataTypeRules.allowed(device, target)) + ".";
+            }
+            if (error == null) error = policyValueError(device, target, policy, type);
+            if (error != null) return several && policy.getId() != null ? "Policy " + policy.getId() + ": " + error : error;
         }
         return null;
+    }
+
+    private static Protocol protocolOf(Device device) {
+        return device == null ? null : device.getProtocol();
+    }
+
+    /** "STATIC, RANDOM, ACCUMULATE or SEQUENCE" — DataTypeRules.join 과 같은 말투로 적는다. */
+    private static String joinPolicies() {
+        Policy[] all = Policy.values();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < all.length; i++) {
+            if (i > 0) sb.append(i == all.length - 1 ? " or " : ", ");
+            sb.append(all[i]);
+        }
+        return sb.toString();
+    }
+
+    private static DataType legacyPrefixType(Device device, String target) {
+        if (protocolOf(device) != Protocol.ETHERNET_IP) return null;
+        return EthernetIPTypes.dataTypeForLegacyPrefix(EthernetIPTypes.legacyPrefixOf(target));
+    }
+
+    /**
+     * 정책의 값이 data_type 에 맞는지. 화면에 넣은 값이 실행 중에 잘리거나 넘치지 않게 등록 때 막는다.
+     * <ul>
+     *   <li>STATIC 값, SEQUENCE 의 각 값, RANDOM 의 범위 양 끝, ACCUMULATE 의 시작값은 그 타입이 담을 수 있어야 한다</li>
+     *   <li>ACCUMULATE 의 증가량은 정수형이면 정수여야 한다</li>
+     *   <li>BINARY 에는 ACCUMULATE 를 쓸 수 없다 — 0 과 1 사이를 누적할 수 없다</li>
+     * </ul>
+     */
+    private String policyValueError(Device device, String target, SimulationPolicy policy, DataType type) {
+        Protocol protocol = protocolOf(device);
+        if (protocol == null || type == null || policy.getPolicy() == null) return null;
+        String t = protocol == Protocol.ETHERNET_IP ? EthernetIPTypes.tagOf(target) : target.trim();
+        switch (policy.getPolicy()) {
+            case STATIC: {
+                Double v = policy.numericValue();
+                return v == null ? null : ServerDataValueRules.valueError(protocol, t, type, v);
+            }
+            case SEQUENCE: {
+                List<Double> values = policy.sequenceValues();
+                if (values == null) return null;
+                for (Double v : values) {
+                    String e = ServerDataValueRules.valueError(protocol, t, type, v);
+                    if (e != null) return e;
+                }
+                return null;
+            }
+            case RANDOM: {
+                List<Double> range = policy.getRange();
+                if (range == null || range.size() < 2) return null;
+                for (int i = 0; i < 2; i++) {
+                    if (range.get(i) == null) continue;
+                    String e = ServerDataValueRules.valueError(protocol, t, type, range.get(i));
+                    if (e != null) return "Range " + (i == 0 ? "minimum" : "maximum") + ": " + e;
+                }
+                return null;
+            }
+            case ACCUMULATE: {
+                if (type == DataType.BINARY) return "ACCUMULATE cannot be used with BINARY. Use STATIC, SEQUENCE or RANDOM.";
+                List<Double> range = policy.getRange();
+                if (range == null || range.size() < 2) return null;
+                if (range.get(0) != null) {
+                    String e = ServerDataValueRules.valueError(protocol, t, type, range.get(0));
+                    if (e != null) return "Start: " + e;
+                }
+                Double step = range.get(1);
+                if (step != null && !type.isReal() && step != Math.rint(step)) {
+                    return "Step " + step + " is not a whole number. " + type + " takes whole numbers only.";
+                }
+                return null;
+            }
+            default:
+                return null;
+        }
     }
 
     /**
@@ -71,22 +179,28 @@ public class SimulationTargetValidator {
     }
 
     /**
-     * target 형식과 함께, 타입을 target 이 지정하는 프로토콜에서는 data_type 과 어긋나지 않는지 본다.
-     * <p>
-     * EtherNet/IP 는 target 접두어가 CIP 타입을 정한다({@code REAL@TAG1}). 여기에 맞지 않는
-     * data_type 을 두면 값이 그 타입으로 변환되어 나가므로, 화면에서 고른 것과 클라이언트가
-     * 읽는 것이 달라진다. 등록 시점에 막는다.
+     * target 형식과 함께, data_type 이 그 target 에 맞는지 본다({@link DataTypeRules}).
+     * 예를 들어 BACnet binary_value 에는 BINARY 만 맞다.
      *
      * @param dataType 정책의 data_type. null 이면 타입 검사를 건너뛴다.
      * @return 오류 메시지, 또는 문제없으면 null
      */
     public String validate(Device device, String target, DataType dataType) {
+        String error = validateFormat(device, target, dataType);
+        if (error != null || device == null || device.getProtocol() == null) return error;
+        // 예전 EtherNet/IP 형식(REAL@TAG1)은 접두어가 타입을 말한다. 그 대조는 위에서 했다
+        if (device.getProtocol() == Protocol.ETHERNET_IP && EthernetIPTypes.legacyPrefixOf(target) != null) return null;
+        return DataTypeRules.mismatch(device, target.trim(), dataType);
+    }
+
+    /**
+     * target 형식·주소 범위만 본다. data_type 은 예전 EtherNet/IP 접두어와의 대조에만 쓴다.
+     * 타입이 target 에 맞는지는 {@link DataTypeRules} 로 따로 본다.
+     */
+    public String validateFormat(Device device, String target, DataType dataType) {
         if (device == null || device.getProtocol() == null) return null;
         if (target == null || target.trim().isEmpty()) return "Missing target.";
         String t = target.trim();
-        if ((dataType == DataType.BOOL || dataType == DataType.BITS) && device.getProtocol() != Protocol.ETHERNET_IP) {
-            return "Data type " + dataType + " is for EtherNet/IP only.";
-        }
 
         switch (device.getProtocol()) {
             case BACNET:
@@ -95,6 +209,10 @@ public class SimulationTargetValidator {
                             + " (e.g. \"analog_input 1\"). Supported types: analog_input, analog_output,"
                             + " analog_value, binary_input, binary_output, binary_value,"
                             + " multi_state_input, multi_state_output, multi_state_value.";
+                }
+                int instance = BACnetObjectIdentifier.parseSimulationTarget(t).getInstance_number();
+                if (instance < 0 || instance > BACNET_INSTANCE_MAX) {
+                    return "BACnet instance " + instance + " is out of range (0.." + BACNET_INSTANCE_MAX + ").";
                 }
                 return null;
 
@@ -155,8 +273,11 @@ public class SimulationTargetValidator {
                 return null;
             }
 
+            case GENERIC:
+                return definitionTargetError(device, t);
+
             case DAEYUN_RCU: {
-                // @RCUDI_<n> / @RCUAI_<n> 는 채널 번호가 1-base. 그 외 문자열은 txField 로 자유 형식.
+                // @RCUDI_<n> / @RCUAI_<n> 는 채널 번호가 1-base. 그 밖은 RS 본문의 프로토콜 정의가 정한 타겟이다
                 if (t.startsWith("@RCUDI_") || t.startsWith("@RCUAI_")) {
                     boolean digital = t.startsWith("@RCUDI_");
                     int ch;
@@ -173,8 +294,9 @@ public class SimulationTargetValidator {
                         return "Daeyun " + (digital ? "digital" : "analog") + " channel " + ch
                                 + " is out of range (1.." + limit + ").";
                     }
+                    return null;
                 }
-                return null;
+                return definitionTargetError(device, t);
             }
 
             case OPC_AGENT: {
@@ -208,10 +330,6 @@ public class SimulationTargetValidator {
                             + " (e.g. \"TAG1\" or \"sys_runtime_acc[0]\").";
                 }
                 if (prefix != null) return cipTypeMismatch(prefix, dataType, t);
-                if (dataType != null && EthernetIPTypes.cipTypeOf(dataType) == null) {
-                    return "Data type " + dataType + " cannot be sent over EtherNet/IP. Use "
-                            + EthernetIPTypes.SUPPORTED + ".";
-                }
                 return null;
             }
 
@@ -223,58 +341,35 @@ public class SimulationTargetValidator {
     }
 
     /**
-     * CIP 타입과 data_type 의 폭·성격이 맞는지 본다.
-     * <pre>
-     *   BOOL, SINT   8비트 정수   UI8  SI8
-     *   INT          16비트 정수  UI16AB SI16AB ...
-     *   DINT, BITS   32비트 정수  UI32* SI32*
-     *   REAL         32비트 실수  FP32*
-     * </pre>
-     * 바이트 순서(AB/BA/CB/DA)는 보지 않는다. CIP 가 little-endian 으로 고정하므로
-     * 폭과 정수/실수 구분만 의미가 있다.
+     * GENERIC·MK RCU(채널 밖): 장비의 프로토콜 정의의 타겟 목록에 있거나 패턴에 맞아야 한다
+     * (docs/PROTOCOL_ENGINE_DESIGN.md 9.3). 정의를 볼 수 없으면(앱 밖) 막지 않는다.
+     */
+    private static String definitionTargetError(Device device, String t) {
+        DefinitionRegistry registry = DefinitionRegistry.current();
+        if (registry == null) return null;
+        if (ProtocolDefinitionService.definitionIdOf(device) == null) {
+            return device.getProtocol() == Protocol.GENERIC
+                    ? "Device \"" + device.getName() + "\" has no protocol definition. Choose one in the device editor first."
+                    : "Target \"" + t + "\" needs a protocol definition on this device (otherwise only @RCUDI_n and @RCUAI_n).";
+        }
+        Definition def = registry.forDevice(device);
+        if (def == null) return "The protocol definition of device \"" + device.getName() + "\" does not exist or does not compile.";
+        if (def.targetInfo(t) == null) return "No target \"" + t + "\" in protocol definition \"" + def.name + "\".";
+        return null;
+    }
+
+    /**
+     * 예전 형식 target 의 CIP 타입 접두어와 data_type 이 같은 타입인지 본다.
+     * 저장할 때 접두어를 떼고 그 타입을 data_type 으로 옮기므로({@link EthernetIPTypes#dataTypeForLegacyPrefix}),
+     * 다른 data_type 을 함께 보내면 둘 중 하나가 버려진다.
      *
-     * @return 어긋나면 오류 메시지, 맞거나 검사할 수 없으면 null
+     * @return 어긋나면 오류 메시지, 맞거나 data_type 이 없으면 null
      */
     private String cipTypeMismatch(String cipType, DataType dataType, String target) {
-        if (dataType == null) return null;
-
-        String name = dataType.name();
-        boolean real = name.startsWith("FP");
-        int bytes = dataType.getByteCount();
-        String expected;
-
-        switch (cipType.toUpperCase()) {
-            case "BOOL":
-                expected = "BOOL";
-                if (dataType == DataType.BOOL || (!real && bytes == 1)) return null;
-                break;
-            case "SINT":
-                expected = "UI8 or SI8";
-                if (dataType != DataType.BOOL && !real && bytes == 1) return null;
-                break;
-            case "INT":
-                expected = "a 16-bit integer type (UI16AB, SI16AB, ...)";
-                if (!real && bytes == 2) return null;
-                break;
-            case "DINT":
-                expected = "a 32-bit integer type (UI32AD, SI32AD, ...)";
-                if (dataType != DataType.BITS && !real && bytes == 4) return null;
-                break;
-            case "BITS":
-                expected = "BITS or a 32-bit integer type";
-                if (!real && bytes == 4) return null;
-                break;
-            case "REAL":
-                expected = "a 32-bit float type (FP32AD, ...)";
-                if (real && bytes == 4) return null;
-                break;
-            default:
-                // STRUCT 계열은 숫자 값을 담지 않는다. 형식 검사만으로 끝낸다.
-                return null;
-        }
-
-        return "EtherNet/IP target \"" + target + "\" declares CIP type " + cipType.toUpperCase()
-                + ", but data_type is " + name + ". Use " + expected
-                + ", or change the target prefix to match.";
+        DataType expected = EthernetIPTypes.dataTypeForLegacyPrefix(cipType);
+        if (dataType == null || expected == null || dataType == expected) return null;
+        return "EtherNet/IP target \"" + target + "\" declares CIP type " + cipType
+                + ", but data_type is " + dataType + ". Use " + expected
+                + ", or write the tag name without the prefix.";
     }
 }
