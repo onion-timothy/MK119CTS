@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+  장비 통신 설정 칸과 프로토콜 정의 카드. device_editor 와 batchAddDevices 가 같은 마크업을 쓴다.
+  동작은 js/cts-device-form.js(설정 칸) · js/cts-definition-card.js(정의), 모양은 css/cts-device-form.css.
+
+  settings     — 프로토콜마다 .ed-proto[data-protocol] 하나. 고른 프로토콜 것만 보이게 하는 건 화면이 한다.
+                 고르는 칸의 선택지와 슬라이더는 CtsDeviceForm.mount() 가 채운다.
+  definition-card — Generic·MK RCU 의 프로토콜 정의 카드. CtsDefinitionCard.mount(카드) 로 붙인다.
+-->
+<body>
+
+<th:block th:fragment="settings">
+    <div class="ed-proto" data-protocol="MODBUS">
+        <div class="row g-2">
+            <div class="col-4">
+                <label class="form-label" for="mb-unit">Unit ID</label>
+                <input type="text" class="form-control" id="mb-unit" inputmode="numeric" placeholder="0–255">
+            </div>
+            <div class="col-8">
+                <label class="form-label" for="mb-packet">Packet type</label>
+                <select class="form-select" id="mb-packet"></select>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="mb-registers">Registers</label>
+                <input type="text" class="form-control" id="mb-registers" inputmode="numeric"
+                       placeholder="Address count of each table">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto" data-protocol="XGT_PLC">
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label" for="xgt-cpu">CPU ID</label>
+                <input type="text" class="form-control" id="xgt-cpu" inputmode="numeric" placeholder="0–255">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="xgt-block">Max block size</label>
+                <input type="text" class="form-control" id="xgt-block" inputmode="numeric" placeholder="1–1400">
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="xgt-registers">Registers</label>
+                <input type="text" class="form-control" id="xgt-registers" inputmode="numeric"
+                       placeholder="Register count">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto dv-cq" data-protocol="DAEYUN_RCU">
+        <div class="row g-2">
+            <div class="col-6 dv-quarter">
+                <label class="form-label" for="rcu-cpu">CPU address</label>
+                <input type="text" class="form-control" id="rcu-cpu" inputmode="numeric" placeholder="0–255">
+            </div>
+            <div class="col-6 dv-quarter">
+                <div class="cts-slider-row">
+                    <label class="form-label" for="rcu-di">DI channels</label>
+                    <span class="cts-slider-val" id="rcu-di-val" style="--c: var(--tblr-green)"></span>
+                </div>
+                <input type="range" class="cts-range" id="rcu-di" min="1" max="32" step="1" value="8"
+                       style="--c: var(--tblr-green)">
+            </div>
+            <div class="col-6 dv-quarter">
+                <div class="cts-slider-row">
+                    <label class="form-label" for="rcu-do">DO channels</label>
+                    <span class="cts-slider-val" id="rcu-do-val" style="--c: var(--tblr-green)"></span>
+                </div>
+                <input type="range" class="cts-range" id="rcu-do" min="1" max="32" step="1" value="8"
+                       style="--c: var(--tblr-green)">
+            </div>
+            <div class="col-6 dv-quarter">
+                <div class="cts-slider-row">
+                    <label class="form-label" for="rcu-ai">AI channels</label>
+                    <span class="cts-slider-val" id="rcu-ai-val" style="--c: var(--tblr-green)"></span>
+                </div>
+                <input type="range" class="cts-range" id="rcu-ai" min="1" max="8" step="1" value="4"
+                       style="--c: var(--tblr-green)">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto" data-protocol="SNMP">
+        <div class="row g-2">
+            <div class="col-12">
+                <label class="form-label" for="snmp-version">Version</label>
+                <select class="form-select" id="snmp-version"></select>
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="snmp-get">Get community</label>
+                <input type="text" class="form-control" id="snmp-get" placeholder="For reads, e.g. public">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="snmp-set">Set community</label>
+                <input type="text" class="form-control" id="snmp-set" placeholder="For writes, e.g. private">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto" data-protocol="BACNET">
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label" for="bac-instance">Device instance</label>
+                <input type="text" class="form-control" id="bac-instance" inputmode="numeric" placeholder="1–65536">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="bac-broadcast">Broadcast address</label>
+                <input type="text" class="form-control" id="bac-broadcast" placeholder="e.g. 192.168.0.255">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto" data-protocol="OPC_AGENT">
+        <div class="row g-2">
+            <div class="col-12">
+                <label class="form-label" for="opc-tags">Tags</label>
+                <input type="text" class="form-control" id="opc-tags" inputmode="numeric"
+                       placeholder="Tag count of the agent">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto" data-protocol="DB">
+        <div class="row g-2">
+            <div class="col-12">
+                <label class="form-label" for="db-driver">Driver</label>
+                <input type="text" class="form-control" id="db-driver" placeholder="JDBC driver class name">
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="db-url">URL</label>
+                <input type="text" class="form-control" id="db-url" placeholder="JDBC URL">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="db-user">Username</label>
+                <input type="text" class="form-control" id="db-user" autocomplete="off">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="db-password">Password</label>
+                <input type="password" class="form-control" id="db-password" autocomplete="new-password">
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="db-name">Database</label>
+                <input type="text" class="form-control" id="db-name" placeholder="Database name">
+            </div>
+        </div>
+    </div>
+
+    <div class="ed-proto" data-protocol="ETHERNET_IP">
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label" for="eip-slot">CPU slot</label>
+                <input type="text" class="form-control" id="eip-slot" inputmode="numeric" placeholder="Slot in backplane">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="eip-syn">Implicit SYN port</label>
+                <input type="text" class="form-control" id="eip-syn" inputmode="numeric" placeholder="0–32767">
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="eip-t2o-addr">Implicit T→O address</label>
+                <input type="text" class="form-control" id="eip-t2o-addr" placeholder="Remote IPv4 address">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="eip-t2o-size">T→O assembly size</label>
+                <input type="text" class="form-control" id="eip-t2o-size" inputmode="numeric" placeholder="Input assembly">
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="eip-o2t-size">O→T assembly size</label>
+                <input type="text" class="form-control" id="eip-o2t-size" inputmode="numeric" placeholder="Output assembly">
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<!--
+  Generic · MK RCU: 저장된 프로토콜 정의를 고르고 그 파라미터를 채운다 (docs/PROTOCOL_ENGINE_DESIGN.md 10.1).
+  정의는 장비와 따로 저장된다 — 고치려면 Open 으로 정의 편집기(/protocols/edit/{id})를 연다.
+  동작은 js/cts-definition-card.js. 처음엔 숨겨 둔다.
+-->
+<th:block th:fragment="definition-card">
+    <div class="card cts-card ed-grow" id="definition-card" style="display:none">
+        <div class="card-header">
+            <h3 class="card-title">Protocol definition<span class="ed-sub" id="def-summary"></span></h3>
+            <div class="card-actions">
+                <a class="btn btn-sm btn-outline-secondary disabled" id="def-open" href="#" target="_blank" rel="noopener"
+                   title="Open this definition in the editor (new tab)"><i class="fas fa-external-link-alt"></i> Open</a>
+            </div>
+        </div>
+        <div class="card-body ed-cq">
+            <label class="form-label" for="def-select">Definition</label>
+            <select class="form-select" id="def-select"></select>
+            <div class="ed-note mt-2" id="def-desc"></div>
+            <div class="ed-grid mt-3" id="def-params"></div>
+        </div>
+    </div>
+</th:block>
+
+</body>
+</html>

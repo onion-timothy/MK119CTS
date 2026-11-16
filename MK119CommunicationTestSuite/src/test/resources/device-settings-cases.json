@@ -1,0 +1,386 @@
+{
+  "_about": "장비 통신 설정 검사 사례. 기준은 장비 편집기다. expect 는 칸 순서대로 나와야 하는 문제 전부. JUnit(DeviceSettingsValidatorTest)과 JXA(tools/check-device-settings.sh)가 같은 표를 돌린다.",
+  "cases": [
+    {
+      "name": "modbus ok, strings",
+      "protocol": "MODBUS",
+      "cs": {
+        "unitId": "1",
+        "packetType": "1",
+        "registers": "30000"
+      },
+      "expect": []
+    },
+    {
+      "name": "modbus ok, numbers (30000.0 is 30000)",
+      "protocol": "MODBUS",
+      "cs": {
+        "unitId": 1,
+        "packetType": 1,
+        "registers": 30000.0
+      },
+      "expect": []
+    },
+    {
+      "name": "modbus empty",
+      "protocol": "MODBUS",
+      "cs": {},
+      "expect": [
+        "Unit ID cannot be empty.",
+        "Packet type cannot be empty.",
+        "Registers cannot be empty."
+      ]
+    },
+    {
+      "name": "modbus out of range, decimal, unknown option",
+      "protocol": "MODBUS",
+      "cs": {
+        "unitId": 256,
+        "packetType": 2,
+        "registers": 1.5
+      },
+      "expect": [
+        "Unit ID must be a whole number from 0 to 255.",
+        "Packet type must be Modbus-RTU or Modbus-TCP.",
+        "Registers must be a whole number from 1 to 2147483647."
+      ]
+    },
+    {
+      "name": "modbus text, padded option, over int",
+      "protocol": "MODBUS",
+      "cs": {
+        "unitId": "abc",
+        "packetType": " 1 ",
+        "registers": "2147483648"
+      },
+      "expect": [
+        "Unit ID must be a whole number from 0 to 255.",
+        "Registers must be a whole number from 1 to 2147483647."
+      ]
+    },
+    {
+      "name": "modbus padded numbers, int max",
+      "protocol": "MODBUS",
+      "cs": {
+        "unitId": " 7 ",
+        "packetType": "0",
+        "registers": "2147483647"
+      },
+      "expect": []
+    },
+    {
+      "name": "settings as JSON text",
+      "protocol": "MODBUS",
+      "cs": "{\"unitId\":\"1\",\"packetType\":\"0\",\"registers\":\"5\"}",
+      "expect": []
+    },
+    {
+      "name": "not JSON",
+      "protocol": "SNMP",
+      "cs": "not json",
+      "expect": [
+        "Communication settings must be a JSON object."
+      ]
+    },
+    {
+      "name": "array",
+      "protocol": "SNMP",
+      "cs": [
+        1,
+        2
+      ],
+      "expect": [
+        "Communication settings must be a JSON object."
+      ]
+    },
+    {
+      "name": "number",
+      "protocol": "SNMP",
+      "cs": 5,
+      "expect": [
+        "Communication settings must be a JSON object."
+      ]
+    },
+    {
+      "name": "blank null is empty settings",
+      "protocol": "OPC_AGENT",
+      "cs": null,
+      "expect": [
+        "Tags cannot be empty."
+      ]
+    },
+    {
+      "name": "blank text is empty settings",
+      "protocol": "OPC_AGENT",
+      "cs": "",
+      "expect": [
+        "Tags cannot be empty."
+      ]
+    },
+    {
+      "name": "empty array value reads as empty",
+      "protocol": "OPC_AGENT",
+      "cs": {
+        "registers": []
+      },
+      "expect": [
+        "Tags cannot be empty."
+      ]
+    },
+    {
+      "name": "object value is not a number",
+      "protocol": "OPC_AGENT",
+      "cs": {
+        "registers": {}
+      },
+      "expect": [
+        "Tags must be a whole number from 1 to 2147483647."
+      ]
+    },
+    {
+      "name": "xgt block size",
+      "protocol": "XGT_PLC",
+      "cs": {
+        "cpuId": "0",
+        "maxBlockSize": "1401",
+        "registers": "1"
+      },
+      "expect": [
+        "Max block size must be a whole number from 1 to 1400."
+      ]
+    },
+    {
+      "name": "snmp unknown version, blank communities",
+      "protocol": "SNMP",
+      "cs": {
+        "snmpVersion": 2,
+        "getCommunity": "",
+        "setCommunity": "  "
+      },
+      "expect": [
+        "Version must be SNMPv1 or SNMPv2.",
+        "Get community cannot be empty.",
+        "Set community cannot be empty."
+      ]
+    },
+    {
+      "name": "snmp ok, number version",
+      "protocol": "SNMP",
+      "cs": {
+        "snmpVersion": 1,
+        "getCommunity": "public",
+        "setCommunity": "private"
+      },
+      "expect": []
+    },
+    {
+      "name": "bacnet instance 0",
+      "protocol": "BACNET",
+      "cs": {
+        "deviceInstanceId": 0,
+        "broadcast": "x"
+      },
+      "expect": [
+        "Device instance must be a whole number from 1 to 65536."
+      ]
+    },
+    {
+      "name": "bacnet instance max",
+      "protocol": "BACNET",
+      "cs": {
+        "deviceInstanceId": "65536",
+        "broadcast": "10.0.0.255"
+      },
+      "expect": []
+    },
+    {
+      "name": "db blanks",
+      "protocol": "DB",
+      "cs": {
+        "dbdriver": "",
+        "dbUrl": "u",
+        "dbUsername": "x",
+        "dbPassword": "",
+        "dbDatabase": "n"
+      },
+      "expect": [
+        "Driver cannot be empty.",
+        "Password cannot be empty."
+      ]
+    },
+    {
+      "name": "eip port, 4-digit octet, negative size",
+      "protocol": "ETHERNET_IP",
+      "cs": {
+        "cpuSlot": "1",
+        "syn_port": 32768,
+        "implicit_t2o_addr": "0001.2.3.4",
+        "implicit_t2o_assy_size": "-1",
+        "implicit_o2t_assy_size": "10"
+      },
+      "expect": [
+        "Implicit SYN port must be a whole number from 0 to 32767.",
+        "T→O address must be an IPv4 address.",
+        "T→O assembly size must be a whole number from 0 to 2147483647."
+      ]
+    },
+    {
+      "name": "eip trailing dot",
+      "protocol": "ETHERNET_IP",
+      "cs": {
+        "cpuSlot": "1",
+        "syn_port": "1",
+        "implicit_t2o_addr": "1.2.3.4.",
+        "implicit_t2o_assy_size": "0",
+        "implicit_o2t_assy_size": "0"
+      },
+      "expect": [
+        "T→O address must be an IPv4 address."
+      ]
+    },
+    {
+      "name": "eip padded address",
+      "protocol": "ETHERNET_IP",
+      "cs": {
+        "cpuSlot": "1",
+        "syn_port": "1",
+        "implicit_t2o_addr": " 10.0.0.1 ",
+        "implicit_t2o_assy_size": "0",
+        "implicit_o2t_assy_size": "0"
+      },
+      "expect": []
+    },
+    {
+      "name": "rcu ok",
+      "protocol": "DAEYUN_RCU",
+      "cs": {
+        "cpuAddr": "1",
+        "diCount": 8,
+        "doCount": 8,
+        "aiCount": 4,
+        "rx": [
+          {
+            "rx_id": "1",
+            "length": 1,
+            "fields": [
+              {
+                "field_id": "a",
+                "data_type": "UI8",
+                "required_value": "1"
+              }
+            ]
+          }
+        ],
+        "tx": [
+          {
+            "tx_id": "1",
+            "fields": [
+              {
+                "field_id": "b",
+                "field_type": "SIMULATION",
+                "data_type": "UI16AB"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": []
+    },
+    {
+      "name": "rcu channels (editor sliders)",
+      "protocol": "DAEYUN_RCU",
+      "cs": {
+        "cpuAddr": "1",
+        "diCount": 50,
+        "doCount": 0,
+        "aiCount": 9,
+        "rx": [
+          {
+            "rx_id": "1",
+            "fields": [
+              {
+                "field_id": "a"
+              }
+            ]
+          }
+        ],
+        "tx": [
+          {
+            "tx_id": "1",
+            "fields": [
+              {
+                "field_id": "b",
+                "field_type": "SIMULATION"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        "DI channels must be a whole number from 1 to 32.",
+        "DO channels must be a whole number from 1 to 32.",
+        "AI channels must be a whole number from 1 to 8."
+      ]
+    },
+    {
+      "name": "rcu missing AI (definition is optional)",
+      "protocol": "DAEYUN_RCU",
+      "cs": {
+        "cpuAddr": "1",
+        "diCount": 8,
+        "doCount": 8
+      },
+      "expect": [
+        "AI channels cannot be empty."
+      ]
+    },
+    {
+      "name": "rcu packets as JSON text",
+      "protocol": "DAEYUN_RCU",
+      "cs": {
+        "cpuAddr": "1",
+        "diCount": "8",
+        "doCount": "8",
+        "aiCount": "4",
+        "rx": "[{\"rx_id\":\"1\",\"length\":1,\"fields\":[{\"field_id\":\"a\",\"data_type\":\"UI8\"}]}]",
+        "tx": "[{\"tx_id\":\"1\",\"fields\":[{\"field_id\":\"b\",\"field_type\":\"SIMULATION\",\"data_type\":\"UI16AB\"}]}]"
+      },
+      "expect": []
+    },
+    {
+      "name": "unknown protocol is the row check's job",
+      "protocol": "FOO",
+      "cs": {},
+      "expect": []
+    },
+    {
+      "name": "generic needs a protocol definition",
+      "protocol": "GENERIC",
+      "cs": {},
+      "expect": [
+        "Choose a protocol definition."
+      ]
+    },
+    {
+      "name": "generic definition id must be a number",
+      "protocol": "GENERIC",
+      "cs": {
+        "definitionId": "power-meter"
+      },
+      "expect": [
+        "Protocol definition must be the id of a saved definition."
+      ]
+    },
+    {
+      "name": "rcu without a definition is fine",
+      "protocol": "DAEYUN_RCU",
+      "cs": {
+        "cpuAddr": 1,
+        "diCount": 8,
+        "doCount": 8,
+        "aiCount": 4
+      },
+      "expect": []
+    }
+  ]
+}
