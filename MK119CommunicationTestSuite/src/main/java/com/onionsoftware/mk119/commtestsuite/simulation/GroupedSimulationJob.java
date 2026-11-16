@@ -204,12 +204,17 @@ public class GroupedSimulationJob implements Runnable {
             double binHigh = sampleRange[1];
             double binSpan = binHigh - binLow;
 
+            if (dataType == null) {
+                // 등록 검증이 data_type 을 요구한다. 그 전에 저장된 정책만 여기에 온다
+                LoggerFactory.getLogger("simulation").error("RANDOM simulation {} has no data type.", simulation.getId());
+                return Double.NaN;
+            }
             if (dataType.name().startsWith("FP32")) {
                 value = binLow + new Random().nextFloat() * binSpan;
-            } else if (dataType.name().startsWith("FP64")) {
+            } else if (dataType.isReal()) {
                 value = binLow + new Random().nextDouble() * binSpan;
             } else {
-                // 정수 타입: bin 경계를 정수로 맞춰 [low, high] 범위의 정수를 균등 추출한다.
+                // 정수 타입(BINARY 포함): bin 경계를 정수로 맞춰 [low, high] 범위의 정수를 균등 추출한다.
                 // (binLow/binHigh 는 분포 분할 결과라 소수일 수 있으므로 정수 경계로 보정한다.)
                 long intLow = (long) Math.ceil(binLow);
                 long intHigh = (long) Math.floor(binHigh);

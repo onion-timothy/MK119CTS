@@ -12,16 +12,19 @@ class EthernetIPTypesTest {
     @Test
     void ctsTypeToCipType() {
         assertEquals(CIPData.Type.SINT, EthernetIPTypes.cipTypeOf(DataType.SI8));
-        assertEquals(CIPData.Type.INT, EthernetIPTypes.cipTypeOf(DataType.UI8));       // 한 단계 넓게
-        assertEquals(CIPData.Type.INT, EthernetIPTypes.cipTypeOf(DataType.SI16BA));    // 바이트 순서는 보지 않는다
-        assertEquals(CIPData.Type.DINT, EthernetIPTypes.cipTypeOf(DataType.UI16AB));   // 한 단계 넓게
+        assertEquals(CIPData.Type.INT, EthernetIPTypes.cipTypeOf(DataType.SI16BA));
         assertEquals(CIPData.Type.DINT, EthernetIPTypes.cipTypeOf(DataType.SI32DA));
-        assertEquals(CIPData.Type.REAL, EthernetIPTypes.cipTypeOf(DataType.FP32CB));
-        assertEquals(CIPData.Type.BOOL, EthernetIPTypes.cipTypeOf(DataType.BOOL));
-        assertEquals(CIPData.Type.BITS, EthernetIPTypes.cipTypeOf(DataType.BITS));
-        assertNull(EthernetIPTypes.cipTypeOf(DataType.UI32AD));
-        assertNull(EthernetIPTypes.cipTypeOf(DataType.SI64AH));
-        assertNull(EthernetIPTypes.cipTypeOf(DataType.FP64AH));
+        assertEquals(CIPData.Type.REAL, EthernetIPTypes.cipTypeOf(DataType.FP32DA));
+        assertEquals(CIPData.Type.BOOL, EthernetIPTypes.cipTypeOf(DataType.BINARY));
+    }
+
+    @Test
+    void otherTypesAreNotSent() {
+        // 부호 없는 타입, little-endian 이 아닌 바이트 순서, CIP 에 없는 폭, 폭 없는 타입
+        for (DataType t : new DataType[]{DataType.UI8, DataType.UI16BA, DataType.SI16AB, DataType.SI32AD,
+                DataType.FP32AD, DataType.UI32DA, DataType.SI64HA, DataType.FP64HA, DataType.INTEGER, DataType.FLOAT}) {
+            assertNull(EthernetIPTypes.cipTypeOf(t), t.name());
+        }
     }
 
     @Test
@@ -36,14 +39,13 @@ class EthernetIPTypesTest {
 
     @Test
     void legacyPrefixKeepsTheWireType() {
-        // 이미 같은 CIP 타입으로 나가면 그대로 둔다
-        assertEquals(DataType.FP32CB, EthernetIPTypes.dataTypeForLegacyPrefix("REAL", DataType.FP32CB));
-        assertEquals(DataType.SI16BA, EthernetIPTypes.dataTypeForLegacyPrefix("INT", DataType.SI16BA));
-        // 예전에는 INT 로 나가던 UI16 은 이제 DINT 로 나가므로 SI16 으로 바꾼다
-        assertEquals(DataType.SI16AB, EthernetIPTypes.dataTypeForLegacyPrefix("INT", DataType.UI16AB));
-        assertEquals(DataType.SI8, EthernetIPTypes.dataTypeForLegacyPrefix("SINT", DataType.UI8));
-        assertEquals(DataType.SI32AD, EthernetIPTypes.dataTypeForLegacyPrefix("DINT", DataType.UI32AD));
-        assertEquals(DataType.BOOL, EthernetIPTypes.dataTypeForLegacyPrefix("BOOL", DataType.UI8));
-        assertEquals(DataType.BITS, EthernetIPTypes.dataTypeForLegacyPrefix("BITS", DataType.UI32AD));
+        assertEquals(DataType.FP32DA, EthernetIPTypes.dataTypeForLegacyPrefix("REAL"));
+        assertEquals(DataType.SI16BA, EthernetIPTypes.dataTypeForLegacyPrefix("INT"));
+        assertEquals(DataType.SI8, EthernetIPTypes.dataTypeForLegacyPrefix("SINT"));
+        assertEquals(DataType.SI32DA, EthernetIPTypes.dataTypeForLegacyPrefix("DINT"));
+        assertEquals(DataType.BINARY, EthernetIPTypes.dataTypeForLegacyPrefix("BOOL"));
+        // BITS 는 더 이상 내보내지 않는다. 같은 폭의 DINT 로
+        assertEquals(DataType.SI32DA, EthernetIPTypes.dataTypeForLegacyPrefix("BITS"));
+        assertNull(EthernetIPTypes.dataTypeForLegacyPrefix(null));
     }
 }

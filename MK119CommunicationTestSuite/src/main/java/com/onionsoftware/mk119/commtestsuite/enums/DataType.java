@@ -1,5 +1,8 @@
 package com.onionsoftware.mk119.commtestsuite.enums;
 
+/**
+ * 값의 타입. 어느 타입을 쓸 수 있는지는 프로토콜과 target 이 정한다 — DataTypeRules.
+ */
 public enum DataType {
     UI8(1),
     SI8(2),
@@ -27,10 +30,12 @@ public enum DataType {
     FP64GB(24),    // G H E F C D A B
     FP64BG(25),    // B A D C F E H G
     FP64HA(26),    // H G F E D C B A
-    /** EtherNet/IP 전용. CIP BOOL 로 나간다. 값은 0/1. */
-    BOOL(27),
-    /** EtherNet/IP 전용. CIP BITS(32비트 비트 배열)로 나간다. */
-    BITS(28);
+    /** 0 또는 1. */
+    BINARY(29),
+    /** 폭·부호·바이트 순서가 없는 정수. 값을 그대로 담는 프로토콜용. */
+    INTEGER(30),
+    /** 폭·바이트 순서가 없는 실수. 값을 그대로 담는 프로토콜용. */
+    FLOAT(31);
 
     final private int value;
 
@@ -42,13 +47,18 @@ public enum DataType {
         return this.value;
     }
 
+    /** 바이트 수. 폭이 없는 BINARY·INTEGER·FLOAT 는 0. */
     public int getByteCount() {
-        if (this == BOOL) return 1;
-        if (this == BITS) return 4;
+        if (this == BINARY || this == INTEGER || this == FLOAT) return 0;
         if (name().contains("8")) return 1;
         if (name().contains("16")) return 2;
         if (name().contains("32")) return 4;
         if (name().contains("64")) return 8;
         return 0;
+    }
+
+    /** 소수를 담는 타입인지. FP32·FP64·FLOAT. */
+    public boolean isReal() {
+        return this == FLOAT || name().startsWith("FP");
     }
 }

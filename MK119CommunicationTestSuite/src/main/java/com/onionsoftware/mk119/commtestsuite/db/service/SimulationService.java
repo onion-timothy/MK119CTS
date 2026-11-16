@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.PeriodicTrigger;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -250,6 +251,11 @@ public class SimulationService {
         return selectSimulation(id).getEnabled() == 1;
     }
 
+    /**
+     * 파생 삭제 쿼리는 엔티티를 하나씩 지우므로 트랜잭션이 있어야 한다. 부른 쪽의 트랜잭션에
+     * 얹히고, 없으면 여기서 연다 — 호출부가 어디든 혼자 돌 수 있게 한다.
+     */
+    @Transactional
     public void deleteSimulationByDeviceId(Integer device_id) {
         stopDeviceSimulations(device_id);
         simulationRepository.deleteSimulationByDeviceId(device_id);
@@ -287,7 +293,7 @@ public class SimulationService {
         simulation.setTarget(EthernetIPTypes.tagOf(simulation.getTarget()));
         if (simulation.getPolicies() != null) {
             for (SimulationPolicy p : simulation.getPolicies()) {
-                if (p != null) p.setData_type(EthernetIPTypes.dataTypeForLegacyPrefix(prefix, p.getData_type()));
+                if (p != null) p.setData_type(EthernetIPTypes.dataTypeForLegacyPrefix(prefix));
             }
         }
         return true;

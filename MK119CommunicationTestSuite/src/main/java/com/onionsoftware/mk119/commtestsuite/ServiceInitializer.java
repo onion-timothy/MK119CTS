@@ -1,6 +1,7 @@
 package com.onionsoftware.mk119.commtestsuite;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
+import com.onionsoftware.mk119.commtestsuite.db.service.DataTypeMigration;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
@@ -27,10 +28,22 @@ public class ServiceInitializer {
     private final ErrorService errorService;
     private final TestPlanService testPlanService;
     private final TestPlanScheduler testPlanScheduler;
+    private final DataTypeMigration dataTypeMigration;
 
     @EventListener(ApplicationReadyEvent.class)
     public void afterStart() {
         groupService.makeRootGroup();
+
+        // 저장된 data_type 을 프로토콜별 타입 표에 맞춘다(BOOL·BITS 삭제, BINARY·INTEGER·FLOAT 도입).
+        // Test Plan 스케줄과 장비가 그 값을 읽기 전에 해야 한다
+        try {
+            int[] moved = dataTypeMigration.migrate();
+            if (moved[0] + moved[1] > 0) {
+                logger.info("Migrated data types of {} simulation(s) and {} test plan action(s).", moved[0], moved[1]);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to migrate data types at boot.", e);
+        }
 
         // interval 로 저장된 예전 Test Plan 을 지운다(실행 시각으로 바뀜). 스케줄을 등록하기 전에 해야 한다
         try {

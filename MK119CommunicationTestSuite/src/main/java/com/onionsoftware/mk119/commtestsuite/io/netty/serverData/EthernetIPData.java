@@ -66,7 +66,6 @@ public class EthernetIPData extends ServerData {
         }
         try {
             CIPData data = new CIPData(type, 1);
-            // UI16 은 DINT, BITS 는 32비트로 나간다. 부호 없는 값이 int 범위를 넘을 수 있어 long 을 거친다
             Number n = (type == CIPData.Type.REAL) ? (Number) value.floatValue() : (Number) (int) value.longValue();
             data.set(0, n);
             tagValueMap.put(tag, data);

@@ -80,28 +80,17 @@ public class SnmpHandler extends MkHandler {
      * 전에는 타입과 무관하게 {@code SnmpOctetString(Double.toString(value))} 로만 보냈다.
      * 그러면 6128 이 문자열 "6128.0" 으로 나가, 표준 SNMP 매니저가 숫자로 읽지 못한다.
      * <pre>
-     *   UI32*                 Unsigned32 (SnmpUInt)
-     *   그 밖의 8/16/32 정수   Integer32  (SnmpInt)
-     *   FP32* / FP64* / 64비트 정수, data_type 미지정   OctetString (문자열)
+     *   INTEGER, BINARY        Integer32 (SnmpInt, 항상 부호 있음)
+     *   FLOAT, data_type 미지정 OctetString (문자열)
      * </pre>
-     * SNMP 에는 실수 타입이 없고 Integer32 는 부호 있는 32비트라, 담을 수 없는 것은
-     * 문자열로 남긴다. 바이트 순서는 BER 이 big-endian 으로 고정하므로 AB/BA 구분은 쓰지 않는다.
+     * SNMP 에는 실수 타입이 없어 문자열로 남긴다. INTEGER 의 범위는 등록 때 Integer32 로 막는다.
      */
     private SnmpDataType snmpValueOf(SnmpData snmpData, String oid, double value) {
         DataType dataType = dataTypeOf(snmpData, oid);
-        if (dataType == null) {
+        if (dataType == null || dataType.isReal()) {
             return new SnmpOctetString(Double.toString(value));
         }
-        String name = dataType.name();
-        if (name.startsWith("FP") || name.contains("64")) {
-            // SNMP 에 float 타입이 없다. Counter64 는 카운터 전용이라 일반 값에 쓰지 않는다.
-            return new SnmpOctetString(Double.toString(value));
-        }
-        long rounded = Math.round(value);
-        if (name.startsWith("UI32")) {
-            return new SnmpUInt(rounded & 0xFFFFFFFFL);
-        }
-        return new SnmpInt((int) rounded);
+        return new SnmpInt((int) Math.round(value));
     }
 
     /** 그 OID 를 쓰는 Simulation 의 첫 정책에서 data_type 을 꺼낸다. 없으면 null. */
