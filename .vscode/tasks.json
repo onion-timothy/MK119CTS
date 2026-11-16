@@ -1,0 +1,108 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "kill-port-8082",
+            "type": "shell",
+            "command": "PIDS=$(lsof -ti tcp:8082); if [ -n \"$PIDS\" ]; then echo \"Killing stale PID(s) on 8082: $PIDS\"; kill -9 $PIDS; fi; exit 0",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            // 셸에서 띄워 둔 앱의 콘솔 출력을 통합 터미널로 흘린다.
+            // tail -F 라 앱을 재시작해도 끊기지 않는다 (로그를 비우지 않고 이어쓴다).
+            // 창을 열면 자동으로 붙는다 (처음 한 번 Tasks: Manage Automatic Tasks 에서 허용).
+            // F5 의 preLaunchTask 로는 절대 걸지 말 것 — 끝나지 않는 background 태스크라
+            // VS Code 가 preLaunch 단계에서 영영 기다리고, 디버거가 붙지 않는다.
+            // Stop Debugging 이면 app.sh 가 이 tail 을 죽이고, close 로 터미널 탭까지 닫힌다.
+            "label": "app-console",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/tools/app.sh\" log",
+            "isBackground": true,
+            "runOptions": {
+                "runOn": "folderOpen",
+                "instanceLimit": 1
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "app",
+                "focus": false,
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // 앱을 띄운다. JDWP 가 5005 에서 서버 모드로 열리므로
+            // 디버깅하려면 F5 → "Attach (MK119, port 5005)".
+            "label": "app-start",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/tools/app.sh\" start",
+            // F5 의 preLaunchTask 로도 쓰인다. 이미 떠 있으면 아무 것도 하지 않고 바로 끝나므로
+            // 앱이 돌고 있는 상태에서 F5 를 눌러도 재시작되지 않는다(붙기만 한다).
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "group": "app",
+                "clear": true,
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "app-stop",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/tools/app.sh\" stop",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "group": "app",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // Attach 설정의 postDebugTask. Run → Stop Debugging 이면 앱도 내린다.
+            // 단 tools/app.sh restart 때문에 끊긴 것이면 건너뛴다 — 안 그러면
+            // 방금 새로 띄운 앱을 죽인다. 자세한 건 app.sh 의 주석 참고.
+            "label": "app-stop-on-debug-exit",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/tools/app.sh\" stop-on-debug-exit",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "group": "app",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // 코드를 고친 뒤. bootRun 이 다시 컴파일하므로 따로 빌드할 필요가 없다.
+            "label": "app-restart",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/tools/app.sh\" restart",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "group": "app",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "app-status",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/tools/app.sh\" status",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "group": "app",
+                "clear": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

@@ -59,3 +59,18 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
+/*
+ * 셸에서 띄우면서도 VS Code 로 디버깅할 수 있게 JDWP 를 '서버 모드' 로 연다.
+ *   ./gradlew bootRun -PdebugPort=5005
+ * launch.json 의 "Attach (MK119)" 로 붙였다 뗐다 할 수 있다 — 앱을 죽이지 않아도 된다.
+ * 기본 launch 설정(VS Code 가 JVM 을 띄우는 방식)은 그대로 두었으므로 둘 다 쓸 수 있다.
+ *
+ * 주소를 'host:port' 가 아니라 포트만 적는다 — JDK 8 의 jdwp 는 '*:5005' 형식을 모른다
+ * (그 문법은 JDK 9+). 포트만 주면 모든 인터페이스에서 듣는다.
+ */
+bootRun {
+    if (project.hasProperty('debugPort')) {
+        jvmArgs = ["-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${project.debugPort}"]
+    }
+}

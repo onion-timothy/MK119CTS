@@ -1,3 +1,7 @@
 /logs/
 /logs-past/
 MK119CommunicationTestSuite/logs/
+
+# Python
+__pycache__/
+*.pyc
