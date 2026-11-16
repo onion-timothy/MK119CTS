@@ -3,6 +3,7 @@ package com.onionsoftware.mk119.commtestsuite.web;
 import com.onionsoftware.mk119.commtestsuite.db.bean.*;
 import com.onionsoftware.mk119.commtestsuite.db.bean.Error;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
+import com.onionsoftware.mk119.commtestsuite.db.service.DeviceSettingsValidator;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
 import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
@@ -22,6 +23,7 @@ import com.onionsoftware.mk119.commtestsuite.web.bean.ErrorStateStats;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataSnapshot;
 import com.onionsoftware.mk119.commtestsuite.web.bean.ServerDataWriteRequest;
 import com.onionsoftware.mk119.commtestsuite.web.bean.Session;
+import com.onionsoftware.mk119.commtestsuite.web.dto.SimulationListItem;
 import com.onionsoftware.mk119.commtestsuite.web.serverdata.ServerDataWriteService;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.persistence.EntityNotFoundException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -80,6 +83,9 @@ public class ApiController {
             groupObj.put("text", group.getName());
             groupObj.put("children", true);
             groupObj.put("type", "group");
+            // 트리가 그룹 옆에 식구 수를 적는다. 펼치기 전에도 보여야 해서 여기서 세어 보낸다
+            groupObj.put("count", groupService.selectGroupsByParentGroupId(group.getId()).size()
+                    + deviceService.selectDevicesByGroupId(group.getId()).size());
             ret.add(groupObj);
         }
 
@@ -90,6 +96,8 @@ public class ApiController {
             deviceObj.put("text", device.getName());
             deviceObj.put("children", false);
             deviceObj.put("type", "device");
+            // 트리가 장비 옆에 프로토콜 배지를 단다
+            deviceObj.put("protocol", device.getProtocol() == null ? null : device.getProtocol().name());
             ret.add(deviceObj);
         }
         return ret;
@@ -182,13 +190,24 @@ public class ApiController {
     }
 
     @RequestMapping(value = "/device/addDevice", method = RequestMethod.PUT)
-    public Device renameGroup(@RequestBody Device device) {
+    public ResponseEntity<?> renameGroup(@RequestBody Device device) {
+        String error = commSettingsError(device);
+        if (error != null) return ResponseEntity.badRequest().body(error);
         deviceService.insertDevice(device);
-        return device;
+        return ResponseEntity.ok(device);
     }
 
     /**
-     * 클라이언트 검증과 동일한 규칙으로 batch 를 검사한다.
+     * 단건 저장도 편집기와 같은 규칙으로 통신 설정을 막는다. 편집기는 저장 전에 같은 규칙으로 먼저 막으므로
+     * 화면을 거친 요청은 여기서 걸리지 않는다. 문구가 그대로 응답 본문이 된다(편집기는 status + 본문을 alert 한다).
+     */
+    private static String commSettingsError(Device device) {
+        String protocol = device.getProtocol() == null ? null : device.getProtocol().name();
+        return DeviceSettingsValidator.problem(protocol, device.getCommunicationSettings());
+    }
+
+    /**
+     * 클라이언트 검증과 동일한 규칙으로 batch 를 검사한다. 통신 설정은 장비 편집기가 기준이다(DeviceSettingsValidator).
      * 화면(batchAddDevices.html)이 같은 규칙을 JS 로 들고 있어 입력 즉시 피드백을 주고,
      * 이 메서드는 batchInsert 직전에 DB 를 지키는 최종 관문 역할을 한다.
      * 반환값의 각 행에는 error(통과 시 null)가 들어간다.
@@ -218,6 +237,8 @@ public class ApiController {
         // 기존 device 에 simulation 을 추가하는 일은 Simulations 페이지의 batch add 가 담당한다.
         // 덕분에 simulation 이름 중복도 파일 내에서만 검사하면 충분해진다 (신규 device 엔 기존 simulation 이 없으므로).
         Set<String> allowedDeviceNames = new HashSet<>();
+        // simulation 검증용. 아직 저장 전이라 파일의 행으로 만든다(프로토콜·통신 설정만 쓴다)
+        Map<String, Device> fileDevices = new HashMap<>();
 
         List<Map<String, Object>> devicesOut = new ArrayList<>();
         for (Map<String, Object> d : devices) {
@@ -230,6 +251,11 @@ public class ApiController {
                 if (name != null) {
                     seenNames.add(name);
                     allowedDeviceNames.add(name);
+                    try {
+                        fileDevices.put(name, buildDeviceFromMap(d, null));
+                    } catch (Exception ignored) {
+                        // 행 검증을 통과했으면 만들 수 있다. 못 만들면 simulation 의 타입 검증만 건너뛴다
+                    }
                 }
                 String protocol = asString(d.get("protocol"));
                 if (bindsEndpoint(protocol) && d.get("port") instanceof Number) {
@@ -244,6 +270,8 @@ public class ApiController {
         for (Map<String, Object> s : simulations) {
             Map<String, Object> row = new LinkedHashMap<>(s);
             String error = validateSimulationRow(s, allowedDeviceNames, existingNames, seenSimKeys);
+            Device fileDevice = fileDevices.get(asString(s.get("deviceName")));
+            if (error == null && fileDevice != null) error = validateSimulationOf(s, fileDevice, null);
             row.put("error", error);
             simsOut.add(row);
             if (error == null) {
@@ -372,10 +400,7 @@ public class ApiController {
         for (Map<String, Object> s : simulations) {
             Map<String, Object> row = new LinkedHashMap<>(s);
             String error = validateSimulationBatchRow(s, existingNames, seenNames);
-            if (error == null) {
-                error = simulationTargetValidator.validate(
-                        batchDevice, asString(s.get("target")), batchRowDataType(s));
-            }
+            if (error == null) error = validateSimulationOf(s, batchDevice, deviceId);
             String tag = eip ? EthernetIPTypes.tagOf(asString(s.get("target"))) : null;
             if (error == null && tag != null && usedTags.contains(tag)) {
                 error = "Tag \"" + tag + "\" is already used on this device. A tag has one data type, so it can be registered once.";
@@ -393,23 +418,18 @@ public class ApiController {
         return response;
     }
 
-    /** 일괄 등록 행의 data_type. policies[0] 안에 있거나 행에 평평하게 있다. 없거나 잘못되면 null. */
-    @SuppressWarnings("unchecked")
-    private static DataType batchRowDataType(Map<String, Object> row) {
-        Map<String, Object> p = row;
-        Object policiesObj = row.get("policies");
-        if (policiesObj instanceof List && !((List<Object>) policiesObj).isEmpty()) {
-            Object first = ((List<Object>) policiesObj).get(0);
-            if (first instanceof Map) p = (Map<String, Object>) first;
-        }
-        String dt = asString(p.get("data_type"));
-        if (dt == null || dt.isEmpty()) return null;
+    /**
+     * 일괄 등록 행을 저장될 Simulation 으로 만들어 단건 등록과 같은 검증을 한다 — target 형식,
+     * data_type 이 target 에 맞는지, 정책의 값이 그 타입에 맞는지.
+     */
+    private String validateSimulationOf(Map<String, Object> row, Device device, Integer deviceId) {
+        Simulation sim;
         try {
-            return DataType.valueOf(dt);
-        } catch (IllegalArgumentException e) {
-            // 형식 오류는 validateSimulationBatchRow 가 따로 보고한다.
-            return null;
+            sim = buildSimulationFromMap(row, deviceId);
+        } catch (Exception e) {
+            return "Invalid simulation: " + e.getMessage();
         }
+        return simulationTargetValidator.validate(device, sim);
     }
 
     @SuppressWarnings("unchecked")
@@ -458,10 +478,7 @@ public class ApiController {
             List<Object> r = (List<Object>) rangeObj;
             Double lo = num(r.get(0)), hi = num(r.get(1));
             if (lo == null || hi == null) return policy + " policy 'range' must be numeric.";
-            if ("RANDOM".equals(policy)) {
-                if (lo > hi) return "RANDOM policy 'range' low must be <= high.";
-                if (dt == null || dt.isEmpty()) return "RANDOM policy requires 'data_type'.";
-            }
+            if ("RANDOM".equals(policy) && lo > hi) return "RANDOM policy 'range' low must be <= high.";
         }
         return null;
     }
@@ -567,7 +584,7 @@ public class ApiController {
                 + "/" + transport + " (wildcard host binds all interfaces).";
     }
 
-    // device_editor2.html 의 tcp_protocols / udp_protocols 와 동일한 조합 제약
+    // device_editor.html 의 PROTOCOLS[].transports 와 같은 조합 제약
     private static final Map<String, Set<String>> TRANSPORT_PROTOCOLS;
     static {
         Map<String, Set<String>> m = new HashMap<>();
@@ -580,9 +597,9 @@ public class ApiController {
      * host/transport/port 가 이 device 만의 바인딩 엔드포인트인지.
      * 아래 두 프로토콜은 엔드포인트 중복 검사(및 host/port 형식 검사) 대상이 아니다.
      * - DB: 외부 DB 서버로 접속하는 클라이언트라 host/port 가 바인딩과 무관하다.
-     *       (device_editor2 에서도 host/port 입력란을 숨긴다)
+     *       (device_editor 에서도 host/port 입력란을 숨긴다)
      * - BACNET: 모든 BACnet device 가 0.0.0.0:47808 엔드포인트를 공유한다.
-     *       (device_editor2 에서 host/port 를 readonly 로 고정한다)
+     *       (device_editor 에서 host/port 를 readonly 로 고정한다)
      */
     private static boolean bindsEndpoint(String protocol) {
         return !"DB".equals(protocol) && !"BACNET".equals(protocol);
@@ -600,126 +617,9 @@ public class ApiController {
         return null;
     }
 
-    private static String firstError(String... errors) {
-        for (String e : errors) if (e != null) return e;
-        return null;
-    }
-
-    private static String reqNum(Map<String, Object> cs, String key, double min, double max) {
-        if (blank(cs.get(key))) return "communicationSettings: missing '" + key + "'.";
-        Double n = num(cs.get(key));
-        if (n == null) return "communicationSettings: '" + key + "' must be a number.";
-        if (n < min || n > max) {
-            return "communicationSettings: '" + key + "' must be " + fmt(min) + "~" + fmt(max) + ".";
-        }
-        return null;
-    }
-
-    private static String fmt(double d) {
-        return d == Math.rint(d) && !Double.isInfinite(d) ? String.valueOf((long) d) : String.valueOf(d);
-    }
-
-    private static String reqText(Map<String, Object> cs, String key) {
-        return blank(cs.get(key)) ? "communicationSettings: missing '" + key + "'." : null;
-    }
-
-    /** rx/tx 는 배열 또는 배열 JSON 문자열 둘 다 허용 (decoder 가 양쪽을 다룬다). 존재/비어있지 않음만 확인. */
-    private static String reqList(Map<String, Object> cs, String key) {
-        Object v = cs.get(key);
-        if (v == null) return "communicationSettings: missing '" + key + "'.";
-        List<?> list = null;
-        if (v instanceof List) {
-            list = (List<?>) v;
-        } else if (v instanceof String) {
-            try {
-                Object parsed = new Gson().fromJson((String) v, List.class);
-                if (parsed instanceof List) list = (List<?>) parsed;
-            } catch (Exception ignored) { /* 아래에서 형식 에러로 처리 */ }
-        }
-        if (list == null) return "communicationSettings: '" + key + "' must be an array.";
-        return list.isEmpty() ? "communicationSettings: '" + key + "' is empty." : null;
-    }
-
-    private static String reqIpv4(Map<String, Object> cs, String key) {
-        if (blank(cs.get(key))) return "communicationSettings: missing '" + key + "'.";
-        String[] parts = cs.get(key).toString().trim().split("\\.");
-        if (parts.length != 4) return "communicationSettings: '" + key + "' must be an IPv4 address.";
-        for (String p : parts) {
-            try {
-                int octet = Integer.parseInt(p);
-                if (octet < 0 || octet > 255) return "communicationSettings: '" + key + "' has an invalid octet.";
-            } catch (Exception e) {
-                return "communicationSettings: '" + key + "' must be an IPv4 address.";
-            }
-        }
-        return null;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> toSettingsMap(Object raw) {
-        if (raw instanceof Map) return (Map<String, Object>) raw;
-        if (raw instanceof String && !((String) raw).trim().isEmpty()) {
-            try { return new Gson().fromJson((String) raw, Map.class); } catch (Exception e) { return null; }
-        }
-        return null;
-    }
-
-    /**
-     * 프로토콜별 communicationSettings 필수 키/범위 검증.
-     * 스펙 출처는 device_editor2.html 의 저장 로직. 정의되지 않은 여분 키는 통과시킨다
-     * (IOServer 가 'transport' 키를 런타임에 주입하는 등 정상적인 추가 키가 있음).
-     */
+    /** 통신 설정. 규칙·문구는 장비 편집기가 기준이다 — DeviceSettingsValidator */
     private String validateCommSettings(String protocol, Object csRaw) {
-        Map<String, Object> cs = toSettingsMap(csRaw);
-        if (cs == null) return "communicationSettings must be a JSON object.";
-
-        switch (protocol) {
-            case "GENERIC":
-                return firstError(reqList(cs, "rx"), reqList(cs, "tx"));
-            case "MODBUS":
-                return firstError(
-                        reqNum(cs, "unitId", 0, 255),
-                        reqNum(cs, "packetType", 0, 1),
-                        reqNum(cs, "registers", 1, Integer.MAX_VALUE));
-            case "XGT_PLC":
-                return firstError(
-                        reqNum(cs, "cpuId", 0, 255),
-                        reqNum(cs, "maxBlockSize", 1, 1400),
-                        reqNum(cs, "registers", 1, Integer.MAX_VALUE));
-            case "DAEYUN_RCU":
-                return firstError(
-                        reqList(cs, "rx"), reqList(cs, "tx"),
-                        reqNum(cs, "cpuAddr", 0, 255),
-                        reqNum(cs, "diCount", 0, Integer.MAX_VALUE),
-                        reqNum(cs, "doCount", 0, Integer.MAX_VALUE),
-                        reqNum(cs, "aiCount", 0, Integer.MAX_VALUE));
-            case "SNMP":
-                return firstError(
-                        reqNum(cs, "snmpVersion", 0, 1),
-                        reqText(cs, "getCommunity"),
-                        reqText(cs, "setCommunity"));
-            case "BACNET":
-                return firstError(
-                        reqNum(cs, "deviceInstanceId", 1, 65536),
-                        reqText(cs, "broadcast"));
-            case "OPC_AGENT":
-                return firstError(reqNum(cs, "registers", 1, Integer.MAX_VALUE));
-            case "DB":
-                return firstError(
-                        reqText(cs, "dbdriver"), reqText(cs, "dbUrl"),
-                        reqText(cs, "dbUsername"), reqText(cs, "dbPassword"),
-                        reqText(cs, "dbDatabase"));
-            case "ETHERNET_IP":
-                // syn_port 는 EthernetIPData 에서 Short.parseShort 로 읽으므로 상한이 32767
-                return firstError(
-                        reqNum(cs, "cpuSlot", 0, 255),
-                        reqNum(cs, "syn_port", 0, 32767),
-                        reqIpv4(cs, "implicit_t2o_addr"),
-                        reqNum(cs, "implicit_t2o_assy_size", 0, Integer.MAX_VALUE),
-                        reqNum(cs, "implicit_o2t_assy_size", 0, Integer.MAX_VALUE));
-            default:
-                return null;
-        }
+        return DeviceSettingsValidator.problem(protocol, csRaw);
     }
 
     private String validateDeviceRow(Map<String, Object> d,
@@ -862,16 +762,25 @@ public class ApiController {
         return sim;
     }
 
+    /**
+     * 디바이스와 딸린 것(시뮬레이션·에러 시뮬레이션·Test Plan 의 해당 Action)을 지운다.
+     * Action 이 하나도 안 남아 통째로 사라진 Plan 이 있으면 그 이름을 돌려준다 — 화면이 알린다.
+     */
     @RequestMapping(value = "/device/deleteDevice/{id}", method = RequestMethod.DELETE)
-    public Integer deleteDevice(@PathVariable Integer id) {
-        deviceService.deleteDevice(id);
-        return id;
+    public Map<String, Object> deleteDevice(@PathVariable Integer id) {
+        List<String> deletedPlans = deviceService.deleteDevice(id);
+        Map<String, Object> res = new HashMap<>();
+        res.put("id", id);
+        res.put("deletedPlans", deletedPlans);
+        return res;
     }
 
     @RequestMapping(value = "/device/updateDevice", method = RequestMethod.POST)
-    public Device updateDevice(@RequestBody Device device) {
+    public ResponseEntity<?> updateDevice(@RequestBody Device device) {
+        String error = commSettingsError(device);
+        if (error != null) return ResponseEntity.badRequest().body(error);
         deviceService.updateDevice(device);
-        return device;
+        return ResponseEntity.ok(device);
     }
 
     @RequestMapping(value = "/device/getEnabled/{id}", method = RequestMethod.GET)
@@ -890,9 +799,15 @@ public class ApiController {
         return deviceService.selectDevices();
     }
 
+    /**
+     * 한 장비의 시뮬레이션 목록. device 는 빼고 보낸다 — 줄마다 같은 장비를 통째로 반복하느라
+     * 응답의 절반이 중복이었다 (SimulationListItem 참고).
+     */
     @RequestMapping(value = "/simulation/simulations/{deviceId}")
-    public List<Simulation> getSimulationsByDeviceId(@PathVariable Integer deviceId) {
-        return simulationService.selectSimulationsByDeviceId(deviceId);
+    public List<SimulationListItem> getSimulationsByDeviceId(@PathVariable Integer deviceId) {
+        return simulationService.selectSimulationsByDeviceId(deviceId).stream()
+                .map(SimulationListItem::new)
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @RequestMapping(value = "/simulation/addSimulation", method = RequestMethod.PUT)
@@ -909,6 +824,14 @@ public class ApiController {
         if (error != null) return ResponseEntity.badRequest().body(error);
         simulationService.updateSimulation(simulation);
         return ResponseEntity.ok(simulation);
+    }
+
+    /** 편집기가 저장 전에 부른다. 저장 경로(/saveSimulation)와 같은 검증이다. 문제없으면 error 가 null. */
+    @RequestMapping(value = "/simulation/validate", method = RequestMethod.POST)
+    public Map<String, Object> validateSimulation(@RequestBody Simulation simulation) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("error", validateSimulationTarget(simulation));
+        return response;
     }
 
     /** 단건 등록/수정용 target 검증. device 는 보통 id 만 실려오므로 protocol 은 DB 에서 읽는다. */
@@ -1054,8 +977,17 @@ public class ApiController {
         }
         errorService.insertError(error);
         ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
+        resetErrorStateStats(error.getDevice().getId());
         errorService.startErrorSchedule(error);
         return "success";
+    }
+
+    /**
+     * 에러 구성이 바뀌었을 때(추가·수정·삭제·켜고 끄기) 그 장비의 점유 통계를 지금부터 다시 센다.
+     * 바뀌기 전의 시간이 섞이면 Actual 비율이 새 구성을 보여 주지 못한다 — 오래 떠 있던 서버면 NORMAL 이 부푼다.
+     */
+    private void resetErrorStateStats(Integer deviceId) {
+        ioServerInstances.getServerInstance(deviceId).ifPresent(IOServer::resetErrorStateStats);
     }
 
     @RequestMapping(value = "/error/updateError", method = RequestMethod.POST)
@@ -1066,15 +998,33 @@ public class ApiController {
         errorService.stopErrorSchedule(error.getId());
         errorService.updateError(error);
         ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
+        resetErrorStateStats(error.getDevice().getId());
         errorService.startErrorSchedule(error);
         return "success";
     }
 
     @RequestMapping(value = "/error/deleteError/{device_id}", method = RequestMethod.DELETE)
     public String deleteError(@PathVariable Integer device_id) {
+        // 경로 변수 이름은 device_id 지만 실제로는 에러 id 다. 장비는 지우기 전에 읽어 둔다
+        Integer deviceId = deviceIdOfError(device_id);
         errorService.stopErrorSchedule(device_id);
         errorService.deleteError(device_id);
+        if (deviceId != null) {
+            // 추가·수정·켜고 끄기처럼 장비 서버가 들고 있는 에러 목록도 새로 채운다
+            ioServerInstances.getServerInstance(deviceId).ifPresent(s -> s.setErrors(errorService.selectEnabledErrorsByDeviceId(deviceId)));
+            resetErrorStateStats(deviceId);
+        }
         return "success";
+    }
+
+    /** 에러가 걸린 장비 id. 없거나 장비가 비어 있으면 null */
+    private Integer deviceIdOfError(Integer errorId) {
+        try {
+            Error e = errorService.selectErrorById(errorId);
+            return e.getDevice() == null ? null : e.getDevice().getId();
+        } catch (EntityNotFoundException ex) {
+            return null;
+        }
     }
 
     @RequestMapping(value = "/error/getEnabled/{error_id}", method = RequestMethod.DELETE)
@@ -1224,6 +1174,11 @@ public class ApiController {
             }
         }
 
+        // 에러 구성이 바뀌었으니 점유 통계를 지금부터 다시 센다 (한 건이라도 들어갔을 때)
+        if (!created.isEmpty()) {
+            resetErrorStateStats(deviceId);
+        }
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("created", created);
         response.put("failures", failures);
@@ -1267,6 +1222,7 @@ public class ApiController {
         error.setEnabled(enabled);
         errorService.updateError(error);
         ioServerInstances.getServerInstance(error.getDevice().getId()).ifPresent(s->s.setErrors(errorService.selectEnabledErrorsByDeviceId(error.getDevice().getId())));
+        resetErrorStateStats(error.getDevice().getId());
         if (enabled == Error.ERROR_ENABLED) {
             errorService.startErrorSchedule(error);
         } else {

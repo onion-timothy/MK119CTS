@@ -112,6 +112,59 @@ public class TestPlanService {
         testPlanRepository.deleteById(id);
     }
 
+    /** removeDeviceFromPlans 의 결과. 스케줄을 내리려면 id 가, 사용자에게 알리려면 이름이 필요하다. */
+    public static class PlanCleanup {
+        /** Action 이 하나도 남지 않아 통째로 지운 Plan 의 id. */
+        public final List<Integer> deleted = new ArrayList<>();
+        /** 지운 Plan 의 이름. 화면에 "이 Plan 이 사라졌다" 고 알리는 데 쓴다. */
+        public final List<String> deletedNames = new ArrayList<>();
+        /** Action 일부만 떼어내고 남긴 Plan 의 id. */
+        public final List<Integer> updated = new ArrayList<>();
+    }
+
+    /**
+     * 디바이스가 사라질 때 그 디바이스를 쓰는 Action 을 Plan 에서 떼어낸다.
+     * <p>
+     * 그냥 두면 Plan 이 되살릴 수 없는 상태가 된다 — 검증 A1 이 "Action 의 디바이스는 존재해야
+     * 한다" 이므로, 없는 디바이스를 가리키는 Action 이 하나라도 있으면 그 Plan 은 다시 저장할 수
+     * 없다. 실행도 매번 그 Action 에서 실패한다.
+     * <p>
+     * 남은 Action 이 없으면 Plan 자체를 지운다(Action 0 개인 Plan 도 검증을 통과하지 못한다).
+     * 남으면 seq 를 다시 매기고, 가장 이른 Action 이 0 초가 되도록 전체 시각을 같은 만큼
+     * 앞당긴다(검증 A16). 편집기에서 0 초 Action 을 지울 때와 같은 처리다.
+     */
+    @Transactional
+    public PlanCleanup removeDeviceFromPlans(Integer deviceId) {
+        PlanCleanup out = new PlanCleanup();
+        if (deviceId == null) return out;
+
+        for (Integer planId : testPlanRepository.findPlanIdsByActionDeviceId(deviceId)) {
+            TestPlan plan = testPlanRepository.findById(planId).orElse(null);
+            if (plan == null) continue;
+
+            plan.getActions().removeIf(a -> deviceId.equals(a.getDeviceId()));
+
+            if (plan.getActions().isEmpty()) {
+                out.deleted.add(planId);
+                out.deletedNames.add(plan.getName());
+                testPlanRepository.delete(plan);
+                continue;
+            }
+
+            List<TestPlanAction> left = plan.getActions();
+            left.sort(Comparator.comparingInt(TestPlanAction::getAtSeconds));   // 안정 정렬
+            int offset = left.get(0).getAtSeconds();
+            int seq = 0;
+            for (TestPlanAction a : left) {
+                a.setSeq(seq++);
+                if (offset > 0) a.setAtSeconds(a.getAtSeconds() - offset);
+            }
+            plan.setUpdatedAt(LocalDateTime.now());
+            out.updated.add(planId);
+        }
+        return out;
+    }
+
     /**
      * Action 을 새 행으로 복사해 붙인다. 실행 시각 순으로 늘어놓고 seq 를 다시 매긴다 —
      * 같은 시각끼리는 들어온 순서를 지킨다(그 순서대로 쓴다). 들어온 seq 는 믿지 않는다.

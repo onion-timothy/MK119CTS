@@ -70,9 +70,14 @@ public class IOServer extends Thread {
     /** 시스템 에러 만료 시각 (System.currentTimeMillis 기준) */
     private volatile long errorExpireTime;
 
-    // ── 에러 상태 점유 시간 누적 (서버 기동시부터) ──
-    /** 디바이스 서버 기동 시각 (IOServer 인스턴스 생성 시점). */
-    private final long bootTime = System.currentTimeMillis();
+    // ── 에러 상태 점유 시간 누적 (서버 기동 또는 마지막 에러 구성 변경부터) ──
+    /**
+     * 누적을 시작한 시각. 처음은 IOServer 인스턴스 생성 시점이고, 에러를 추가·수정·삭제하거나 켜고 끄면 그 시각으로 다시 잡는다.
+     * 오래 떠 있던 서버에 에러를 새로 걸면 그 전의 평시 시간이 섞여 NORMAL 비율이 부풀기 때문이다.
+     */
+    private long statsSince = System.currentTimeMillis();
+    /** statsSince 가 에러 구성 변경으로 다시 잡힌 것인지 (화면의 기준 문구에 쓴다). */
+    private boolean statsResetByErrorChange = false;
     /** 평시(NORMAL) 상태의 누적 시간 (ms). */
     private long normalDurationMs = 0;
     /** 각 시스템 에러 모드별 누적 시간 (ms). */
@@ -315,7 +320,20 @@ public class IOServer extends Thread {
     }
 
     /**
-     * 서버 기동 이후 각 에러 상태의 누적 점유 시간을 스냅샷으로 반환한다.
+     * 점유 시간 누적을 지금부터 다시 시작한다. 에러 구성이 바뀔 때 부른다.
+     * 지금 걸려 있는 시스템 에러는 그대로 두고, 그 에러의 시간도 지금부터 센다.
+     */
+    public synchronized void resetErrorStateStats() {
+        long now = System.currentTimeMillis();
+        normalDurationMs = 0;
+        errorDurationMs.clear();
+        currentStateStart = now;
+        statsSince = now;
+        statsResetByErrorChange = true;
+    }
+
+    /**
+     * 누적 시작(서버 기동 또는 마지막 에러 구성 변경) 이후 각 에러 상태의 누적 점유 시간을 스냅샷으로 반환한다.
      * 아직 flush 되지 않은 현재 상태의 경과 시간도 포함한다.
      */
     public synchronized ErrorStateStats getErrorStateStats() {
@@ -329,7 +347,8 @@ public class IOServer extends Thread {
             perMode.merge(activeSystemError.getMode(), currentElapsed, Long::sum);
         }
         ErrorStateStats stats = new ErrorStateStats();
-        stats.setUptimeMs(now - bootTime);
+        stats.setUptimeMs(now - statsSince);
+        stats.setSinceErrorChange(statsResetByErrorChange);
         stats.setNormalMs(normal);
         stats.setDiscardMs(perMode.getOrDefault(ErrorMode.DISCARD, 0L));
         stats.setTimeoutMs(perMode.getOrDefault(ErrorMode.TIMEOUT, 0L));

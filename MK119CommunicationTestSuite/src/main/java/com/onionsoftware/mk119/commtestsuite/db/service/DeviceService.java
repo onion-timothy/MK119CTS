@@ -7,6 +7,8 @@ import com.onionsoftware.mk119.commtestsuite.io.bacnet.BACnetService;
 import com.onionsoftware.mk119.commtestsuite.io.db.DBClientDevice;
 import com.onionsoftware.mk119.commtestsuite.io.db.DBDeviceService;
 import com.onionsoftware.mk119.commtestsuite.io.netty.IOServerInstances;
+import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanScheduler;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -31,6 +33,13 @@ public class DeviceService {
     @Autowired
     @Lazy
     private ErrorService errorService;
+    // TestPlanScheduler → TestPlanRunner → DeviceService 로 도는 순환을 @Lazy 로 끊는다
+    @Autowired
+    @Lazy
+    private TestPlanService testPlanService;
+    @Autowired
+    @Lazy
+    private TestPlanScheduler testPlanScheduler;
     private final DBDeviceService dbDeviceService;
     private final BACnetService bacnetService;
     private final Logger logger = LoggerFactory.getLogger("agent");
@@ -61,10 +70,27 @@ public class DeviceService {
         startDevice(inserted);
     }
 
-    public void deleteDevice(Integer id) {
+    /**
+     * 디바이스와 딸린 것을 함께 지운다 — 시뮬레이션, 에러 시뮬레이션, 그리고 Test Plan 의 해당
+     * Action. 남겨 두면 참조가 끊긴 채 남아, Plan 은 검증 A1("Action 의 디바이스는 존재해야
+     * 한다")에 걸려 저장도 못 하고 실행마다 그 Action 에서 실패한다.
+     * <p>
+     * 딸린 것을 디바이스 행보다 먼저 지운다 — errors.device_id 가 devices 를 참조한다.
+     * <p>
+     * 한 트랜잭션으로 묶는다. 시뮬레이션 삭제는 엔티티를 하나씩 지우는 파생 쿼리라 트랜잭션이
+     * 있어야 하고, 중간에 실패했을 때 딸린 것만 지워지고 디바이스가 남는 상태도 막는다.
+     */
+    @Transactional
+    public List<String> deleteDevice(Integer id) {
         stopDevice(id);
-        deviceRepository.deleteById(id);
+        errorService.deleteErrorsByDeviceId(id);
         simulationService.deleteSimulationByDeviceId(id);
+        // Action 이 하나도 안 남은 Plan 은 사라지므로 그 스케줄을 내린다. Action 만 줄어든 Plan 은
+        // 그대로 둬도 된다 — 스케줄은 시각만 쥐고 있고, 실행기가 돌 때 Plan 을 다시 읽는다
+        TestPlanService.PlanCleanup cleanup = testPlanService.removeDeviceFromPlans(id);
+        cleanup.deleted.forEach(testPlanScheduler::unregister);
+        deviceRepository.deleteById(id);
+        return cleanup.deletedNames;
     }
 
     public void updateDevice(Device device) {

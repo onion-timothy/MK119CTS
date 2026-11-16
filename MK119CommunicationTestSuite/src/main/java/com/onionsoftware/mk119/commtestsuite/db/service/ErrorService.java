@@ -56,8 +56,17 @@ public class ErrorService {
         errorRepository.save(error);
     }
 
-    public void deleteError(Integer device_id) {
-        errorRepository.deleteById(device_id);
+    public void deleteError(Integer error_id) {
+        errorRepository.deleteById(error_id);
+    }
+
+    /**
+     * 디바이스의 에러 시뮬레이션을 모두 지운다. 디바이스를 지울 때 함께 불린다 —
+     * errors.device_id 가 devices 를 참조하므로 남겨 두면 디바이스 삭제가 막힌다.
+     */
+    public void deleteErrorsByDeviceId(Integer device_id) {
+        stopAllErrorSchedules(device_id);
+        errorRepository.deleteAll(errorRepository.findErrorsByDeviceId(device_id));
     }
 
     public boolean getErrorEnabled(Integer id) {
