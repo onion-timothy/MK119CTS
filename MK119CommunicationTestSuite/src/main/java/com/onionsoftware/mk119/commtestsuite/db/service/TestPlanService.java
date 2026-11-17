@@ -7,6 +7,7 @@ import com.onionsoftware.mk119.commtestsuite.db.bean.TestPlanRunAction;
 import com.onionsoftware.mk119.commtestsuite.db.repository.TestPlanRepository;
 import com.onionsoftware.mk119.commtestsuite.db.repository.TestPlanRunActionRepository;
 import com.onionsoftware.mk119.commtestsuite.db.repository.TestPlanRunRepository;
+import com.onionsoftware.mk119.commtestsuite.db.schema.SchemaInspector;
 import com.onionsoftware.mk119.commtestsuite.enums.TestPlanRunResult;
 import com.onionsoftware.mk119.commtestsuite.enums.TestPlanTrigger;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class TestPlanService {
     private final TestPlanRunRepository testPlanRunRepository;
     private final TestPlanRunActionRepository testPlanRunActionRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final SchemaInspector schemaInspector;
 
     // ── Plan ─────────────────────────────────────────────────────────────
 
@@ -241,21 +243,15 @@ public class TestPlanService {
     }
 
     /**
-     * 기동 시 부른다. 서버가 실행 도중 내려가 RUNNING 으로 남은 이력을 STOPPED 로 닫는다.
-     * 실행은 이어서 하지 않는다(E4).
-     */
-    @Transactional
-    /**
      * interval 로 저장된 예전 Plan 을 이력과 함께 지운다. 실행 시각(at_seconds)으로 바꾸며 옮기지 않기로 했다.
      * 예전 열 interval_seconds 는 NOT NULL 이라 남겨 두면 새 Action 을 넣지 못하므로 열도 지운다.
+     * 2026-10-23~28 개발 빌드가 만든 DB 에만 있는 열이다. 기동 시 BootMigrations 가 한 트랜잭션으로 부른다.
+     * MariaDB 는 ALTER 에서 커밋되지만 그 앞의 DELETE 는 다시 해도 같으므로 중간에 멈춰도 다음 기동에 마저 한다.
      *
      * @return 지운 Plan 수. 예전 열이 없으면(이미 했으면) -1
      */
     public int dropIntervalPlans() {
-        Integer old = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
-                + " WHERE table_schema = DATABASE() AND table_name = 'test_plan_actions' AND column_name = 'interval_seconds'",
-                Integer.class);
-        if (old == null || old == 0) return -1;
+        if (!schemaInspector.hasColumn("test_plan_actions", "interval_seconds")) return -1;
         Integer plans = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM test_plans", Integer.class);
         jdbcTemplate.update("DELETE FROM test_plan_run_actions");
         jdbcTemplate.update("DELETE FROM test_plan_runs");
@@ -269,18 +265,22 @@ public class TestPlanService {
      * 예전 열 skip_on_failure(1 = 실패해도 계속)를 stop_on_failure(1 = 실패하면 멈춤)로 뒤집어 옮긴다.
      * 기본이 "실패해도 계속" 으로 바뀌었다. 저장된 Plan 의 동작은 그대로 둔다.
      *
+     * stop_on_failure 를 skip_on_failure 에서 매번 새로 계산하므로 ALTER 전에 멈춰도 다시 해서 같은 값이 된다.
+     *
      * @return 옮긴 Action 수. 예전 열이 없으면(이미 했으면) -1
      */
     public int migrateSkipToStop() {
-        Integer old = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
-                + " WHERE table_schema = DATABASE() AND table_name = 'test_plan_actions' AND column_name = 'skip_on_failure'",
-                Integer.class);
-        if (old == null || old == 0) return -1;
+        if (!schemaInspector.hasColumn("test_plan_actions", "skip_on_failure")) return -1;
         int n = jdbcTemplate.update("UPDATE test_plan_actions SET stop_on_failure = 1 - skip_on_failure");
         jdbcTemplate.execute("ALTER TABLE test_plan_actions DROP COLUMN skip_on_failure");
         return n;
     }
 
+    /**
+     * 기동 시 부른다. 서버가 실행 도중 내려가 RUNNING 으로 남은 이력을 STOPPED 로 닫는다.
+     * 실행은 이어서 하지 않는다(E4).
+     */
+    @Transactional
     public int closeInterruptedRuns() {
         List<TestPlanRun> dangling = testPlanRunRepository.findByResult(TestPlanRunResult.RUNNING);
         LocalDateTime now = LocalDateTime.now();

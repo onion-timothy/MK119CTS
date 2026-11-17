@@ -27,9 +27,12 @@ public class ProtocolDefinition {
     @Column(length = 1000)
     private String description;
 
-    /** 문서 JSON 전체 */
+    /**
+     * 문서 JSON 전체. @Lob 만 둔다 — 방언이 MariaDB 는 longtext, SQL Server 는 nvarchar(MAX) 로 만든다.
+     * columnDefinition 으로 DB 타입 이름을 적으면 한쪽 DB 에서 테이블이 아예 안 만들어진다(예전 LONGTEXT).
+     */
     @Lob
-    @Column(nullable = false, columnDefinition = "LONGTEXT")
+    @Column(nullable = false)
     private String content;
 
     /** 낙관적 잠금. 두 창에서 고쳐도 나중 저장이 앞의 것을 덮지 않게 한다 */

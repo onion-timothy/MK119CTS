@@ -46,11 +46,23 @@ public class DataTypeMigration {
     private final JdbcTemplate jdbcTemplate;
     private final DeviceService deviceService;
 
-    /** @return {옮긴 Simulation 수, 옮긴 Test Plan Action 수} */
-    public int[] migrate() {
+    // 기동 시 BootMigrations 가 둘을 따로, 각각 한 트랜잭션으로 부른다.
+    // 한쪽이 실패해도 다른 쪽 결과는 남고, 실패한 쪽은 하나도 반영되지 않는다.
+
+    /** @return 옮긴 Simulation 수 */
+    public int migrateSimulations() {
+        return migrateSimulations(devicesById());
+    }
+
+    /** @return 옮긴 Test Plan Action 수 */
+    public int migrateTestPlanActions() {
+        return migrateTestPlanActions(devicesById());
+    }
+
+    private Map<Integer, Device> devicesById() {
         Map<Integer, Device> devices = new HashMap<>();
         for (Device d : deviceService.selectDevices()) devices.put(d.getId(), d);
-        return new int[]{migrateSimulations(devices), migrateTestPlanActions(devices)};
+        return devices;
     }
 
     private int migrateSimulations(Map<Integer, Device> devices) {
@@ -95,7 +107,8 @@ public class DataTypeMigration {
     private int migrateTestPlanActions(Map<Integer, Device> devices) {
         int n = 0;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT id, device_id, target, `value`, data_type FROM test_plan_actions");
+                // value 는 MariaDB·SQL Server 모두 예약어가 아니다. 따옴표(백틱·[ ])는 DB 마다 달라 쓰지 않는다
+                "SELECT id, device_id, target, value, data_type FROM test_plan_actions");
         for (Map<String, Object> row : rows) {
             Object deviceId = row.get("device_id");
             Device device = deviceId == null ? null : devices.get(((Number) deviceId).intValue());

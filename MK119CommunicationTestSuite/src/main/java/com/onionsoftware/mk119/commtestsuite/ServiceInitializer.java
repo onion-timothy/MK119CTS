@@ -1,11 +1,10 @@
 package com.onionsoftware.mk119.commtestsuite;
 
 import com.onionsoftware.mk119.commtestsuite.db.bean.Device;
-import com.onionsoftware.mk119.commtestsuite.db.service.DataTypeMigration;
+import com.onionsoftware.mk119.commtestsuite.db.migration.BootMigrations;
 import com.onionsoftware.mk119.commtestsuite.db.service.DeviceService;
 import com.onionsoftware.mk119.commtestsuite.db.service.ErrorService;
 import com.onionsoftware.mk119.commtestsuite.db.service.GroupService;
-import com.onionsoftware.mk119.commtestsuite.db.service.SimulationService;
 import com.onionsoftware.mk119.commtestsuite.db.service.TestPlanService;
 import com.onionsoftware.mk119.commtestsuite.testplan.TestPlanScheduler;
 import lombok.RequiredArgsConstructor;
@@ -23,41 +22,23 @@ public class ServiceInitializer {
     private static final Logger logger = LoggerFactory.getLogger("agent");
 
     private final DeviceService deviceService;
-    private final SimulationService simulationService;
     private final GroupService groupService;
     private final ErrorService errorService;
     private final TestPlanService testPlanService;
     private final TestPlanScheduler testPlanScheduler;
-    private final DataTypeMigration dataTypeMigration;
+    private final BootMigrations bootMigrations;
 
     @EventListener(ApplicationReadyEvent.class)
     public void afterStart() {
-        groupService.makeRootGroup();
+        // 스키마 확인과 데이터 마이그레이션. 단계마다 한 트랜잭션이고 실패해도 기동은 계속한다.
+        // 결과는 StartupReport 에 남아 화면 상단 바와 GET /api/system/startup 으로 보인다.
+        // 장비·스케줄이 값을 읽기 전에 해야 하므로 맨 앞에 둔다
+        bootMigrations.runAll();
 
-        // 저장된 data_type 을 프로토콜별 타입 표에 맞춘다(BOOL·BITS 삭제, BINARY·INTEGER·FLOAT 도입).
-        // Test Plan 스케줄과 장비가 그 값을 읽기 전에 해야 한다
         try {
-            int[] moved = dataTypeMigration.migrate();
-            if (moved[0] + moved[1] > 0) {
-                logger.info("Migrated data types of {} simulation(s) and {} test plan action(s).", moved[0], moved[1]);
-            }
+            groupService.makeRootGroup();
         } catch (Exception e) {
-            logger.error("Failed to migrate data types at boot.", e);
-        }
-
-        // interval 로 저장된 예전 Test Plan 을 지운다(실행 시각으로 바뀜). 스케줄을 등록하기 전에 해야 한다
-        try {
-            int dropped = testPlanService.dropIntervalPlans();
-            if (dropped >= 0) logger.info("Removed {} test plan(s) saved with intervals; plans now use run times.", dropped);
-        } catch (Exception e) {
-            logger.error("Failed to remove interval-based test plans at boot.", e);
-        }
-        // skip_on_failure(실패해도 계속) → stop_on_failure(실패하면 멈춤). 기본이 "계속" 으로 바뀌었다
-        try {
-            int moved = testPlanService.migrateSkipToStop();
-            if (moved >= 0) logger.info("Moved {} test plan action(s) from skip_on_failure to stop_on_failure.", moved);
-        } catch (Exception e) {
-            logger.error("Failed to migrate skip_on_failure to stop_on_failure at boot.", e);
+            logger.error("Failed to create the root group at boot.", e);
         }
 
         // 실행 도중 서버가 내려가 RUNNING 으로 남은 Test Plan 이력을 닫는다. 실행은 이어서 하지 않는다.
@@ -72,15 +53,6 @@ public class ServiceInitializer {
             testPlanScheduler.registerAll();
         } catch (Exception e) {
             logger.error("Failed to register test plan schedules at boot.", e);
-        }
-
-        // 예전 형식(REAL@TAG1)의 EtherNet/IP Simulation 을 태그 이름 + data_type 으로 옮긴다.
-        // 장비가 뜨기 전에 해야 색인이 처음부터 태그 이름으로 만들어진다
-        try {
-            int migrated = simulationService.migrateEthernetIpTargets();
-            if (migrated > 0) logger.info("Migrated {} EtherNet/IP simulation target(s) to tag names.", migrated);
-        } catch (Exception e) {
-            logger.error("Failed to migrate EtherNet/IP simulation targets at boot.", e);
         }
 
         List<Device> devices = deviceService.selectDevices();

@@ -134,6 +134,14 @@
     <div class="container-fluid">
         <h2 class="page-title mb-0 me-2" id="pageTitle" th:text="${title}">Title</h2>
         <div class="text-secondary" id="pageSubtitle"></div>
+        <!--/* 기동 시 스키마 확인·마이그레이션에 문제가 있으면 모든 화면에 한 줄로 알린다(StartupReport).
+               화면 높이가 고정이라 줄을 새로 만들지 않고 제목 줄 안에 둔다. 누르면 단계별 결과(JSON)를 연다 */-->
+        <th:block th:with="startupProblems=${@startupReport.problems}">
+            <a th:unless="${#lists.isEmpty(startupProblems)}" id="startupAlert" href="/api/system/startup" target="_blank"
+               class="badge bg-red text-red-fg ms-3 text-truncate" style="max-width: 45vw;"
+               th:title="${#strings.listJoin(startupProblems, ' | ')}"
+               th:text="${'Startup check: ' + startupProblems[0] + (startupProblems.size() > 1 ? ' (+' + (startupProblems.size() - 1) + ' more)' : '')}">Startup check failed</a>
+        </th:block>
         <!-- ms-auto 가 없으면 제목 바로 옆에 붙는다. 오른쪽 끝으로 민다 -->
         <div class="navbar-nav flex-row order-md-last align-items-center ms-auto">
             <div class="nav-item" th:replace="${actions}"></div>
